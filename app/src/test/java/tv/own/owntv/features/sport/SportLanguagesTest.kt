@@ -249,6 +249,45 @@ class SportLanguagesTest {
         )
     }
 
+    // --- soft country preference (isFromCountry) ---
+
+    @Test
+    fun aPreferredCountryTagDecides() {
+        assertTrue(SportLanguages.isFromCountry("UK| SKY SPORTS MAIN EVENT", "UK"))
+        assertTrue(SportLanguages.isFromCountry("| GB | SKY SPORTS", "UK"))
+        assertTrue(SportLanguages.isFromCountry("IE: PREMIER SPORTS 1", "UK"))
+        assertTrue(SportLanguages.isFromCountry("US: ESPN", "US"))
+        assertTrue(SportLanguages.isFromCountry("FR/CANAL+ SPORT", "FR"))
+        assertTrue(SportLanguages.isFromCountry("SA: SSC 1", "AR"))
+        assertTrue(SportLanguages.isFromCountry("DE: SKY SPORT BUNDESLIGA", "DE"))
+    }
+
+    @Test
+    fun aForeignTagBlocksTheBrandWordFallback() {
+        // "SKY SPORT AUSTRIA" carries an AT tag: it must not count as UK.
+        assertTrue(!SportLanguages.isFromCountry("AT: SKY SPORT AUSTRIA 1 HD", "UK"))
+        // DE is German, not UK, even though the name says "sky sport".
+        assertTrue(!SportLanguages.isFromCountry("DE: SKY SPORT PREMIER LEAGUE", "UK"))
+    }
+
+    @Test
+    fun anUntaggedNameFallsBackToBrandWords() {
+        assertTrue(SportLanguages.isFromCountry("SKY SPORTS MAIN EVENT", "UK"))
+        assertTrue(SportLanguages.isFromCountry("SKY SPORT PREMIER LEAGUE", "UK"))
+        assertTrue(SportLanguages.isFromCountry("TNT SPORTS 1", "UK"))
+        assertTrue(SportLanguages.isFromCountry("ESPN+", "US"))
+        assertTrue(SportLanguages.isFromCountry("CANAL+ FOOT", "FR"))
+        assertTrue(SportLanguages.isFromCountry("beIN SPORTS 1", "AR"))
+        assertTrue(SportLanguages.isFromCountry("ARABIC: ALKASS 1", "AR"))
+        assertTrue(!SportLanguages.isFromCountry("HUB PREMIER 1", "UK"))
+    }
+
+    @Test
+    fun anUnknownPreferenceMatchesNothing() {
+        assertTrue(!SportLanguages.isFromCountry("UK| SKY SPORTS", "XX"))
+        assertTrue(!SportLanguages.isFromCountry("UK| SKY SPORTS", ""))
+    }
+
     // --- helpers ---
 
     private fun match(name: String, isExact: Boolean = false) = ChannelMatch(

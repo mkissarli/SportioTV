@@ -27,6 +27,13 @@ data class SportMatchOptions(
     val limit: Int = SportsMatcher.DefaultChannelLimit,
     val minPreferred: Int = SportsMatcher.MinPreferredCount,
     val strict: Boolean = true,
+    /**
+     * A country code ("UK", "US", "DE") whose channels get [SportsMatcher.PreferenceBoost] added
+     * to their score before filtering, so they rank above equal- or better-scoring feeds from
+     * elsewhere (Sky Sports above ESPN+ for the same fixture). Soft: other channels stay listed,
+     * they just sort below. Null or blank = no preference, pure score ranking.
+     */
+    val preferCountry: String? = null,
 )
 
 /**
@@ -190,13 +197,25 @@ class SportsMatcher(
      * The final filter of [SportMatchOptions], always before the cap: exclude first (even exact
      * per-event channels), then the preferred languages — strict without fallback, legacy with the
      * full post-exclude list when fewer than [SportMatchOptions.minPreferred] survive.
+     *
+     * A configured [SportMatchOptions.preferCountry] boosts that country's channels (see
+     * [PreferenceBoost]) and re-sorts **before** the filter passes, so the preference wins the
+     * fixed slots the language filter protects — same reason the language filter itself runs
+     * pre-cap.
      */
     private fun applyFilter(scored: List<ChannelMatch>, options: SportMatchOptions): List<ChannelMatch> {
         val limit = options.limit.coerceIn(MinChannelLimit, MaxChannelLimit)
+        val country = options.preferCountry?.trim()?.takeIf { it.isNotEmpty() }
+        val ranked = if (country == null) scored else scored
+            .map { m ->
+                if (SportLanguages.isFromCountry(m.channelName, country)) m.copy(score = m.score + PreferenceBoost)
+                else m
+            }
+            .sortedByDescending { it.score }
         if (options.strict) {
-            return SportLanguages.filterStrict(scored, options.languages, options.excludedLanguages).take(limit)
+            return SportLanguages.filterStrict(ranked, options.languages, options.excludedLanguages).take(limit)
         }
-        val afterExclude = SportLanguages.filterStrict(scored, emptySet(), options.excludedLanguages)
+        val afterExclude = SportLanguages.filterStrict(ranked, emptySet(), options.excludedLanguages)
         val kept = SportLanguages.filterStrict(afterExclude, options.languages)
         return (if (kept.size < options.minPreferred) afterExclude else kept).take(limit)
     }
@@ -724,6 +743,13 @@ class SportsMatcher(
         const val MaxChannelLimit = 50
         /** Preferred-language hits for a list to count as covered (strict mode never pads up to it). */
         const val MinPreferredCount = 5
+        /**
+         * Score added to a fixture's channels from the preferred country (see
+         * [SportMatchOptions.preferCountry]). Above any natural score (the highest signal, a guide
+         * title carrying both teams, is [EpgBothTeamsScore] and the signals add up to ~25), so the
+         * preferred broadcaster always sorts first — while every other channel stays listed.
+         */
+        const val PreferenceBoost = 50
         /** Per-query cap for the channel-name search (was 20). */
         private const val MatchSearchLimit = 30
         /**

@@ -81,6 +81,14 @@ class SportsPrefs(private val context: Context) {
     val languageFilterMode: Flow<String> =
         context.sportsDataStore.data.map { it[LanguageFilterModeKey] ?: FilterModeStrict }
 
+    /**
+     * The country whose channels rank first in a fixture's list, as a key of
+     * [SportLanguages.preferredCountryOptions] ("" = no preference). A soft signal: other channels
+     * stay listed, they just sort below. Default UK (Sky Sports over US feeds).
+     */
+    val preferredCountry: Flow<String> =
+        context.sportsDataStore.data.map { it[PreferredCountryKey] ?: DefaultPreferredCountry }
+
     /** DeepSeek API key for the AI recommendation; empty means "not configured". */
     val deepSeekApiKey: Flow<String> =
         context.sportsDataStore.data.map { it[DeepSeekKey].orEmpty().trim() }
@@ -159,6 +167,12 @@ class SportsPrefs(private val context: Context) {
         }
     }
 
+    /** Set the preferred channel country; an unknown or blank code means "no preference". */
+    suspend fun setPreferredCountry(code: String) {
+        val value = if (code in SportLanguages.preferredCountryOptions) code else ""
+        context.sportsDataStore.edit { prefs -> prefs[PreferredCountryKey] = value }
+    }
+
     /** Mark the language prompt as answered without changing the choice (dismissed first run). */
     suspend fun setLanguageAsked() {
         context.sportsDataStore.edit { prefs -> prefs[LanguageAskedKey] = true }
@@ -226,6 +240,7 @@ class SportsPrefs(private val context: Context) {
         private val VisibleKey = booleanPreferencesKey("hub_visible")
         private val LanguagesKey = stringSetPreferencesKey("preferred_languages")
         private val LanguageAskedKey = booleanPreferencesKey("language_asked")
+        private val PreferredCountryKey = stringPreferencesKey("preferred_country")
         private val LiveExcludedKey = stringSetPreferencesKey("live_excluded_languages")
         private val LiveOtherKey = booleanPreferencesKey("live_show_other")
         private val ChannelLimitKey = intPreferencesKey("channel_limit")
@@ -236,6 +251,8 @@ class SportsPrefs(private val context: Context) {
         private val AiCountriesKey = stringSetPreferencesKey("ai_countries")
         private val AiEnabledKey = booleanPreferencesKey("ai_enabled")
         private val DefaultLanguageNames = setOf(SportLanguage.GERMAN.name)
+        /** First-run preferred country: Sky Sports (UK) ranks above the US feeds. */
+        const val DefaultPreferredCountry = "UK"
         private const val TeamSeparator = "|"
         /** Strict filter: a short preferred list stays short, never padded with foreign feeds. */
         const val FilterModeStrict = "strict"

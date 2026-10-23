@@ -292,3 +292,26 @@ einen **Sprachfilter**, der aus dem **Länderkürzel am Namensanfang** abgeleite
   `tools/i18n/safe_literals.txt`.
 
 Tests: `app/src/test/java/tv/own/owntv/features/sport/SportLanguagesTest.kt` (pure, ohne Android).
+
+## 11. Sanfte Länder-Bevorzugung (Sky Sports vor US-Feeds)
+
+Zusätzlich zum harten Sprachfilter gibt es eine **weiche** Rang-Präferenz
+(„Prefer channels from", Sport-Einstellungen → Sprachen): die Sender des gewählten Landes sortieren
+nach oben, alle anderen bleiben darunter gelistet — nichts wird ausgeblendet.
+
+- **Ort:** `SportLanguages.isFromCountry(name, code)` + `SportsMatcher` wendet
+  `SportsMatcher.PreferenceBoost` (+50, über jedem natürlichen Score) in `applyFilter` **vor** den
+  Filter-Pässen an, aus demselben Grund wie der Sprachfilter: die bevorzugten Sender sollen die
+  fixen Plätze gewinnen.
+- **Signal:** zuerst das Länderkürzel des Providers (`UK| SKY SPORTS`); ein Kürzel eines *anderen*
+  bekannten Landes blockiert den Marken-Fallback (`AT: SKY SPORT AUSTRIA` zählt nie als UK). Ohne
+  Kürzel entscheiden Markenwörter (UK: `sky sport`/`tnt sport`/`bt sport`/`itv`/`bbc`;
+  US: `espn`/`fox sport`/`cbs sport`/…; FR: `canal`/`rmc sport`/`bein`; AR: `bein`/`osn`/`ssc`/
+  `alkass`/…; DE: `dazn`).
+- **Optionen:** `SportLanguages.preferredCountryOptions` = UK, US, FR, AR, DE (+ keine). Default UK
+  (`SportsPrefs.DefaultPreferredCountry`), weil das Matchday-Publikum Sky Sports vor ESPN+ sehen will.
+- **Wirkung auf die Sprache:** keine — die Präferenz sortiert nur innerhalb dessen, was der
+  Sprachfilter übrig lässt (Englisch-Filter + UK-Präferenz heben Sky Sports vor ESPN+; ein
+  Deutsch-Filter lässt englische Sender weiterhin weg).
+- Tests: `SportLanguagesTest` (Kürzel, Fremd-Kürzel-Blockade, Marken-Fallback, unbekannter Code)
+  und `SportsMatcherTest.thePreferredCountryBoostsItsChannelsAboveTheRest` (UK über US, beide +10).

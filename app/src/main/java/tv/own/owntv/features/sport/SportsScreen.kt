@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.annotation.StringRes
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -129,6 +130,7 @@ fun SportsScreen(
     val previewArmed by liveVm.previewArmed.collectAsStateWithLifecycle()
     val effectivePreview = previewEnabled && livePreviewSetting
     val preferredLanguages by vm.preferredLanguages.collectAsStateWithLifecycle()
+    val preferredCountry by vm.preferredCountry.collectAsStateWithLifecycle()
     val languageAsked by vm.languageAsked.collectAsStateWithLifecycle()
     val channelLimit by vm.channelLimit.collectAsStateWithLifecycle()
     val excludedLanguages by vm.excludedLanguages.collectAsStateWithLifecycle()
@@ -522,6 +524,8 @@ fun SportsScreen(
                 onStartRemoteApiKey = { vm.startRemoteApiKeyListener(CompanionLink.DEFAULT_PORT) },
                 onStopRemoteApiKey = { vm.stopRemoteListener() },
                 onToggleExclude = { vm.toggleExcludedLanguage(it) },
+                preferCountry = preferredCountry,
+                onPreferCountry = { vm.setPreferredCountry(it) },
                 onToggleLeague = { vm.toggleLeagueFollowed(it) },
                 onOpenLanguage = {
                     showSettings = false
@@ -1376,6 +1380,18 @@ private fun FixtureDetail(
     }
 }
 
+/** One "prefer channels from" option; [code] is a [SportLanguages.preferredCountryOptions] key, "" = none. */
+private data class CountryPreference(val code: String, @StringRes val labelRes: Int)
+
+private val CountryPreferenceOptions: List<CountryPreference> = listOf(
+    CountryPreference("", R.string.sport_prefer_none),
+    CountryPreference("UK", R.string.sport_prefer_uk),
+    CountryPreference("US", R.string.sport_prefer_us),
+    CountryPreference("FR", R.string.sport_prefer_fr),
+    CountryPreference("AR", R.string.sport_prefer_ar),
+    CountryPreference("DE", R.string.sport_prefer_de),
+)
+
 /**
  * Sport settings: four tabs (leagues, channels, languages, AI) instead of one endless list. The
  * preferred languages stay in [SportLanguageDialog] (opened from the languages tab); the phone
@@ -1403,6 +1419,9 @@ private fun SportsSettingsDialog(
     onStartRemoteApiKey: () -> Unit,
     onStopRemoteApiKey: () -> Unit,
     onToggleExclude: (SportLanguage) -> Unit,
+    /** Preferred channel country ("" = none); see [SportLanguages.preferredCountryOptions]. */
+    preferCountry: String,
+    onPreferCountry: (String) -> Unit,
     onToggleLeague: (String) -> Unit,
     onOpenLanguage: () -> Unit,
     onManageOnPhone: () -> Unit,
@@ -1607,6 +1626,45 @@ private fun SportsSettingsDialog(
                                 icon = OwnTVIcon.LANGUAGE,
                                 value = stringResource(R.string.sport_sublevel_chevron),
                                 onClick = onOpenLanguage,
+                            )
+                            // Soft ranking preference: these channels sort first, everything else
+                            // stays listed below. Left/Right cycle, like the region switcher.
+                            StageGroupLabel(stringResource(R.string.sport_prefer_title).uppercase(locale))
+                            val countryIndex = CountryPreferenceOptions
+                                .indexOfFirst { it.code == preferCountry }
+                                .coerceAtLeast(0)
+                            val countryChoice = CountryPreferenceOptions[countryIndex]
+                            StageMenuItem(
+                                text = stringResource(countryChoice.labelRes),
+                                icon = OwnTVIcon.NETWORK,
+                                value = stringResource(R.string.sport_region_cycler_value, (countryIndex + 1).toString()),
+                                onClick = {
+                                    val next = (countryIndex + 1) % CountryPreferenceOptions.size
+                                    onPreferCountry(CountryPreferenceOptions[next].code)
+                                },
+                                modifier = Modifier.onPreviewKeyEvent { event ->
+                                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                                    when (event.key) {
+                                        Key.DirectionLeft -> {
+                                            val prev = (countryIndex + CountryPreferenceOptions.size - 1) % CountryPreferenceOptions.size
+                                            onPreferCountry(CountryPreferenceOptions[prev].code)
+                                            true
+                                        }
+                                        Key.DirectionRight -> {
+                                            val next = (countryIndex + 1) % CountryPreferenceOptions.size
+                                            onPreferCountry(CountryPreferenceOptions[next].code)
+                                            true
+                                        }
+                                        else -> false
+                                    }
+                                },
+                            )
+                            Text(
+                                stringResource(R.string.sport_prefer_hint),
+                                style = stageText(15, 500),
+                                color = StageColors.Dim,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(start = 18.mpx, end = 18.mpx, top = 4.mpx),
                             )
                             // Always hide: excluded languages never appear, not even as exact hits.
                             StageGroupLabel(stringResource(R.string.sport_exclude_title).uppercase(locale))

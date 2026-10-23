@@ -99,6 +99,10 @@ class SportsViewModel(
         .map { names -> names.mapNotNull { runCatching { SportLanguage.valueOf(it) }.getOrNull() }.toSet() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SportLanguages.default)
 
+    /** Country whose channels rank first ("" = none); see [SportsPrefs.preferredCountry]. */
+    val preferredCountry: StateFlow<String> = prefs.preferredCountry
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SportsPrefs.DefaultPreferredCountry)
+
     /** How many channels one fixture lists (5–50, default 20); changes apply without restart. */
     val channelLimit: StateFlow<Int> = prefs.channelLimit
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SportsMatcher.DefaultChannelLimit)
@@ -639,12 +643,22 @@ class SportsViewModel(
         }
     }
 
+    /** Set the preferred channel country ("" = no preference); the selected fixture re-resolves. */
+    fun setPreferredCountry(code: String) {
+        viewModelScope.launch {
+            prefs.setPreferredCountry(code)
+            val next = code.takeIf { it in SportLanguages.preferredCountryOptions }.orEmpty()
+            reResolveSelected(matchOptions().copy(preferCountry = next.takeIf { it.isNotBlank() }))
+        }
+    }
+
     /** The matcher's filter from the current prefs — one place, so every setter re-resolves alike. */
     private fun matchOptions(): SportMatchOptions = SportMatchOptions(
         languages = preferredLanguages.value,
         excludedLanguages = excludedLanguages.value,
         limit = channelLimit.value,
         strict = languageFilterStrict.value,
+        preferCountry = preferredCountry.value.takeIf { it.isNotBlank() },
     )
 
     /** Drop the cached channels and match the selected fixture again (per-game refresh button). */

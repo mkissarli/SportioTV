@@ -135,6 +135,14 @@
     <string name="sport_region_cycler_value">‹ %1$s ›</string>
     <string name="sport_sublevel_chevron">›</string>
     <string name="sport_preferred_title">Bevorzugte Sprachen</string>
+    <string name="sport_prefer_title">Sender bevorzugen aus</string>
+    <string name="sport_prefer_none">Keine Bevorzugung</string>
+    <string name="sport_prefer_uk">Vereinigtes Königreich</string>
+    <string name="sport_prefer_us">Vereinigte Staaten</string>
+    <string name="sport_prefer_fr">Frankreich</string>
+    <string name="sport_prefer_ar">Arabisch</string>
+    <string name="sport_prefer_de">Deutschland</string>
+    <string name="sport_prefer_hint">Diese Sender stehen oben; alles andere bleibt darunter. Links und rechts wechseln.</string>
     <string name="live_language_title">Sprachen</string>
     <string name="live_language_subtitle">Welche Sprachen soll Live-TV anzeigen?</string>
     <string name="live_language_all">Alle Sprachen</string>

@@ -597,6 +597,36 @@ class SportsMatcherTest {
         assertEquals(1, matcher.match(fixture()).size)
     }
 
+    // --- the soft country preference -------------------------------------------------------------
+
+    @Test
+    fun thePreferredCountryBoostsItsChannelsAboveTheRest() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(
+                channel(600, "US: ESPN+", epgKey = "us"),
+                channel(601, "UK| SKY SPORTS MAIN EVENT", epgKey = "uk"),
+            ),
+            programmes = listOf(
+                programme("us", title = "Coventry City v Newcastle United"),
+                programme("uk", title = "Coventry City v Newcastle United"),
+            ),
+        )
+
+        // No preference: both score 10, neither outranks the other.
+        val plain = matcher(store).match(fixture())
+        assertEquals(setOf("US: ESPN+", "UK| SKY SPORTS MAIN EVENT"), plain.map { it.channelName }.toSet())
+        assertTrue(plain.all { it.score == 10 })
+
+        // Prefer UK: Sky Sports sorts first with the boost, the US feed stays listed below.
+        val preferred = matcher(store).match(
+            fixture(),
+            SportMatchOptions(preferCountry = "UK", languages = emptySet()),
+        )
+        assertEquals(listOf("UK| SKY SPORTS MAIN EVENT", "US: ESPN+"), preferred.map { it.channelName })
+        assertEquals(SportsMatcher.PreferenceBoost + 10, preferred.first().score)
+        assertEquals(10, preferred.last().score)
+    }
+
     // --- fixtures / vocabulary ------------------------------------------------------------------
 
     private val vocab = SportsVocab.of(

@@ -135,6 +135,14 @@
     <string name="sport_region_cycler_value">‹ %1$s ›</string>
     <string name="sport_sublevel_chevron">›</string>
     <string name="sport_preferred_title">Preferred languages</string>
+    <string name="sport_prefer_title">Prefer channels from</string>
+    <string name="sport_prefer_none">No preference</string>
+    <string name="sport_prefer_uk">United Kingdom</string>
+    <string name="sport_prefer_us">United States</string>
+    <string name="sport_prefer_fr">France</string>
+    <string name="sport_prefer_ar">Arabic</string>
+    <string name="sport_prefer_de">Germany</string>
+    <string name="sport_prefer_hint">These channels sort first; everything else stays listed below. Left and right switch.</string>
     <string name="live_language_title">Languages</string>
     <string name="live_language_subtitle">Which languages should Live TV show?</string>
     <string name="live_language_all">All languages</string>

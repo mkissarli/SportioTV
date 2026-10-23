@@ -495,4 +495,61 @@ object SportLanguages {
         val language = languageOfName(channelName) ?: return false
         return language in languages
     }
+
+    // ---- Soft country preference (Sky Sports over US feeds) ------------------------------------
+
+    /**
+     * Whether a channel belongs to [code]'s broadcaster pool — the soft "prefer these channels"
+     * signal the matcher applies as a score boost. It is *not* a filter: channels outside the pool
+     * stay listed, they just rank below.
+     *
+     * A country tag wins: `UK| SKY SPORTS` is UK, `US: ESPN` is US, and a tag of another known
+     * country blocks the brand-word fallback (`AT: SKY SPORT AUSTRIA` must not count as UK). With
+     * no tag at all, the brand words decide — many providers leave the big sports feeds untagged.
+     * [code] is one of [preferredCountryOptions]'s keys; anything else returns false.
+     */
+    fun isFromCountry(name: String, code: String): Boolean {
+        val tags = PreferredCountryTags[code] ?: return false
+        val country = countryCodeOf(name)
+        if (country != null) return country in tags
+        val words = PreferredBrandWords[code] ?: return false
+        val folded = SportNameMatch.normalize(name)
+        return words.any { folded.contains(it) }
+    }
+
+    /** The countries a user can prefer channels from; the key is stored in `SportsPrefs`. */
+    val preferredCountryOptions: List<String> = listOf("UK", "US", "FR", "AR", "DE")
+
+    /**
+     * Country tag sets per preferred country. UK covers GB/IE, DE covers AT/CH, FR the French
+     * broadcast countries, AR the Arab-language countries — the same grouping the language
+     * filter uses.
+     */
+    private val PreferredCountryTags: Map<String, Set<String>> = mapOf(
+        "UK" to setOf("UK", "GB", "IE"),
+        "US" to setOf("US", "USA"),
+        "FR" to setOf(
+            "FR", "BE", "LU", "SN", "CI", "CD", "CM", "ML", "BF", "NE", "TD", "MG", "RE", "YT",
+            "HT", "HAT", "DRC",
+        ),
+        "AR" to setOf(
+            "SA", "AE", "QA", "EG", "MA", "DZ", "TN", "IQ", "JO", "KW", "BH", "OM", "QAT", "SOM",
+            "SYR", "KU", "LB", "LY", "SD", "YE", "SY", "PS", "SO", "SU", "DJ", "KM", "MR", "ER",
+        ),
+        "DE" to setOf("DE", "AT", "CH"),
+    )
+
+    /**
+     * Brand words per preferred country for untagged channels, matched against the normalized
+     * channel name. "sky sport" is a prefix of "sky sports", so both spellings hit; "sky sport
+     * news" cannot reach the matcher anyway (the both-teams rule keeps news channels out). "AR"
+     * also matches language-tagged names ("ARABIC: …"), which carry no country code.
+     */
+    private val PreferredBrandWords: Map<String, List<String>> = mapOf(
+        "UK" to listOf("sky sport", "tnt sport", "bt sport", "itv", "bbc"),
+        "US" to listOf("espn", "fox sport", "cbs sport", "nbc sport", "peacock", "paramount", "usa network", "fubo"),
+        "FR" to listOf("canal", "rmc sport", "bein"),
+        "AR" to listOf("bein", "osn", "ssc", "alkass", "shahid", "arabic", "arab"),
+        "DE" to listOf("dazn"),
+    )
 }

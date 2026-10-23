@@ -14,6 +14,11 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.1
+
+### ✨ New features
+- **Prefer channels from: UK / US / France / Arabic / Germany — soft ranking in the channel list (Sky Sports above ESPN+ by default)**
+
 ## v0.2.0
 
 ### ✨ New features

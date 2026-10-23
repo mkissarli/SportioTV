@@ -2,11 +2,15 @@ package tv.own.owntv.features.sport
 
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import tv.own.owntv.core.database.dao.CategoryDao
 import tv.own.owntv.core.database.dao.ChannelDao
 import tv.own.owntv.core.database.dao.EpgDao
 import tv.own.owntv.core.database.entity.ChannelEntity
 import tv.own.owntv.core.database.entity.EpgProgrammeEntity
+import tv.own.owntv.core.model.MediaType
+import tv.own.owntv.ui.components.ChannelGenre
 
 /**
  * What the channel list of one fixture is filtered to (`docs/sport-roadmap.md` Punkt 4).
@@ -100,6 +104,7 @@ data class SportMatchOptions(
 class SportsMatcher(
     private val channelDao: ChannelDao,
     private val epgDao: EpgDao,
+    private val categoryDao: CategoryDao,
     private val vocab: SportsVocab,
     /**
      * The profile's live playlists. Behind [LiveSourceIdsProvider] rather than the concrete
@@ -166,8 +171,12 @@ class SportsMatcher(
         val from = fixture.dateMs - EpgBeforeMs
         val to = fixture.dateMs + EpgAfterMs
 
-        // Pass 1 — candidates, from channel names (legacy) and from the guide (new).
+        // Pass 1 — candidates, from channel names (legacy), from the guide (new) and from the
+        // app's own channel selector (every live channel whose category reads as SPORT).
         val candidates = discoverCandidates(fixture, teamSport, duelSport, sourceIds, from, to)
+        val selectorSport = selectorSportChannels(sourceIds)
+        selectorSport.forEach { candidates.putIfAbsent(it.id, it) }
+        val selectorIds = selectorSport.mapTo(HashSet()) { it.id }
         if (candidates.isEmpty()) return emptyList()
         // Pass 2 — score each candidate against the fixture.
         val homeTokens = home?.scoringTokens().orEmpty()
@@ -189,6 +198,7 @@ class SportsMatcher(
                 tournamentTokens = tournamentTokens,
                 from = from,
                 to = to,
+                selectorSport = channel.id in selectorIds,
             )
         }.sortedByDescending { it.score }
     }
@@ -225,6 +235,26 @@ class SportsMatcher(
         withContext(Dispatchers.IO) {
             ids.mapNotNull { runCatching { channelDao.getById(it) }.getOrNull() }
         }
+
+    /**
+     * Channels the app's own channel selector calls sports channels: every live channel whose
+     * category name classifies as [ChannelGenre.SPORT] — the same table the Live-TV rail uses, so
+     * the Sport hub agrees with the selector about what a sports channel is. Bounded by
+     * [SelectorScanLimit] scanned rows and [SelectorCandidateCap] returned channels, so a huge
+     * playlist cannot flood the pane.
+     */
+    private suspend fun selectorSportChannels(sourceIds: List<Long>): List<ChannelEntity> = runCatching {
+        val categories = runCatching { categoryDao.observe(sourceIds, MediaType.LIVE).first() }
+            .getOrDefault(emptyList())
+            .associateBy { it.id }
+        channelDao.allForSources(sourceIds, SelectorScanLimit)
+            .filter { channel ->
+                channel.categoryId != null &&
+                    categories[channel.categoryId]?.name
+                        ?.let { ChannelGenre.fromCategory(it) == ChannelGenre.SPORT } == true
+            }
+            .take(SelectorCandidateCap)
+    }.getOrDefault(emptyList())
 
     // ---- Pass 1: discovery ----------------------------------------------------------------------
 
@@ -472,6 +502,7 @@ class SportsMatcher(
         tournamentTokens: Set<String>,
         from: Long,
         to: Long,
+        selectorSport: Boolean,
     ): ChannelMatch? {
         var score = 0
         var epgTitle: String? = null
@@ -632,18 +663,25 @@ class SportsMatcher(
             }
         }
 
-        // --- Broadcast tier (pre-match, floor only): the league's own channel or the sport's
-        // generic channel, accepted WITHOUT team evidence — but only when nothing else matched.
-        // Below every real match, so it never beats one; with a country preference it can still
-        // top the list for tuning in early.
+        // --- Broadcast tier (pre-match, floor only): the league's own channel, the sport's generic
+        // channel, or any channel the selector calls a sports channel — accepted WITHOUT team
+        // evidence, but only when nothing else matched. Below every real match, so it never beats
+        // one; with a country preference it can still top the list for tuning in early.
         var broadcastTier = false
         if (score == 0) {
-            if (fixture.leaguePhrase?.let { SportNameMatch.containsPhrase(it, nameNorm) } == true) {
-                score += LeagueChannelScore
-                broadcastTier = true
-            } else if (sportChannelWords(fixture.leagueId).any { SportNameMatch.containsWord(it, nameNorm) }) {
-                score += SportChannelScore
-                broadcastTier = true
+            when {
+                fixture.leaguePhrase?.let { SportNameMatch.containsPhrase(it, nameNorm) } == true -> {
+                    score += LeagueChannelScore
+                    broadcastTier = true
+                }
+                sportChannelWords(fixture.leagueId).any { SportNameMatch.containsWord(it, nameNorm) } -> {
+                    score += SportChannelScore
+                    broadcastTier = true
+                }
+                selectorSport -> {
+                    score += SelectorChannelScore
+                    broadcastTier = true
+                }
             }
         }
 
@@ -827,6 +865,12 @@ class SportsMatcher(
         private const val LeagueChannelScore = 2
         /** The sport's generic channel ("SKY SPORTS FOOTBALL") — the lowest, tune-in-early tier. */
         private const val SportChannelScore = 1
+        /** Any channel the selector classifies as a sports channel (category SPORT) — same tier. */
+        private const val SelectorChannelScore = 1
+        /** How many live channels the selector scan reads (mirrors the Live-TV language scan). */
+        private const val SelectorScanLimit = 20_000
+        /** How many selector-sport channels at most join one fixture's candidates. */
+        private const val SelectorCandidateCap = 300
         /**
          * Region tie-break for US-league games: a `US:`-tagged feed outranks an equally evidenced
          * foreign feed, but never outranks genuinely stronger evidence (a +10 title hit still beats

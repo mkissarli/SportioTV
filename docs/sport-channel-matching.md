@@ -327,10 +327,14 @@ trägt.
   den Cap zuerst füllen — die Liga-Phrase (`Fixture.leaguePhrase`, kanonischer Name aus
   `donottranslate.xml`, z. B. „Premier League") und die Sport-Wörter
   (`sportChannelWords(leagueId)` in `SportsLeagues.kt`, z. B. „football"/„soccer"/„futbol").
+  Dazu kommt die **Selector-Quelle** (`selectorSportChannels`): alle Live-Kanäle, deren Kategorie
+  der eigene Kanal-Selector als Sport einstuft (`ChannelGenre.SPORT` — dieselbe Tabelle wie der
+  Live-TV-Rail), begrenzt auf 20.000 gescannte Zeilen und 300 Kandidaten.
 - **Scoring:** nur als **Floor**, nie additiv: hat ein Kanal bereits Evidenz (Teams im Namen/EPG,
   Broadcast, Hint), bleibt sein Score unberührt. Nur ein Kanal **ohne** jede Evidenz bekommt
-  `LeagueChannelScore` (+2, Liga-Name im Kanalnamen) oder `SportChannelScore` (+1, Sport-Wort im
-  Namen) und das Flag `ChannelMatch.isBroadcastTier`. Damit verdrängt ein Liga-Kanal nie einen
+  `LeagueChannelScore` (+2, Liga-Name im Kanalnamen), `SportChannelScore` (+1, Sport-Wort im
+  Namen) oder `SelectorChannelScore` (+1, Kategorie = Sport) und das Flag
+  `ChannelMatch.isBroadcastTier`. Damit verdrängt ein Liga-Kanal nie einen
   echten Treffer — die Länder-Präferenz (§11) kann ihn aber trotzdem nach oben heben.
 - **UI:** `isBroadcastTier` + Upcoming-Fixture ohne EPG-Zeile zeigt „Pre-match — tune in early".
   Play startet den Kanal immer sofort — Vorberichte schauen heißt einfach: Fixture wählen, Sender

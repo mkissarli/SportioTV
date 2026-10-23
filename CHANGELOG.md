@@ -14,6 +14,11 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.3
+
+### ✨ New features
+- **The channel selector joins the pre-match tier: every channel whose category reads as Sport (the same classification the Live-TV rail uses) is listed for a fixture even without EPG evidence**
+
 ## v0.2.2
 
 ### ✨ New features

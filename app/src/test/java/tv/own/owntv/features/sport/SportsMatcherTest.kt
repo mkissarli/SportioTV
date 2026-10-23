@@ -1,14 +1,18 @@
 package tv.own.owntv.features.sport
 
 import java.lang.reflect.Proxy
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.own.owntv.core.database.dao.CategoryDao
 import tv.own.owntv.core.database.dao.ChannelDao
 import tv.own.owntv.core.database.dao.EpgDao
+import tv.own.owntv.core.database.entity.CategoryEntity
 import tv.own.owntv.core.database.entity.ChannelEntity
 import tv.own.owntv.core.database.entity.EpgProgrammeEntity
+import tv.own.owntv.core.model.MediaType
 
 /**
  * The matcher's Lume rules, nailed down on the JVM with fake DAOs — no emulator, no Android.
@@ -586,6 +590,7 @@ class SportsMatcherTest {
         val matcher = SportsMatcher(
             channelDao = store.channelDao,
             epgDao = store.epgDao,
+            categoryDao = store.categoryDao,
             vocab = vocab,
             sources = LiveSourceIdsProvider { ids },
         )
@@ -698,6 +703,60 @@ class SportsMatcherTest {
         assertEquals(SportsMatcher.PreferenceBoost + 2, matches.first().score)
     }
 
+    // --- the selector tier (sports category from the channel selector) --------------------------
+
+    @Test
+    fun aChannelTheSelectorCallsSportMatchesAtTheLowestTier() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(channel(706, "VIP: SUPERSPORT VARIETY 1", categoryId = 9)),
+            programmes = emptyList(),
+            categories = listOf(category(9, "Sports")),
+        )
+
+        val matches = matcher(store).match(fixture())
+
+        assertEquals(listOf("VIP: SUPERSPORT VARIETY 1"), matches.map { it.channelName })
+        assertEquals(1, matches.single().score)
+        assertTrue(matches.single().isBroadcastTier)
+    }
+
+    @Test
+    fun aChannelTheSelectorDoesNotCallSportDoesNotMatch() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(channel(707, "VIP: MOVIES NOW", categoryId = 10)),
+            programmes = emptyList(),
+            categories = listOf(category(10, "Movies")),
+        )
+
+        assertTrue(matcher(store).match(fixture()).isEmpty())
+    }
+
+    @Test
+    fun selectorSportChannelsStillYieldToRealEvidence() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(
+                channel(708, "US: ESPN+", epgKey = "us"),
+                channel(709, "UK| SKY SPORTS MAIN EVENT", categoryId = 11),
+            ),
+            programmes = listOf(programme("us", title = "Coventry City v Newcastle United")),
+            categories = listOf(category(11, "Sport")),
+        )
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(preferCountry = "UK", languages = emptySet()),
+        )
+
+        // The selector-tier Sky channel is the only UK channel: the preference lifts it above the
+        // US-evidenced feed for tuning in early, exactly as intended.
+        assertEquals(
+            listOf("UK| SKY SPORTS MAIN EVENT", "US: ESPN+"),
+            matches.map { it.channelName },
+        )
+        assertEquals(SportsMatcher.PreferenceBoost + 1, matches.first().score)
+        assertEquals(10, matches.last().score)
+    }
+
     // --- fixtures / vocabulary ------------------------------------------------------------------
 
     private val vocab = SportsVocab.of(
@@ -714,6 +773,7 @@ class SportsMatcherTest {
     private fun matcher(store: FakeStore, vocab: SportsVocab = this.vocab) = SportsMatcher(
         channelDao = store.channelDao,
         epgDao = store.epgDao,
+        categoryDao = store.categoryDao,
         vocab = vocab,
         sources = object : LiveSourceIdsProvider {
             override suspend fun liveSourceIds(): List<Long> = listOf(SourceId)
@@ -771,12 +831,21 @@ class SportsMatcherTest {
         venue = null,
     )
 
-    private fun channel(id: Long, name: String, epgKey: String? = null) = ChannelEntity(
+    private fun channel(id: Long, name: String, epgKey: String? = null, categoryId: Long? = null) = ChannelEntity(
         id = id,
         sourceId = SourceId,
+        categoryId = categoryId,
         name = name,
         streamUrl = "http://provider.invalid/$id.ts",
         epgChannelId = epgKey,
+    )
+
+    private fun category(id: Long, name: String) = CategoryEntity(
+        id = id,
+        sourceId = SourceId,
+        mediaType = MediaType.LIVE,
+        name = name,
+        remoteId = "cat-$id",
     )
 
     private fun programme(key: String, title: String, description: String? = null) = EpgProgrammeEntity(
@@ -805,6 +874,7 @@ class SportsMatcherTest {
 private class FakeStore(
     private val channels: List<ChannelEntity>,
     private val programmes: List<EpgProgrammeEntity>,
+    private val categories: List<CategoryEntity> = emptyList(),
 ) {
     val channelDao: ChannelDao = proxy(ChannelDao::class.java) { name, args ->
         when (name) {
@@ -818,6 +888,14 @@ private class FakeStore(
                 channels.filter { channel -> channel.epgChannelId?.trim()?.lowercase() in keys }
             }
             "getById" -> channels.firstOrNull { it.id == args!![0] as Long }
+            "allForSources" -> channels
+            else -> null
+        }
+    }
+
+    val categoryDao: CategoryDao = proxy(CategoryDao::class.java) { name, _ ->
+        when (name) {
+            "observe" -> flowOf(categories)
             else -> null
         }
     }

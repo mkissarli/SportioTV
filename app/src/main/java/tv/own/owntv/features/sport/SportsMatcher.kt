@@ -569,10 +569,17 @@ class SportsMatcher(
             exact = true
         }
         // Broadcast names (ESPN) and a league's extra on-air phrase ("Sky Sports Main Event" for F1).
+        // The word fallback applies only to SINGLE-WORD broadcasts ("ESPN" → "ESPN 2"): splitting a
+        // multi-word broadcast into words ("NBA League Pass" → "league", "USA Network" → "network")
+        // matches unrelated channels ("UK: NATIONAL LEAGUE"), so a multi-word broadcast must match
+        // as a whole phrase or not at all.
         if (fixture.broadcasts.any { SportNameMatch.containsPhrase(it, nameNorm) }) {
             score += BroadcastPhraseScore
         } else if (fixture.broadcasts.any { broadcast ->
-                broadcast.words().any { word -> word.length >= MinHintLength && name.contains(word.lowercase(Locale.ROOT)) }
+                val word = broadcast.words().singleOrNull() ?: return@any false
+                word.length >= MinHintLength &&
+                    SportNameMatch.normalize(word) !in vocab.broadcastStopwords &&
+                    SportNameMatch.containsWord(word, nameNorm)
             }
         ) {
             score += BroadcastWordScore

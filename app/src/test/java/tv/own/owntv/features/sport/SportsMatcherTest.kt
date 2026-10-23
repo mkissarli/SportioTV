@@ -695,6 +695,56 @@ class SportsMatcherTest {
         assertEquals(10, matches.first().score)
     }
 
+    // --- broadcast words: a multi-word broadcast must not match by one generic word ------------
+
+    @Test
+    fun aMultiWordBroadcastDoesNotMatchByASingleWord() = runBlocking {
+        // "NBA League Pass" splits into "league" / "pass": neither may match "UK: NATIONAL LEAGUE"
+        // (a football league's channels) for a basketball fixture.
+        val store = FakeStore(
+            channels = listOf(channel(620, "UK| NATIONAL LEAGUE 1")),
+            programmes = emptyList(),
+        )
+
+        val nba = Fixture(
+            id = "nba-1",
+            leagueId = "basketball.nba",
+            dateMs = Noon,
+            state = FixtureState.LIVE,
+            statusLine = "Q3 04:12",
+            home = SportTeam("1", "Los Angeles Lakers", "LAL", null, null, "51", false, "home"),
+            away = SportTeam("2", "Denver Nuggets", "DEN", null, null, "47", false, "away"),
+            broadcasts = listOf("NBA League Pass"),
+            venue = null,
+        )
+
+        assertTrue(matcher(store).match(nba).isEmpty())
+    }
+
+    @Test
+    fun aSingleWordBroadcastStillMatchesByWord() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(channel(621, "ESPN 2")),
+            programmes = emptyList(),
+        )
+
+        val nba = Fixture(
+            id = "nba-2",
+            leagueId = "basketball.nba",
+            dateMs = Noon,
+            state = FixtureState.LIVE,
+            statusLine = "Q3 04:12",
+            home = SportTeam("1", "Los Angeles Lakers", "LAL", null, null, "51", false, "home"),
+            away = SportTeam("2", "Denver Nuggets", "DEN", null, null, "47", false, "away"),
+            broadcasts = listOf("ESPN"),
+            venue = null,
+        )
+
+        val matches = matcher(store).match(nba)
+        assertEquals(listOf("ESPN 2"), matches.map { it.channelName })
+        assertEquals(3, matches.single().score)
+    }
+
     // --- fixtures / vocabulary ------------------------------------------------------------------
 
     private val vocab = SportsVocab.of(

@@ -331,6 +331,10 @@ oder beide zusammen in einem EPG-Programm, das **den Anstoß überdeckt**.
   unten — nach dem Länder-Boost angewendet, damit ein PPV-Feed des bevorzugten Landes nie über
   einem echten Sender steht, der das Spiel zeigt. Der Score selbst bleibt der Evidenz-Score; die
   Strafe ist reiner Sortierschlüssel.
+- **Broadcast-Wörter nur bei Ein-Wort-Broadcasts:** ein mehrwortiger Broadcast („NBA League Pass",
+  „USA Network") zählt nur als **ganze Phrase** — aufgesplittet („league", „network") matcht er
+  fremde Kanäle („UK: NATIONAL LEAGUE" bei einem NBA-Fixture). Nur ein Ein-Wort-Broadcast
+  („ESPN" → „ESPN 2") darf per Wort matchen, ganzwortig und Stopwort-gefiltert.
 - **Vorberichte schauen** geht weiterhin: das Pre-Match-Programm („Matchday Live" ab 2 h vor
   Anpfiff) nennt beide Teams und überdeckt den Anstoß → der Sender steht in der Liste, und Play
   startet ihn sofort.

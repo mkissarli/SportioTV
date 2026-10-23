@@ -14,6 +14,11 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.5
+
+### 🐛 Fixes
+- **A multi-word broadcast no longer matches by one generic word — an NBA fixture listing "UK National League" (football) channels is gone; only the full phrase ("NBA League Pass") or a single-word broadcast ("ESPN" → "ESPN 2") counts**
+
 ## v0.2.4
 
 ### ✨ New features

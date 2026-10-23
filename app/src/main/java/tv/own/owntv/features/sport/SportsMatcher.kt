@@ -338,6 +338,12 @@ class SportsMatcher(
         for (broadcast in fixture.broadcasts) {
             queries += SportNameMatch.discoveryPhrases(broadcast, vocab.broadcastStopwords)
         }
+        // The league's own channels ("SKY SPORTS PREMIER LEAGUE") and the sport's generic channels
+        // ("SKY SPORTS FOOTBALL") — last, so team/broadcast probes always spend the cap first.
+        fixture.leaguePhrase?.let { queries += SportNameMatch.discoveryPhrases(it, vocab.broadcastStopwords) }
+        for (word in sportChannelWords(fixture.leagueId)) {
+            queries += SportNameMatch.discoveryPhrases(word, vocab.broadcastStopwords)
+        }
         return queries.distinct()
     }
 
@@ -626,6 +632,21 @@ class SportsMatcher(
             }
         }
 
+        // --- Broadcast tier (pre-match, floor only): the league's own channel or the sport's
+        // generic channel, accepted WITHOUT team evidence — but only when nothing else matched.
+        // Below every real match, so it never beats one; with a country preference it can still
+        // top the list for tuning in early.
+        var broadcastTier = false
+        if (score == 0) {
+            if (fixture.leaguePhrase?.let { SportNameMatch.containsPhrase(it, nameNorm) } == true) {
+                score += LeagueChannelScore
+                broadcastTier = true
+            } else if (sportChannelWords(fixture.leagueId).any { SportNameMatch.containsWord(it, nameNorm) }) {
+                score += SportChannelScore
+                broadcastTier = true
+            }
+        }
+
         // --- Region tier (US fixtures): a US-tagged feed sorts above equal foreign evidence ---
         // College/NFL/… games are US broadcasts; a `US:` feed carrying the same game as a CA/AU/UK
         // feed is the home feed and wins the tie. Deliberately bonus-only, never a filter or malus:
@@ -640,7 +661,15 @@ class SportsMatcher(
         }
 
         return if (score > 0) {
-            ChannelMatch(channel.id, channel.name, channel.logoUrl, epgTitle, score, exact)
+            ChannelMatch(
+                channelId = channel.id,
+                channelName = channel.name,
+                logoUrl = channel.logoUrl,
+                epgTitle = epgTitle,
+                score = score,
+                isExact = exact,
+                isBroadcastTier = broadcastTier && !exact,
+            )
         } else {
             null
         }
@@ -790,6 +819,14 @@ class SportsMatcher(
         private const val EpgSingleWithContextScore = 2
         private const val EpgTournamentScore = 1
         private const val SportCategoryScore = 1
+        /**
+         * The league's own channel ("SKY SPORTS PREMIER LEAGUE") — no team evidence, but the
+         * league's channel probably carries it. Above [SportChannelScore] (league beats a generic
+         * sport channel), below every real match, so it never displaces evidence.
+         */
+        private const val LeagueChannelScore = 2
+        /** The sport's generic channel ("SKY SPORTS FOOTBALL") — the lowest, tune-in-early tier. */
+        private const val SportChannelScore = 1
         /**
          * Region tie-break for US-league games: a `US:`-tagged feed outranks an equally evidenced
          * foreign feed, but never outranks genuinely stronger evidence (a +10 title hit still beats

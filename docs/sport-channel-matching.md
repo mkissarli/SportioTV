@@ -315,3 +315,25 @@ nach oben, alle anderen bleiben darunter gelistet — nichts wird ausgeblendet.
   Deutsch-Filter lässt englische Sender weiterhin weg).
 - Tests: `SportLanguagesTest` (Kürzel, Fremd-Kürzel-Blockade, Marken-Fallback, unbekannter Code)
   und `SportsMatcherTest.thePreferredCountryBoostsItsChannelsAboveTheRest` (UK über US, beide +10).
+
+## 12. Reguläre Sender statt nur PPV (Broadcast-Tier, Pre-Match)
+
+Der Matcher findet reguläre Sender auch **ohne Team-Evidenz** — die Liga- und Sport-Kanäle des
+Providers, damit man vor dem Anpfiff auf „Sky Sports Premier League" / „Sky Sports Football"
+einschalten kann (Vorberichte), statt nur die Event-PPV-Kanäle zu sehen, deren Name das Fixture
+trägt.
+
+- **Discovery:** `nameDiscoveryQueries` probt zusätzlich — ganz am Ende, damit Team-/Broadcast-Queries
+  den Cap zuerst füllen — die Liga-Phrase (`Fixture.leaguePhrase`, kanonischer Name aus
+  `donottranslate.xml`, z. B. „Premier League") und die Sport-Wörter
+  (`sportChannelWords(leagueId)` in `SportsLeagues.kt`, z. B. „football"/„soccer"/„futbol").
+- **Scoring:** nur als **Floor**, nie additiv: hat ein Kanal bereits Evidenz (Teams im Namen/EPG,
+  Broadcast, Hint), bleibt sein Score unberührt. Nur ein Kanal **ohne** jede Evidenz bekommt
+  `LeagueChannelScore` (+2, Liga-Name im Kanalnamen) oder `SportChannelScore` (+1, Sport-Wort im
+  Namen) und das Flag `ChannelMatch.isBroadcastTier`. Damit verdrängt ein Liga-Kanal nie einen
+  echten Treffer — die Länder-Präferenz (§11) kann ihn aber trotzdem nach oben heben.
+- **UI:** `isBroadcastTier` + Upcoming-Fixture ohne EPG-Zeile zeigt „Pre-match — tune in early".
+  Play startet den Kanal immer sofort — Vorberichte schauen heißt einfach: Fixture wählen, Sender
+  anklicken.
+- Tests: `SportsMatcherTest` — Liga-Kanal ohne Evidenz (+2), Sport-Kanal (+1), nie über echter
+  Evidenz, Präferenz hebt den Liga-Kanal vor den US-Feed.

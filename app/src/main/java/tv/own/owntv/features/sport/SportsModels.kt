@@ -98,6 +98,12 @@ data class Fixture(
     /** Extra channel search terms from the league (e.g. F1 → "Sky Sports Main Event"). */
     val channelHints: List<String> = emptyList(),
     /**
+     * The league's canonical on-air name (e.g. "Premier League"), probed against channel names so
+     * the league's regular channels ("SKY SPORTS PREMIER LEAGUE") appear even without team evidence
+     * in their EPG — the pre-match / broadcast-channel tier, scored below any real match.
+     */
+    val leaguePhrase: String? = null,
+    /**
      * Tournament name for a nested event (tennis: the event holding the match, e.g. the Shanghai
      * Masters). Null for team sports and single-occasion events. Used only as the weak,
      * tournament-level fallback in channel matching — never shown in UI directly.
@@ -136,6 +142,12 @@ data class ChannelMatch(
      * language filter: they are the event itself, not a foreign-language feed of it.
      */
     val isExact: Boolean = false,
+    /**
+     * True when the match rests only on the league's or the sport's channel name — the regular
+     * broadcast channel ("SKY SPORTS PREMIER LEAGUE", "SKY SPORTS FOOTBALL") rather than evidence
+     * that this fixture airs on it. Useful for tuning in early (pre-match); the UI can label it.
+     */
+    val isBroadcastTier: Boolean = false,
 )
 
 /** A league's team from the ESPN teams endpoint — the phone picker's team rows. */

@@ -627,6 +627,77 @@ class SportsMatcherTest {
         assertEquals(10, preferred.last().score)
     }
 
+    // --- the broadcast tier (regular channels, no team evidence) -------------------------------
+
+    @Test
+    fun theLeaguesOwnChannelMatchesWithoutTeamEvidence() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(channel(700, "UK| SKY SPORTS PREMIER LEAGUE")),
+            programmes = emptyList(),
+        )
+
+        val matches = matcher(store).match(fixture())
+
+        assertEquals(listOf("UK| SKY SPORTS PREMIER LEAGUE"), matches.map { it.channelName })
+        assertEquals(2, matches.single().score)
+        assertTrue(matches.single().isBroadcastTier)
+        assertTrue(!matches.single().isExact)
+    }
+
+    @Test
+    fun theSportsGenericChannelMatchesAtTheLowestTier() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(channel(701, "UK| SKY SPORTS FOOTBALL")),
+            programmes = emptyList(),
+        )
+
+        val matches = matcher(store).match(fixture())
+
+        assertEquals(listOf("UK| SKY SPORTS FOOTBALL"), matches.map { it.channelName })
+        assertEquals(1, matches.single().score)
+        assertTrue(matches.single().isBroadcastTier)
+    }
+
+    @Test
+    fun aBroadcastTierChannelNeverBeatsRealEvidence() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(
+                channel(702, "UK| SKY SPORTS PREMIER LEAGUE"),
+                channel(703, "US: ESPN+", epgKey = "us"),
+            ),
+            programmes = listOf(programme("us", title = "Coventry City v Newcastle United")),
+        )
+
+        val matches = matcher(store).match(fixture())
+
+        // Without a country preference the team-evidenced feed leads, the league channel follows.
+        assertEquals(listOf("US: ESPN+", "UK| SKY SPORTS PREMIER LEAGUE"), matches.map { it.channelName })
+        assertEquals(10, matches.first().score)
+        assertEquals(2, matches.last().score)
+    }
+
+    @Test
+    fun thePreferredCountryLiftsTheLeagueChannelForTuningInEarly() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(
+                channel(704, "US: ESPN+", epgKey = "us"),
+                channel(705, "UK| SKY SPORTS PREMIER LEAGUE"),
+            ),
+            programmes = listOf(programme("us", title = "Coventry City v Newcastle United")),
+        )
+
+        val matches = matcher(store).match(
+            fixture().copy(state = FixtureState.UPCOMING),
+            SportMatchOptions(preferCountry = "UK", languages = emptySet()),
+        )
+
+        assertEquals(
+            listOf("UK| SKY SPORTS PREMIER LEAGUE", "US: ESPN+"),
+            matches.map { it.channelName },
+        )
+        assertEquals(SportsMatcher.PreferenceBoost + 2, matches.first().score)
+    }
+
     // --- fixtures / vocabulary ------------------------------------------------------------------
 
     private val vocab = SportsVocab.of(
@@ -658,6 +729,7 @@ class SportsMatcherTest {
         home = SportTeam("1", "Coventry City", "COV", null, null, "1", false, "home"),
         away = SportTeam("2", "Newcastle United", "NEW", null, null, "0", false, "away"),
         broadcasts = emptyList(),
+        leaguePhrase = "Premier League",
         venue = null,
     )
 

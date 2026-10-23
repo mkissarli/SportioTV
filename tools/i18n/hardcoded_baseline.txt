@@ -37,7 +37,6 @@
 2	app/src/main/java/tv/own/owntv/features/settings/VideoPlayerSettingsScreen.kt	#FFFFFF
 1	app/src/main/java/tv/own/owntv/features/shell/components/MediaDetailsScreen.kt	\0
 1	app/src/main/java/tv/own/owntv/features/sport/SportsLeagues.kt	3
-1	app/src/main/java/tv/own/owntv/features/sport/SportsLeagues.kt	rugby-league
 1	app/src/main/java/tv/own/owntv/features/sport/SportsLeagues.kt	rugby-league.3
 2	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	\0
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	US

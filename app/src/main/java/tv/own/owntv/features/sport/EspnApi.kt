@@ -251,6 +251,7 @@ class EspnApi(private val client: OkHttpClient, context: Context) {
                 away = null,
                 broadcasts = broadcasts.distinct(),
                 channelHints = league.extraChannelRes?.let { listOf(appContext.getString(it)) }.orEmpty(),
+                leaguePhrase = appContext.getString(league.labelRes),
                 venue = venue ?: circuitVenue(event),
             )
         }
@@ -285,6 +286,7 @@ class EspnApi(private val client: OkHttpClient, context: Context) {
             entries = entries,
             broadcasts = broadcasts.distinct(),
             channelHints = league.extraChannelRes?.let { listOf(appContext.getString(it)) }.orEmpty(),
+            leaguePhrase = appContext.getString(league.labelRes),
             tournament = tournament,
             venue = venue,
         )

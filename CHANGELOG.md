@@ -14,6 +14,12 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.2
+
+### ✨ New features
+- **Regular broadcast channels in the channel list: the league's own channels (Sky Sports Premier League) and the sport's generic channels (Sky Sports Football) appear even without fixture evidence — tune in early for the pre-match**
+- **"Pre-match — tune in early" label on those channels for upcoming fixtures**
+
 ## v0.2.1
 
 ### ✨ New features

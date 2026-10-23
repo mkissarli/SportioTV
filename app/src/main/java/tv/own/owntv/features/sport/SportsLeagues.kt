@@ -759,3 +759,26 @@ val SportsLeagues: List<SportLeague> = listOf(
 val DefaultActiveLeagueIds: Set<String> = SportsLeagues.filter { it.defaultActive }.map { it.id }.toSet()
 
 fun sportsLeagueById(id: String): SportLeague? = SportsLeagues.firstOrNull { it.id == id }
+
+/**
+ * Channel-name words per sport for the generic sport-channel tier: the fixture's sport word
+ * ("football", "tennis", …) probed against channel names so a regular broadcaster
+ * ("SKY SPORTS FOOTBALL") is found even when no team or league evidence exists — the lowest,
+ * pre-match / tune-in-early tier. Words must be rare enough in channel names not to flood the
+ * list; "football" variants cover the main naming conventions.
+ */
+fun sportChannelWords(leagueId: String): List<String> = when (sportsLeagueById(leagueId)?.espnSport) {
+    "soccer" -> listOf("football", "soccer", "futbol", "fussball")
+    "tennis" -> listOf("tennis")
+    "basketball" -> listOf("basketball", "basket")
+    "golf" -> listOf("golf")
+    "football" -> listOf("football")
+    "baseball" -> listOf("baseball")
+    "hockey" -> listOf("hockey")
+    "racing" -> listOf("racing")
+    "mma" -> listOf("mma", "boxing")
+    "cricket" -> listOf("cricket")
+    "volleyball" -> listOf("volleyball")
+    "rugby", "rugby-league", "australian-football" -> listOf("rugby")
+    else -> emptyList()
+}

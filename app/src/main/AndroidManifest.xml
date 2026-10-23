@@ -73,7 +73,7 @@
                 tools:node="remove" />
         </provider>
 
-        <!-- Single launcher activity: Sportio ships one mark, one banner and one launch theme.
+        <!-- Single launcher activity: Matchday ships one mark, one banner and one launch theme.
              LEANBACK_LAUNCHER shows it on TV launchers; LAUNCHER on phone/tablet/box home screens.
              configChanges: a remote waking up (keyboard/navigation), an HDR or frame-rate mode switch
              (uiMode/colorMode/screen*) or a density change must not rebuild the Activity mid-film — that

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Android 12+: the launch screen shows the Sportio mark and the wordmark at the bottom. -->
+    <!-- Android 12+: the launch screen shows the Matchday mark and the wordmark at the bottom. -->
     <style name="Theme.OwnTV.Starting">
         <item name="windowSplashScreenBackground">@color/owntv_window_bg</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/sportio_mark</item>

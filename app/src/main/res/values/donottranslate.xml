@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">Sportio</string>
+    <string name="app_name" translatable="false">Matchday</string>
     <string name="brand_own" translatable="false">Sport</string>
     <string name="brand_tv" translatable="false">io</string>
     <string name="sport_league_soccer_ger_1" translatable="false">Bundesliga</string>

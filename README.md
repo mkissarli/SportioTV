@@ -1,8 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="docs/brand/assets/png/sportio-logo-light.png">
-    <img src="docs/brand/assets/png/sportio-logo.png" alt="Sportio" width="360">
-  </picture>
+  <h1 align="center">Matchday</h1>
 </p>
 
 <p align="center">
@@ -16,39 +13,45 @@
   <img alt="Compose for TV" src="https://img.shields.io/badge/Jetpack%20Compose-for%20TV-4285F4?logo=jetpackcompose&logoColor=white">
   <img alt="Player" src="https://img.shields.io/badge/engines-libmpv%20%2B%20ExoPlayer-FB8C00">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
-  <a href="https://hosted.weblate.org/engage/owntv/">
-    <img alt="Translation status" src="https://hosted.weblate.org/widget/owntv/svg-badge.svg">
-  </a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/trenntl/SportioTV/actions/workflows/android.yml">
-    <img alt="Android CI" src="https://github.com/trenntl/SportioTV/actions/workflows/android.yml/badge.svg">
+  <a href="https://github.com/mkissarli/SportioTV/actions/workflows/android.yml">
+    <img alt="Android CI" src="https://github.com/mkissarli/SportioTV/actions/workflows/android.yml/badge.svg">
   </a>
 </p>
 
 ---
-Sportio is a native **Android TV** app for **live TV and sports**, built with Kotlin and Jetpack
-Compose for TV. Its **Sports Hub** shows ESPN fixtures, scores, standings and tables for 81 leagues
-and matches every fixture against **your own live channels** — names and guide text, both teams
-required — so one tap starts playback. It runs **two playback engines** — libmpv (FFmpeg) for the
-widest compatibility, ExoPlayer (Media3) for near-instant Live TV — and it is a *player only*: you
-bring your own **Xtream** login, **M3U** playlist (URL or a local file) or **Stalker/Ministra**
-portal.
 
-> ⚠️ Sportio ships **no** channels, playlists, subscriptions or streams. You are responsible for the
+Matchday is a **player-first Android TV app for live TV and sports**, and a fork of
+[SportioTV](https://github.com/trenntl/SportioTV). It keeps SportioTV's complete data and matching
+layer — ESPN fixtures, scores, standings and tables for 81 leagues, matched against **your own live
+channels** (names and guide text, both teams required) so one tap starts playback — and restyles the
+presentation into the **Matchday Sports Hub**: a sport-coin sidebar, fixtures grouped by day and
+league, and a Today-focused view.
+
+It runs **two playback engines** — libmpv (FFmpeg) for the widest compatibility, ExoPlayer (Media3)
+for near-instant Live TV — and it is a *player only*: you bring your own **Xtream** login, **M3U**
+playlist (URL or a local file) or **Stalker/Ministra** portal.
+
+> ⚠️ Matchday ships **no** channels, playlists, subscriptions or streams. You are responsible for the
 > sources you add.
 
-Open source, GPLv3. Forked from [OwnTV](https://github.com/ahXN00/OwnTV) — thanks for the shoulders.
+Open source, GPLv3. Forked from [SportioTV](https://github.com/trenntl/SportioTV), itself forked
+from [OwnTV](https://github.com/ahXN00/OwnTV) — thanks for the shoulders.
 **Android TV only** — leanback launcher, D-pad first.
 
 ---
 
 ## ✨ Features
 
-### 🏟️ Sports Hub
-- **81 leagues** (ESPN catalogue, 16 active by default) with an Add-leagues picker
-- **Live / Upcoming / Past tabs** and a Favourites rail (active leagues, followed teams and athletes)
+### 🏟️ Sports Hub (Matchday style)
+- **Sport-coin sidebar** — All, Football, Tennis, Basketball, Golf, Gridiron, Baseball, Hockey and
+  more, each with a live-count badge; one click filters the whole board to that sport
+- Fixtures grouped in **day bands → foldable league bands**, with time rail, team colours, logos,
+  live chips and scorelines
+- **Live / Today / Upcoming / Past pills**, a Favourites board (active leagues, followed teams and
+  athletes) and an Add-leagues picker
 - **Fixture → channel matching** across channel names and guide text, with a language filter
   (exact event channels always pass); single-sport views for tennis, Formula 1 and more
 - **Manage leagues, teams and athletes from a phone** (QR companion page over Wi-Fi)
@@ -63,7 +66,7 @@ Open source, GPLv3. Forked from [OwnTV](https://github.com/ahXN00/OwnTV) — tha
 - An **error log you can export** for any stream that misbehaves
 
 ### 🎨 Look & robustness
-- Sportio green theme, app icon and wordmark; **Dark and Light themes** across app and player
+- **Dark and Light themes** across app and player
 - Interface and popup font sizing, glass effect, your own accent colour
 - **25 interface languages**, RTL-aware, chosen on the fresh-install welcome screen
 - **Backup & Restore** to a single `.own` file, optionally encrypted, locally or over Wi-Fi
@@ -72,11 +75,6 @@ Open source, GPLv3. Forked from [OwnTV](https://github.com/ahXN00/OwnTV) — tha
 
 > The full feature reference lives in [docs/](docs/INDEX.md); end-user docs are in
 > [extras/USER_GUIDE.md](extras/USER_GUIDE.md).
-
-## 💚 Support me
-
-If Sportio is useful to you, you can support development here:
-[coinsend.to/@trentl](https://coinsend.to/@trentl)
 
 ---
 
@@ -91,7 +89,7 @@ If Sportio is useful to you, you can support development here:
 | Database | Room 2.8.5 + Paging 3.5.1 + FTS4 |
 | DI · Network · Images | Koin 4.2.2 · OkHttp 5 · Coil 3.6.0 |
 
-`minSdk 26`, `targetSdk 36`, `compileSdk 37`, `applicationId tv.sportio.app`.
+`minSdk 26`, `targetSdk 36`, `compileSdk 37`, `applicationId dev.matchday.tv`.
 
 ### Project layout
 
@@ -111,24 +109,24 @@ tv.own.owntv/
 
 ## 📥 Installing (Fire TV / Android TV)
 
-Grab the signed APK from the [**latest release**](https://github.com/trenntl/SportioTV/releases/latest).
+Grab the signed APK from the [**latest release**](https://github.com/mkissarli/SportioTV/releases/latest).
 This link always points at the newest build:
 
 ```
-https://github.com/trenntl/SportioTV/releases/latest/download/Sportio.apk
+https://github.com/mkissarli/SportioTV/releases/latest/download/Matchday.apk
 ```
 
-- **On Fire TV, the easiest path is the Downloader app:** install it from the Amazon app store,
-  enter the code **5135027**, and it downloads the newest `Sportio.apk` for you. The URL above can
-  also be typed into Downloader directly.
-- Otherwise sideload with *Send files to TV*, a USB drive, or `adb install Sportio.apk`.
+- Sideload with *Send files to TV*, a USB drive, or `adb install Matchday.apk`. The URL above can
+  also be typed into the *Downloader* app on Fire TV.
+- Otherwise build from source (below).
 
 > Install only from this repository's Releases. Each release ships **two APKs**:
-> `Sportio.apk` (arm — every real TV box) and `Sportio-x86_64-vX.X.X.apk` (emulators and rare
+> `Matchday.apk` (arm — every real TV box) and `Matchday-x86_64-vX.X.X.apk` (emulators and rare
 > Intel boxes).
 
-> Coming from the previous project home? Installs update in place (same signature) — see the
-> [release notes](CHANGELOG.md).
+> Coming from the earlier Matchday app (v0.1.5 and below)? This fork continues the Matchday line on
+> the SportioTV base, but under a **new signing key** — uninstall the old app once, then install
+> this one. Your own playlists/sources are yours; re-add them here.
 
 ## 🛠️ Building & running
 
@@ -137,7 +135,7 @@ https://github.com/trenntl/SportioTV/releases/latest/download/Sportio.apk
 Gradle downloads the core library from Sportio's public Maven repository by itself — **no account
 or token needed**.
 
-1. **Get the code** — `git clone https://github.com/trenntl/SportioTV.git` (or download the ZIP).
+1. **Get the code** — `git clone https://github.com/mkissarli/SportioTV.git` (or download the ZIP).
 2. **Open it** in [Android Studio](https://developer.android.com/studio) and let Gradle sync.
 3. **Pick the build variant** — `standard` for real devices and arm emulators, `x86_64` for x86_64
    emulators. This matters: the native player only loads on a matching ABI.
@@ -153,19 +151,21 @@ live-TV-and-sports positioning and match the existing code style. Agent rules li
 [AGENTS.md](AGENTS.md); the docs map is at [docs/INDEX.md](docs/INDEX.md).
 
 <!-- i18n-contribution:start -->
-## Help translate OwnTV
+## Help translate
 
-If your language is already available, contribute interface translations across OwnTV's six Android resource components on [Hosted Weblate](https://hosted.weblate.org/projects/owntv/). If it is not listed, [open a language request ticket](https://github.com/ahXN00/OwnTV/issues/new?template=feature_request.yml&title=%5BLanguage%5D%20Add%20) first. A maintainer will review the request, register the locale, and prepare its base translation files on Hosted Weblate. Once the language appears on Hosted Weblate, you can start translating it there. The strings themselves live in [OwnTV's core library repository](https://github.com/ahXN00/OwnTV_Core), together with the language contributor guide covering identifiers, validation, and promotion policy.
+Interface translations happen upstream on [Hosted Weblate](https://hosted.weblate.org/projects/owntv/)
+across OwnTV's resource components. The strings themselves live in [OwnTV's core library
+repository](https://github.com/ahXN00/OwnTV_Core), together with the language contributor guide
+covering identifiers, validation, and promotion policy.
 <!-- i18n-contribution:end -->
 
 ## 🙏 Credits
 
 <img src="extras/partner-logos/Weblate_logo.svg" alt="Weblate" width="200">
 
-Sportio speaks 25 languages through translations made on
+Matchday speaks 25 languages through translations made on
 [**Weblate**](https://weblate.org/), which hosts the project free of charge for libre software.
-Thank you to Weblate and to every translator. (Strings live upstream — translation happens on the
-OwnTV project and merges down.)
+Thank you to Weblate and to every translator.
 
 <img src="extras/partner-logos/tmdb_logo.svg" alt="TMDB" width="200">
 
@@ -178,8 +178,10 @@ Subtitle search & download is powered by [OpenSubtitles.com](https://www.opensub
 **This product uses the OpenSubtitles API but is not endorsed or certified by OpenSubtitles.** You sign
 in with your own OpenSubtitles account and are subject to their terms and download quotas.
 
-Forked from **[OwnTV](https://github.com/ahXN00/OwnTV)** — database, sync, parsers, player engines
-and the design system come from there. Core lives on as
+Forked from **[SportioTV](https://github.com/trenntl/SportioTV)** (by
+[trenntl](https://github.com/trenntl)) — the Sports Hub, matching layer and branding fork of
+**[OwnTV](https://github.com/ahXN00/OwnTV)** — database, sync, parsers, player engines and the
+design system come from there. Core lives on as
 **[SportioTV_Core](https://github.com/trenntl/SportioTV_Core)**.
 
 ### ▶️ Playback engines
@@ -191,9 +193,9 @@ and the design system come from there. Core lives on as
 
 ## ⚖️ Legal
 
-Sportio is a media **player** only. It ships with no channels, playlists, subscriptions, or content, and
-does not endorse or facilitate access to unauthorized streams. Users are solely responsible for the
-sources they add and for complying with the laws and rights that apply to them.
+Matchday is a media **player** only. It ships with no channels, playlists, subscriptions, or content,
+and does not endorse or facilitate access to unauthorized streams. Users are solely responsible for
+the sources they add and for complying with the laws and rights that apply to them.
 
 ## 📄 License
 
@@ -201,4 +203,4 @@ Released under the **GNU General Public License v3.0 (GPLv3)** — see [LICENSE]
 
 ---
 
-<sub>Sportio — live TV and sports for Android TV. Forked from OwnTV, built with the help of AI.</sub>
+<sub>Matchday — live TV and sports for Android TV. A fork of SportioTV, which forked OwnTV; built with the help of AI.</sub>

@@ -55,7 +55,7 @@ dependencyResolutionManagement {
 // Set it in ~/.gradle/gradle.properties, never here:  owntv.corePath=E:/Path/To/SportioTV_Core
 providers.gradleProperty("owntv.corePath").orNull?.takeIf { it.isNotBlank() }?.let { includeBuild(it) }
 
-rootProject.name = "Sportio"
+rootProject.name = "Matchday"
 include(":app")
 // Baseline-profile generator (audit ST1). Test-only module: it ships nothing to users, it records
 // the cold-start journey on a device and writes the profile :app packages.

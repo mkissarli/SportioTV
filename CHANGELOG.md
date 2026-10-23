@@ -8,10 +8,20 @@
 > what, why, files and verification — belongs in the commit message, never here.
 
 <!-- Upstream OwnTV (ahXN00/OwnTV) unreleased notes, carried over verbatim by the fork squash.
-     These are NOT Sportio releases — Sportio versions are the "## v1.0.x" sections below. The
-     block itself is kept identical to upstream on purpose (fewer conflicts when the fork is
-     resynced / when upstream PRs are opened). The release workflows extract notes per tag
-     (`^## <tag>`), so these lines never reach a release body or the in-app update dialog. -->
+     These are NOT Sportio releases — Sportio versions are the "## v1.0.x" sections below, and
+     Matchday (this fork) versions are the "## v0.x.y" sections above them. The block itself is
+     kept identical to upstream on purpose (fewer conflicts when the fork is resynced / when
+     upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
+     these lines never reach a release body or the in-app update dialog. -->
+
+## v0.2.0
+
+### ✨ New features
+- **Matchday Sports Hub: sport-coin sidebar (All leads, live-count badges, sport labels)**
+- **Fixtures grouped into day bands and foldable league bands**
+- **Live / Today / Upcoming / Past pills with a Today-focused view**
+- **Detail pane follows the selected sport and auto-picks the live or next game**
+- **Rebranded to Matchday (dev.matchday.tv) with the in-app updater pointing at this fork**
 
 ## Unreleased
 

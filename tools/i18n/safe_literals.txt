@@ -38,7 +38,7 @@
 1	compiler	app/src/main/java/tv/own/owntv/OwnTVApp.kt	DEPRECATION
 1	file-path	app/src/main/java/tv/own/owntv/OwnTVApp.kt	image_cache
 1	performance	app/src/main/java/tv/own/owntv/OwnTVApp.kt	koin-started
-1	technical	app/src/main/java/tv/own/owntv/OwnTVApp.kt	trenntl/SportioTV
+1	technical	app/src/main/java/tv/own/owntv/OwnTVApp.kt	mkissarli/SportioTV
 3	empty	app/src/main/java/tv/own/owntv/core/i18n/LocalizedContent.kt	\0
 1	empty	app/src/main/java/tv/own/owntv/features/customize/CustomizeItemsScreen.kt	\0
 1	assertion	app/src/main/java/tv/own/owntv/features/customize/CustomizeItemsViewModel.kt	EPISODE not applicable
@@ -1369,6 +1369,7 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	EEE d.M.
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	FF
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	LIVE
+2	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	australian-football
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	channels
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	day-${item.date}
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	detail

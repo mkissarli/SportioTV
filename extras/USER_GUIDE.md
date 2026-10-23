@@ -1,6 +1,6 @@
-# Sportio — User Guide
+# Matchday — User Guide
 
-Everything Sportio can do, **where to find it**, and the remote shortcuts that make it fast.
+Everything Matchday can do, **where to find it**, and the remote shortcuts that make it fast.
 
 Each entry is one line about what it does and one line about where it lives. Nothing here is
 required reading — skim the headings and stop where something looks useful.
@@ -17,7 +17,7 @@ A fresh install walks you through this, in order. Nothing here is permanent — 
 changed later in Settings.
 
 ```
-Welcome  →  Display  →  Disclaimer  →  Set up Sportio  →  Profile
+Welcome  →  Display  →  Disclaimer  →  Set up Matchday  →  Profile
                                                            ↓
                All set + TV guide  ←  Import  ←  Add a playlist
 ```
@@ -29,8 +29,8 @@ for that step shown in the corner.
    Press **Get started**.
 2. **Display** — step UI Zoom and Font size while a sample row resizes, so you judge it from your
    sofa, and pick the **App icon**. Changeable later in Settings → Appearance and Settings → App.
-3. **Disclaimer** — Sportio is a player; you bring the sources.
-4. **Set up Sportio** — three ways to begin: **New profile**, **Restore a backup**, or
+3. **Disclaimer** — Matchday is a player; you bring the sources.
+4. **Set up Matchday** — three ways to begin: **New profile**, **Restore a backup**, or
    **From another device** (copy everything off a TV you already have — see below). A restore asks
    which parts of the backup to bring back before it applies anything, so you can take the playlists
    and leave the old box's settings behind. Untick **Sources** and it warns you: the TV then gets no
@@ -45,8 +45,8 @@ for that step shown in the corner.
 7. **Import** runs, then **All set** — with an **Add a TV guide** button that opens Settings → EPG
    sources → Add as soon as the app is up.
 
-### 🔄 Already have Sportio on another device?
-**Where:** the **Set up Sportio** screen → **From another device**
+### 🔄 Already have Matchday on another device?
+**Where:** the **Set up Matchday** screen → **From another device**
 Copies your profiles, playlists, favourites, history and resume points straight over your Wi-Fi —
 no account, no cloud, no file to find. On the device you already have, open **⋯ More → Local sync**
 and turn **Sync mode** on; it stays on while that screen is open. The new television then finds it on
@@ -187,7 +187,7 @@ are in use. Nothing is imported — it only asks.
 
 ### ⚡ Choose what to sync
 **Where:** while adding an Xtream or Stalker playlist
-Per section: **Now** (import first), **Later** (background), **Off** (never fetched). Sportio is
+Per section: **Now** (import first), **Later** (background), **Off** (never fetched). Matchday is
 live-TV-first: keep Live on **Now**.
 
 ### 🔄 Re-sync
@@ -268,13 +268,13 @@ happens. **Live TV player per playlist** right below applies a different choice 
 > **Give up after, per playlist** gives one provider its own time.
 
 ### ⏳ "Too many connections"
-The spinner stays up with a live countdown and Sportio retries by itself. Don't press Retry — just
+The spinner stays up with a live countdown and Matchday retries by itself. Don't press Retry — just
 wait.
 
 ### 🔒 Protected (DRM) channels
 Widevine and ClearKey channels play with nothing to set up — your TV does the unlocking. They always
 use ExoPlayer, so the engine toggle is hidden for them. Some cheaper boxes only allow standard
-definition; that is the device's decision, not Sportio's.
+definition; that is the device's decision, not Matchday's.
 
 ---
 
@@ -296,7 +296,7 @@ then the grid, opened at now with the now-line about a third of the way across.
 ### 🔔 Programme reminders
 **Where:** hold OK on an upcoming programme → **Remind me** · Settings → Sources & guide →
 **Programme reminders** / **Reminder time**
-When it is due (5 minutes before by default) Sportio **asks to switch** — over any screen, the player
+When it is due (5 minutes before by default) Matchday **asks to switch** — over any screen, the player
 included — or **switches** by itself, or only **notifies**.
 
 ### ➕ Add guide data
@@ -347,7 +347,7 @@ day/hour/minute picker. **This works even on channels with no guide at all.**
 
 ### ⏸️ Pause and rewind channels without catch-up
 **Where:** **Settings → Live TV → Pause and rewind live TV**
-Off by default. While you watch a channel full screen, Sportio saves it on this TV and plays it
+Off by default. While you watch a channel full screen, Matchday saves it on this TV and plays it
 from that copy, so it still looks live — and you can **pause**, rewind and go forward on channels
 whose provider keeps no archive. Pause, the rewind/forward buttons, the bar, Left/Right and **Go live** work as on a catch-up channel. A dark stretch on the bar is a moment the connection
 dropped; playback jumps over it.
@@ -356,12 +356,12 @@ dropped; playback jumps over it.
   stays free; the oldest part goes first.
 - **Back to the Live screen is not leaving: the preview is the same channel, so it keeps saving.**
 - **The delete rules:**
-  - Leave the channel and its copy is kept for **5 minutes**. Come back within them and Sportio asks
+  - Leave the channel and its copy is kept for **5 minutes**. Come back within them and Matchday asks
     **Continue where you left off?** — **Resume** plays on from where you left, **Go live** jumps to now.
     **Settings → Live TV → Resume a saved channel** turns the question into **Always resume** or
     **Never resume**.
   - Watch another channel for **2 minutes** and the copy you left is deleted at once — you have moved on.
-  - After 5 minutes it is deleted anyway, and every copy is deleted when Sportio starts.
+  - After 5 minutes it is deleted anyway, and every copy is deleted when Matchday starts.
 - Catch-up channels still rewind into the provider's archive. Protected (DRM) and encrypted channels
   play as before, without a copy.
 
@@ -388,7 +388,7 @@ recording on the same playlist is shown before you confirm. While a channel reco
 > A recording costs one of your provider's connections and says so before it starts.
 
 > **Copy-protected channels cannot be recorded.** Where a provider protects a channel with DRM, it
-> can be watched but not saved — the protection is theirs, not Sportio's. Asking to record one stops
+> can be watched but not saved — the protection is theirs, not Matchday's. Asking to record one stops
 > straight away and tells you why, rather than leaving a file that will not play.
 
 ---
@@ -408,7 +408,7 @@ A tile that cannot start says why rather than sitting blank.
 
 ### 🔌 How many channels your provider allows
 **Where:** Settings → Sources & guide → Playlists → **Info**
-Sportio measures this once, at a playlist's first sync, and warns before refusing a stream. **Re-test**
+Matchday measures this once, at a playlist's first sync, and warns before refusing a stream. **Re-test**
 is inside Info — it stops anything playing and takes a few minutes.
 
 ---
@@ -548,7 +548,7 @@ right answer for TV speakers) · **Surround** (send Dolby/DTS to a real receiver
 **Night mode** turns loud scenes down and quiet dialogue up; **Volume leveling** brings every channel
 to the same loudness. Both are off by default and work on both engines, ExoPlayer and mpv.
 **Dolby and DTS passthrough** (on) sends Dolby/DTS undecoded to the TV or
-receiver on ExoPlayer; off, or while Night mode or leveling is on, Sportio decodes it itself.
+receiver on ExoPlayer; off, or while Night mode or leveling is on, Matchday decodes it itself.
 
 ### 📺 Picture quality and tunneled playback
 **Where:** Settings → Picture
@@ -571,8 +571,8 @@ beside the rows shows each change before you leave it.
 
 ### 🃏 App icon
 **Where:** Settings → App → **App icon**
-Several colours for the Sportio icon and logo, or a dotted TV set. It changes the app row
-banner, the launch screen and every logo in the app. **Restart now** switches at once: Sportio closes and opens again by itself, on
+Several colours for the Matchday icon and logo, or a dotted TV set. It changes the app row
+banner, the launch screen and every logo in the app. **Restart now** switches at once: Matchday closes and opens again by itself, on
 Home, with the new colour. **Later** switches when you next leave the app. Some launchers take a moment to show the new banner.
 
 ### 🔦 Focus highlight
@@ -595,7 +595,7 @@ A soft glow around the edges of the screen, with an optional slow pulse.
 **Where:** Settings → Appearance → **Fonts & text size** · **Popup size** · **UI zoom**
 One font family for the whole app and popups, main text 60–140% and
 popup text separately. **Popup size** and **UI zoom** step with ◀ ▶ right on their rows.
-> Below **85% zoom** Sportio warns first — very small sizes draw many more items and can exhaust a
+> Below **85% zoom** Matchday warns first — very small sizes draw many more items and can exhaust a
 > low-memory TV.
 
 ### 🕒 Date, time & weather
@@ -699,7 +699,7 @@ before it changes. On a brand-new television this is offered during setup instea
 
 ## 🛠️ Build your own M3U playlist
 
-Sportio sorts each live entry by its tags into Live TV:
+Matchday sorts each live entry by its tags into Live TV:
 
 ```
 tagged live  →  Live TV category
@@ -728,8 +728,8 @@ http://your-provider/live/user/pass/1234.ts
 | A channel stutters or shows artifacts on 4K | The **⇄ MPV/EXO** pill — compatibility mode fixes most of these |
 | One provider glitches, another is fine | Turn on **Prefer HLS** for that playlist, or set **Live TV player per playlist** |
 | Channel won't open at all | It already tried all four combinations. Check **Error log** (⋯ More) |
-| "Too many connections" | Wait — Sportio counts down and retries by itself. Don't press Retry |
-| Sound but a black picture | Sportio switches engines by itself; if neither can, it says so |
+| "Too many connections" | Wait — Matchday counts down and retries by itself. Don't press Retry |
+| Sound but a black picture | Matchday switches engines by itself; if neither can, it says so |
 | Stalker portal refuses the login | Re-check the MAC, and the TV's **date & time** |
 | Guide is blank | **Settings → Sources & guide → EPG Sources** — add a feed and sync it, then run **Auto-match EPG** |
 | No channels under a fixture | The Sports Hub matches names and guide text — without synced EPG it can only use names. Sync the guide, or widen the sport language filter |
@@ -738,7 +738,7 @@ http://your-provider/live/user/pass/1234.ts
 
 **Still stuck?** **⋯ More → Error log** holds the last crash and recent playback failures, and
 exports to `Download/owntv-playback-report.txt`. Bring it to the
-[issue tracker](https://github.com/trenntl/SportioTV/issues).
+[issue tracker](https://github.com/trenntl/MatchdayTV/issues).
 
 ---
 

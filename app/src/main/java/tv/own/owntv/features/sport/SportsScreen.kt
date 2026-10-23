@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.tv.material3.Text
@@ -262,16 +263,26 @@ fun SportsScreen(
                 .padding(start = contentStart + 20.mpx, top = 52.mpx, end = 28.mpx)
                 .fillMaxSize(),
         ) {
-            // Sport rail (Matchday sidebar): one coin per sport with followed leagues.
-            Column(Modifier.width(fx(160)).fillMaxHeight()) {
-                Text(stringResource(R.string.sport_title), style = stageText(40, 800), color = StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // Sport rail (Matchday sidebar): one labelled coin per sport with followed leagues.
+            Column(Modifier.width(fx(112)).fillMaxHeight()) {
+                Text(
+                    stringResource(R.string.sport_title),
+                    style = stageText(32, 800),
+                    color = StageColors.Text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 Column(
-                    Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(top = 18.mpx),
+                    Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(top = 14.mpx),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.mpx),
+                    verticalArrangement = Arrangement.spacedBy(8.mpx),
                 ) {
+                    // All: the explicit first coin — star glyph, "All" label, always leading.
                     SportCoin(
                         coinKey = SportsViewModel.SportAllId,
+                        label = stringResource(R.string.sport_all),
                         glyph = null,
                         selected = favouritesSelected && selectedSportId == SportsViewModel.SportAllId,
                         liveCount = 0,
@@ -282,6 +293,7 @@ fun SportsScreen(
                     sportCoins.forEach { coin ->
                         SportCoin(
                             coinKey = coin.espnSport,
+                            label = sportCoinLabel(coin.espnSport),
                             glyph = sportGlyph(coin.espnSport),
                             selected = favouritesSelected && selectedSportId == coin.espnSport,
                             liveCount = coin.liveCount,
@@ -291,19 +303,29 @@ fun SportsScreen(
                         )
                     }
                     // Add leagues: a small + coin at the end of the rail.
-                    StageSurface(
-                        onClick = { settingsTab = 0; showSettings = true },
-                        onLongClick = null,
-                        radius = 52.mpx,
-                        modifier = Modifier.size(104.mpx).focusRequester(addLeaguesFocus),
-                    ) { focused ->
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            OwnTVIcon(
-                                OwnTVIcon.ADD,
-                                if (focused) stageAccent.onAccent else StageColors.NavText,
-                                Modifier.size(36.mpx),
-                            )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        StageSurface(
+                            onClick = { settingsTab = 0; showSettings = true },
+                            onLongClick = null,
+                            radius = CoinPx.mpx,
+                            modifier = Modifier.size(CoinPx.mpx).focusRequester(addLeaguesFocus),
+                        ) { focused ->
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                OwnTVIcon(
+                                    OwnTVIcon.ADD,
+                                    if (focused) stageAccent.onAccent else StageColors.NavText,
+                                    Modifier.size(24.mpx),
+                                )
+                            }
                         }
+                        Text(
+                            stringResource(R.string.sport_add_leagues),
+                            style = stageText(13, 600),
+                            color = StageColors.Muted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 4.mpx),
+                        )
                     }
                 }
             }
@@ -708,10 +730,11 @@ private fun LeagueBand(item: HubItem.League, modifier: Modifier = Modifier, onTo
 private fun leagueLabel(leagueId: String): String =
     SportsLeagues.firstOrNull { it.id == leagueId }?.let { stringResource(it.labelRes) } ?: leagueId
 
-/** A sport coin (Matchday sidebar): round, emoji glyph (or the star for All), live badge. */
+/** A sport coin (Matchday sidebar): round, emoji glyph (or the star for All), label below, live badge. */
 @Composable
 private fun SportCoin(
     coinKey: String,
+    label: String,
     glyph: String?,
     selected: Boolean,
     liveCount: Int,
@@ -720,37 +743,67 @@ private fun SportCoin(
     modifier: Modifier = Modifier,
 ) {
     val accent = stageAccent
-    Box(modifier, contentAlignment = Alignment.TopEnd) {
-        StageSurface(
-            onClick = onClick,
-            onLongClick = onLongClick,
-            radius = 104.mpx,
-            idle = if (selected) Modifier.background(accent.accent, RoundedCornerShape(104.mpx)) else Modifier,
-        ) { focused ->
-            Box(
-                Modifier.size(104.mpx),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (glyph == null) {
-                    OwnTVIcon(
-                        OwnTVIcon.STAR,
-                        if (focused) accent.onAccent else if (selected) accent.onAccent else accent.accent,
-                        Modifier.size(42.mpx),
-                    )
-                } else {
-                    Text(
-                        glyph,
-                        style = stageText(CoinGlyphPx, 400),
-                        color = if (selected) accent.onAccent else StageColors.Text,
-                    )
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(contentAlignment = Alignment.TopEnd) {
+            StageSurface(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                radius = CoinPx.mpx,
+                idle = if (selected) Modifier.background(accent.accent, RoundedCornerShape(CoinPx.mpx)) else Modifier,
+            ) { focused ->
+                Box(
+                    Modifier.size(CoinPx.mpx),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (glyph == null) {
+                        OwnTVIcon(
+                            OwnTVIcon.STAR,
+                            if (focused || selected) accent.onAccent else accent.accent,
+                            Modifier.size(26.mpx),
+                        )
+                    } else {
+                        Text(
+                            glyph,
+                            style = stageText(CoinGlyphPx, 400),
+                            color = if (selected) accent.onAccent else StageColors.Text,
+                        )
+                    }
                 }
             }
+            if (liveCount > 0 && !selected) {
+                LiveDot(liveCount.toString())
+            }
         }
-        if (liveCount > 0 && !selected) {
-            LiveDot(liveCount.toString())
-        }
+        Text(
+            label,
+            style = stageText(13, 600),
+            color = if (selected) accent.accent else StageColors.Muted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 4.mpx),
+        )
     }
 }
+
+/** Translated label per ESPN sport slug for the sidebar coins. */
+@Composable
+private fun sportCoinLabel(espnSport: String): String = stringResource(
+    when (espnSport) {
+        "soccer" -> R.string.sport_coin_football
+        "tennis" -> R.string.sport_coin_tennis
+        "basketball" -> R.string.sport_coin_basketball
+        "golf" -> R.string.sport_coin_golf
+        "football" -> R.string.sport_coin_gridiron
+        "baseball" -> R.string.sport_coin_baseball
+        "hockey" -> R.string.sport_coin_hockey
+        "racing" -> R.string.sport_coin_racing
+        "mma" -> R.string.sport_coin_mma
+        "cricket" -> R.string.sport_coin_cricket
+        "volleyball" -> R.string.sport_coin_volleyball
+        "rugby", "rugby-league", "australian-football" -> R.string.sport_coin_rugby
+        else -> R.string.sport_coin_other
+    },
+)
 
 /** Emoji per ESPN sport slug for the sidebar coins. */
 private fun sportGlyph(espnSport: String): String = when (espnSport) {
@@ -769,7 +822,8 @@ private fun sportGlyph(espnSport: String): String = when (espnSport) {
     else -> "🏆"
 }
 
-private const val CoinGlyphPx = 44
+private const val CoinPx = 64
+private const val CoinGlyphPx = 28
 
 /** One pill in the fixtures column: filled with the accent when selected (Matchday style). */
 @Composable

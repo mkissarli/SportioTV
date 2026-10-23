@@ -12,7 +12,7 @@
     </style>
 
     <!--
-      Launch theme (audit ST3). The activity starts in this theme so the cold start shows the Sportio
+      Launch theme (audit ST3). The activity starts in this theme so the cold start shows the Matchday
       mark on the same window background as Theme.OwnTV — no colour flash at handoff — and
       MainActivity switches to Theme.OwnTV via postSplashScreenTheme once a real destination is ready.
       Here (API < 31, drawn by the compat library) the icon is the still mark; values-v31 swaps in

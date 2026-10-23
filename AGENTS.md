@@ -1,6 +1,6 @@
 # AGENTS.md — verbindlich für alle Agents
 
-Sportio (persönlicher OwnTV-Fork, TV + Sports). Sprache mit dem User: Deutsch.
+Matchday (persönlicher SportioTV-Fork, TV + Sports). Sprache mit dem User: Englisch.
 Antworten kurz, keine Emojis, keine Superlative. Fakten statt Vermutungen.
 
 ## 1. Lesereihenfolge (Pflicht vor jedem Task)
@@ -14,14 +14,15 @@ Neues Wissen gehört nach `docs/`, nie nach `HANDOFF.md` oder in den Root.
 
 ## 2. Naming-Freeze (beschlossen, nicht verhandelbar)
 
-- User-sichtbar ist **Sportio**: `applicationId tv.sportio.app`
-  (`app/build.gradle.kts`), `app_name`, `sportio://`-Scheme, Branding.
+- User-sichtbar ist **Matchday**: `applicationId dev.matchday.tv`
+  (`app/build.gradle.kts`), `app_name`, Branding. Das `sportio://`-Scheme
+  bleibt (Core erzeugt diese Links), ebenso die Sportio-Palette.
 - Technisch bleibt **tv.own.owntv** eingefroren: Kotlin-Pakete,
   `android.namespace`, Core-Group `tv.own.owntv`, `OwnTVDatabase`,
   `OwnTV*`-Klassen/Dateien (z. B. `OwnTVApp.kt`, `OwnTVShell.kt`,
   `OwnTVIcon.kt`), DataStore/Backup (`.own`, Ordner `OwnTV`).
 - Kein Rename von Paketen, Klassen, Dateien oder Core-Group ohne
-  expliziten User-Auftrag. Begründung steht in `docs/BRANDING.md`.
+  expliziten User-Auftrag. Begründung steht in `docs/BRANDING.md` (Upstream).
 - Interne `OwnTV`-Namen in neuem Code nicht weiterverbreiten, aber
   bestehende nicht umbenennen. Neuen user-sichtbaren Text als `sport_*`
   nach `res/values/strings.xml` + `values-de/`.

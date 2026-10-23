@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Launch-window background. Matches DarkBackground (#060B07, Sportio pitch) so cold start is seamless (Phase 0). -->
+    <!-- Launch-window background. Matches DarkBackground (#060B07, Matchday pitch) so cold start is seamless (Phase 0). -->
     <color name="owntv_window_bg">#060b07</color>
 </resources>

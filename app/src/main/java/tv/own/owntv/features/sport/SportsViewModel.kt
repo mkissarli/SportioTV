@@ -71,7 +71,7 @@ class SportsViewModel(
     }
 
     /** The second column's filter for the selected league. */
-    enum class FixtureTab { LIVE, UPCOMING, PAST }
+    enum class FixtureTab { LIVE, TODAY, UPCOMING, PAST }
 
     data class LeagueUi(
         val league: SportLeague,
@@ -158,8 +158,12 @@ class SportsViewModel(
     private val standingsCache = HashMap<String, List<LeagueTable>>()
     private val matchesCache = HashMap<String, List<ChannelMatch>>()
 
-    private val _selectedLeagueId = MutableStateFlow(SportsLeagues.first().id)
+    private val _selectedLeagueId = MutableStateFlow(FavouritesId)
     val selectedLeagueId: StateFlow<String> = _selectedLeagueId.asStateFlow()
+
+    /** Selected sport coin ([SportAllId] = every sport); sports only filter the aggregate view. */
+    private val _selectedSportId = MutableStateFlow(SportAllId)
+    val selectedSportId: StateFlow<String> = _selectedSportId.asStateFlow()
 
     private val _selectedFixture = MutableStateFlow<Fixture?>(null)
     val selectedFixture: StateFlow<Fixture?> = _selectedFixture.asStateFlow()
@@ -229,18 +233,60 @@ class SportsViewModel(
                 .sortedWith(compareBy<Fixture> { it.state != FixtureState.LIVE }.thenBy { it.dateMs })
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** One sport coin on the rail: the followed leagues of one ESPN sport, aggregated. */
+    data class SportUi(
+        val espnSport: String,
+        val followedLeagues: Int,
+        val liveCount: Int,
+        val loading: Boolean,
+    )
+
+    /** Hub coin order (soccer first, …); anything unlisted falls to the end, alphabetical. */
+    private val sportOrder = listOf(
+        "soccer", "tennis", "basketball", "golf", "football", "baseball", "hockey", "racing",
+        "mma", "cricket", "volleyball", "rugby", "rugby-league", "australian-football",
+    )
+
+    /** The rail's sport coins: every ESPN sport that has at least one followed league. */
+    val sportCoins: StateFlow<List<SportUi>> =
+        combine(boards, activeLeagues) { current, active ->
+            SportsLeagues.filter { it.id in active }
+                .groupBy { it.espnSport }
+                .map { (sport, leagues) ->
+                    SportUi(
+                        espnSport = sport,
+                        followedLeagues = leagues.size,
+                        liveCount = leagues.sumOf { league ->
+                            (current[league.id] as? BoardState.Content)?.board?.fixtures
+                                ?.count { it.state == FixtureState.LIVE } ?: 0
+                        },
+                        loading = leagues.any { current[it.id] is BoardState.Loading },
+                    )
+                }
+                .sortedWith(
+                    compareBy<SportUi> { sportOrder.indexOf(it.espnSport) }
+                        .thenBy { it.espnSport },
+                )
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            emptyList(),
+        )
+
     /**
      * Everything the user picked: every fixture of an active league plus games of followed teams or
-     * athletes (even when that item's league is not active), live games first.
+     * athletes (even when that item's league is not active), live games first — narrowed to the
+     * selected sport coin unless it is [SportAllId].
      */
     val favourites: StateFlow<List<Fixture>> =
-        combine(boards, activeLeagues, followedTeams, followedPlayers) { current, active, teams, players ->
+        combine(boards, activeLeagues, followedTeams, followedPlayers, _selectedSportId) { current, active, teams, players, sport ->
+            val sportOf = SportsLeagues.associateBy({ it.id }, { it.espnSport })
             current.values.filterIsInstance<BoardState.Content>()
                 .flatMap { it.board.fixtures }
                 .filter {
-                    it.leagueId in active ||
-                        involvesFollowedTeam(it, teams) ||
-                        involvesFollowedPlayer(it, players)
+                    val inSport = sport == SportAllId || sportOf[it.leagueId] == sport
+                    (it.leagueId in active && inSport) ||
+                        (inSport && (involvesFollowedTeam(it, teams) || involvesFollowedPlayer(it, players)))
                 }
                 .sortedWith(compareBy<Fixture> { it.state != FixtureState.LIVE }.thenBy { it.dateMs })
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -365,6 +411,12 @@ class SportsViewModel(
         _selectedFixture.value = null
         _matches.value = MatchesState.Idle
         _aiState.value = AiState.Idle
+    }
+
+    /** The aggregate, narrowed to one sport coin ([SportAllId] = everything). */
+    fun selectSport(espnSport: String) {
+        if (_selectedLeagueId.value != FavouritesId) selectFavourites()
+        _selectedSportId.value = espnSport
     }
 
     fun selectLeague(id: String) {
@@ -741,6 +793,7 @@ class SportsViewModel(
     companion object {
         /** Sentinel rail selection for the Favourites aggregate (no single league). */
         const val FavouritesId = "__favourites__"
+        const val SportAllId = "__sport_all__"
 
         /** Pick-list id prefixes, so one phone submit can carry leagues, teams and athletes. */
         const val TeamItemPrefix = "team:"

@@ -54,6 +54,21 @@
 1	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	live_show_other
 1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	$versus
 1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	${home.abbreviation} $versus ${away.abbreviation}
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	australian-football
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	baseball
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	basketball
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	cricket
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	football
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	golf
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	hockey
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	mma
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	racing
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	rugby
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	rugby-league
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	soccer
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	tennis
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	volleyball
+1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	__sport_all__
 1	app/src/main/java/tv/own/owntv/ui/components/ColorPicker.kt	#%06X
 1	app/src/main/java/tv/own/owntv/ui/components/TextInputDialog.kt	\0
 1	app/src/main/java/tv/own/owntv/ui/components/TvImeMetrics.kt	$trigger visible=${next.visible} source=${next.source} displayH=$displayHeight

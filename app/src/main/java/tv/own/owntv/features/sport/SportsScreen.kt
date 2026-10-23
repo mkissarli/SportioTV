@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -112,7 +113,8 @@ fun SportsScreen(
 ) {
     val vm: SportsViewModel = koinViewModel()
     val liveVm: LiveViewModel = koinViewModel()
-    val leagues by vm.leagues.collectAsStateWithLifecycle()
+    val sportCoins by vm.sportCoins.collectAsStateWithLifecycle()
+    val selectedSportId by vm.selectedSportId.collectAsStateWithLifecycle()
     val activeLeagues by vm.activeLeagues.collectAsStateWithLifecycle()
     val selectedLeagueId by vm.selectedLeagueId.collectAsStateWithLifecycle()
     val selectedFixture by vm.selectedFixture.collectAsStateWithLifecycle()
@@ -157,6 +159,13 @@ fun SportsScreen(
     val tab by vm.tab.collectAsStateWithLifecycle()
     val visibleFixtures = remember(fixtures, tab) { fixturesFor(fixtures, tab) }
 
+    // Matchday-style hub rows: the list becomes date bands → league bands → games (foldable).
+    val foldedLeagues = remember { mutableStateMapOf<String, Boolean>() }
+    LaunchedEffect(selectedSportId) { foldedLeagues.clear() }
+    val hubRows = remember(visibleFixtures, favouritesSelected, foldedLeagues.toMap()) {
+        buildHubRows(visibleFixtures, favouritesSelected, foldedLeagues, ZoneId.systemDefault(), LocalDate.now(ZoneId.systemDefault()))
+    }
+
     // Phone picker payload: labels/regions resolved here, where stringResource is available.
     val phoneTitle = stringResource(R.string.sport_phone_title)
     val phoneTeamGroup = stringResource(R.string.sport_phone_teams)
@@ -171,8 +180,8 @@ fun SportsScreen(
     }
     val phoneLeagueLabels = SportsLeagues.associate { it.id to stringResource(it.labelRes) }
 
-    val leagueFocus = remember { mutableStateMapOf<String, FocusRequester>() }
-    fun leagueRequester(id: String) = leagueFocus.getOrPut(id) { FocusRequester() }
+    val sportFocus = remember { mutableStateMapOf<String, FocusRequester>() }
+    fun sportRequester(id: String) = sportFocus.getOrPut(id) { FocusRequester() }
     val gameFocus = remember { mutableStateMapOf<String, FocusRequester>() }
     fun gameRequester(id: String) = gameFocus.getOrPut(id) { FocusRequester() }
     val matchFocus = remember { mutableStateMapOf<Long, FocusRequester>() }
@@ -180,12 +189,11 @@ fun SportsScreen(
     val refreshFocus = remember { FocusRequester() }
     val settingsFocus = remember { FocusRequester() }
     val addLeaguesFocus = remember { FocusRequester() }
-    val favouritesFocus = remember { FocusRequester() }
     val listState = rememberLazyListState()
 
     suspend fun focusGame(id: String) {
         if (runCatching { gameRequester(id).requestFocus() }.isSuccess) return
-        val index = visibleFixtures.indexOfFirst { it.id == id }
+        val index = hubRows.indexOfFirst { it is HubItem.Game && it.fixture.id == id }
         if (index >= 0) runCatching { listState.scrollToItem(index) }
         withFrameNanos { }
         runCatching { gameRequester(id).requestFocus() }
@@ -194,16 +202,21 @@ fun SportsScreen(
     val entry: () -> Boolean = {
         val firstFixture = visibleFixtures.firstOrNull() ?: fixtures.firstOrNull()
         if (firstFixture != null) runCatching { gameRequester(firstFixture.id).requestFocus() }.isSuccess
-        else runCatching { leagueRequester(leagues.firstOrNull()?.league?.id.orEmpty()).requestFocus() }.isSuccess
+        else runCatching { sportRequester(SportsViewModel.SportAllId).requestFocus() }.isSuccess
     }
     DisposableEffect(onEntryHook, fixtures) {
         onEntryHook?.invoke(entry)
         onDispose { onEntryHook?.invoke(null) }
     }
 
-    // Detail always populated: pick the live game first, else the next upcoming one.
+    // Detail always populated: pick the live game first, else the next upcoming one. A selected
+    // fixture that dropped out of the current sport filter (e.g. after switching coins) is treated
+    // as no selection so the pane re-picks from the visible games.
     LaunchedEffect(fixtures) {
-        if (selectedFixture == null && fixtures.isNotEmpty()) {
+        val current = selectedFixture
+        // The collected state lags behind selectFixture's write, so never null-and-repick;
+        // decide from the stale check alone.
+        if (current == null || fixtures.none { it.id == current.id }) {
             val pick = fixtures.firstOrNull { it.state == FixtureState.LIVE }
                 ?: fixtures.filter { it.state == FixtureState.UPCOMING }.minByOrNull { it.dateMs }
                 ?: fixtures.maxByOrNull { it.dateMs }
@@ -249,92 +262,47 @@ fun SportsScreen(
                 .padding(start = contentStart + 20.mpx, top = 52.mpx, end = 28.mpx)
                 .fillMaxSize(),
         ) {
-            // League rail.
-            Column(Modifier.width(fx(330)).fillMaxHeight()) {
-                Text(stringResource(R.string.sport_title), style = stageText(46, 800), color = StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                // Favourites aggregates every active league plus the user's followed teams.
-                StageSurface(
-                    onClick = { vm.selectFavourites() },
-                    radius = 18.mpx,
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.mpx).focusRequester(favouritesFocus),
-                    idle = if (favouritesSelected) Modifier.background(stageAccent.accent.copy(alpha = 0.14f), RoundedCornerShape(18.mpx)) else Modifier,
-                ) { focused ->
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.mpx, vertical = 12.mpx),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.mpx),
-                    ) {
-                        OwnTVIcon(
-                            OwnTVIcon.STAR,
-                            if (focused) stageAccent.onAccent else if (favouritesSelected) stageAccent.accent else StageColors.NavText,
-                            Modifier.size(24.mpx),
-                        )
-                        Text(
-                            stringResource(R.string.sport_favourites),
-                            style = stageText(20, if (favouritesSelected) 700 else 500),
-                            color = if (focused) stageAccent.onAccent else StageColors.Text,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            // Sport rail (Matchday sidebar): one coin per sport with followed leagues.
+            Column(Modifier.width(fx(160)).fillMaxHeight()) {
+                Text(stringResource(R.string.sport_title), style = stageText(40, 800), color = StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Column(
+                    Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(top = 18.mpx),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.mpx),
+                ) {
+                    SportCoin(
+                        coinKey = SportsViewModel.SportAllId,
+                        glyph = null,
+                        selected = favouritesSelected && selectedSportId == SportsViewModel.SportAllId,
+                        liveCount = 0,
+                        onClick = { vm.selectSport(SportsViewModel.SportAllId) },
+                        onLongClick = { settingsTab = 0; showSettings = true },
+                        modifier = Modifier.focusRequester(sportRequester(SportsViewModel.SportAllId)),
+                    )
+                    sportCoins.forEach { coin ->
+                        SportCoin(
+                            coinKey = coin.espnSport,
+                            glyph = sportGlyph(coin.espnSport),
+                            selected = favouritesSelected && selectedSportId == coin.espnSport,
+                            liveCount = coin.liveCount,
+                            onClick = { vm.selectSport(coin.espnSport) },
+                            onLongClick = { settingsTab = 0; showSettings = true },
+                            modifier = Modifier.focusRequester(sportRequester(coin.espnSport)),
                         )
                     }
-                }
-                Text(stringResource(R.string.sport_leagues), style = stageText(20, 500), color = StageColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 14.mpx, bottom = 10.mpx))
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.mpx), modifier = Modifier.fillMaxHeight()) {
-                    items(leagues, key = { it.league.id }) { league ->
-                        val selected = league.league.id == selectedLeagueId
-                        StageSurface(
-                            onClick = { vm.selectLeague(league.league.id) },
-                            onLongClick = { vm.toggleLeagueFollowed(league.league.id) },
-                            radius = 18.mpx,
-                            modifier = Modifier.fillMaxWidth().focusRequester(leagueRequester(league.league.id)),
-                            idle = if (selected) Modifier.background(stageAccent.accent.copy(alpha = 0.14f), RoundedCornerShape(18.mpx)) else Modifier,
-                        ) { focused ->
-                            Row(
-                                Modifier.fillMaxWidth().padding(horizontal = 16.mpx, vertical = 12.mpx),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.mpx),
-                            ) {
-                                OwnTVIcon(
-                                    OwnTVIcon.SPORT,
-                                    if (focused) stageAccent.onAccent else if (selected) stageAccent.accent else StageColors.NavText,
-                                    Modifier.size(24.mpx),
-                                )
-                                Column(Modifier.weight(1f)) {
-                                    Text(stringResource(league.league.labelRes), style = stageText(20, if (selected) 700 else 500), color = if (focused) stageAccent.onAccent else StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
-                                if (league.liveCount > 0) {
-                                    LiveDot(league.liveCount.toString())
-                                } else if (league.loading) {
-                                    Text(stringResource(R.string.sport_loading), style = stageText(14, 500), color = StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
-                            }
-                        }
-                    }
-                    item(key = "add-leagues") {
-                        StageSurface(
-                            onClick = {
-                                settingsTab = 0
-                                showSettings = true
-                            },
-                            radius = 18.mpx,
-                            modifier = Modifier.fillMaxWidth().focusRequester(addLeaguesFocus),
-                        ) { focused ->
-                            Row(
-                                Modifier.fillMaxWidth().padding(horizontal = 16.mpx, vertical = 12.mpx),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.mpx),
-                            ) {
-                                OwnTVIcon(
-                                    OwnTVIcon.ADD,
-                                    if (focused) stageAccent.onAccent else StageColors.NavText,
-                                    Modifier.size(24.mpx),
-                                )
-                                Text(
-                                    stringResource(R.string.sport_add_leagues),
-                                    style = stageText(20, 500),
-                                    color = if (focused) stageAccent.onAccent else StageColors.Muted,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                )
-                            }
+                    // Add leagues: a small + coin at the end of the rail.
+                    StageSurface(
+                        onClick = { settingsTab = 0; showSettings = true },
+                        onLongClick = null,
+                        radius = 52.mpx,
+                        modifier = Modifier.size(104.mpx).focusRequester(addLeaguesFocus),
+                    ) { focused ->
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            OwnTVIcon(
+                                OwnTVIcon.ADD,
+                                if (focused) stageAccent.onAccent else StageColors.NavText,
+                                Modifier.size(36.mpx),
+                            )
                         }
                     }
                 }
@@ -344,8 +312,7 @@ fun SportsScreen(
                 val leagueName = if (favouritesSelected) {
                     stringResource(R.string.sport_favourites)
                 } else {
-                    leagues.firstOrNull { it.league.id == selectedLeagueId }
-                        ?.let { stringResource(it.league.labelRes) }.orEmpty()
+                    leagueLabel(selectedLeagueId)
                 }
                 Text(leagueName, style = stageText(30, 700), color = StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth())
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.mpx), modifier = Modifier.fillMaxWidth().padding(top = 10.mpx)) {
@@ -388,13 +355,16 @@ fun SportsScreen(
                         }
                     }
                 }
-                // Live / Demnächst / Vergangen — the tabs filter the list right below them.
+                // All | Today | Live | Upcoming | Past — the pills filter the list right below them.
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.mpx),
                     modifier = Modifier.fillMaxWidth().padding(top = 12.mpx),
                 ) {
                     FixtureTabPill(stringResource(R.string.sport_tab_live), tab == SportsViewModel.FixtureTab.LIVE) {
                         vm.setTab(SportsViewModel.FixtureTab.LIVE)
+                    }
+                    FixtureTabPill(stringResource(R.string.sport_today_word), tab == SportsViewModel.FixtureTab.TODAY) {
+                        vm.setTab(SportsViewModel.FixtureTab.TODAY)
                     }
                     FixtureTabPill(stringResource(R.string.sport_tab_upcoming), tab == SportsViewModel.FixtureTab.UPCOMING) {
                         vm.setTab(SportsViewModel.FixtureTab.UPCOMING)
@@ -429,18 +399,24 @@ fun SportsScreen(
                     }
                     else -> {
                         LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(10.mpx), modifier = Modifier.fillMaxHeight().padding(top = 12.mpx)) {
-                            items(visibleFixtures, key = { it.id }) { fixture ->
-                                val selected = fixture.id == selectedFixture?.id
-                                StageSurface(
-                                    onClick = { vm.selectFixture(fixture) },
-                                    radius = 18.mpx,
-                                    modifier = Modifier.fillMaxWidth().focusRequester(gameRequester(fixture.id)),
-                                    idle = if (selected) Modifier.background(stageAccent.accent.copy(alpha = 0.14f), RoundedCornerShape(18.mpx)) else Modifier,
-                                ) { focused ->
-                                    FixtureCard(fixture, followedTeams, focused, selected)
+                            itemsIndexed(hubRows, key = { _, row -> hubRowKey(row) }) { _, row ->
+                                when (row) {
+                                    is HubItem.Day -> DayBand(row)
+                                    is HubItem.League -> LeagueBand(row) { foldedLeagues[row.leagueId] = row.folded.not() }
+                                    is HubItem.Game -> {
+                                        val selected = row.fixture.id == selectedFixture?.id
+                                        StageSurface(
+                                            onClick = { vm.selectFixture(row.fixture) },
+                                            radius = 18.mpx,
+                                            modifier = Modifier.fillMaxWidth().focusRequester(gameRequester(row.fixture.id)),
+                                            idle = if (selected) Modifier.background(stageAccent.accent.copy(alpha = 0.14f), RoundedCornerShape(18.mpx)) else Modifier,
+                                        ) { focused ->
+                                            FixtureCard(row.fixture, followedTeams, focused, selected)
+                                        }
+                                    }
                                 }
                             }
-                            item { Spacer(Modifier.height(40.mpx)) }
+                            item(key = "end-spacer") { Spacer(Modifier.height(40.mpx)) }
                         }
                     }
                 }
@@ -598,45 +574,219 @@ fun SportsScreen(
 /** The fixtures shown for [tab]: Live / Upcoming (soonest first) / Past (most recent first, bounded). */
 private fun fixturesFor(fixtures: List<Fixture>, tab: SportsViewModel.FixtureTab): List<Fixture> = when (tab) {
     SportsViewModel.FixtureTab.LIVE -> fixtures.filter { it.state == FixtureState.LIVE }.sortedBy { it.dateMs }
+    SportsViewModel.FixtureTab.TODAY -> fixtures.filter { isToday(it, ZoneId.systemDefault()) }.sortedBy { it.dateMs }
     SportsViewModel.FixtureTab.UPCOMING -> fixtures.filter { it.state == FixtureState.UPCOMING }.sortedBy { it.dateMs }
     SportsViewModel.FixtureTab.PAST -> fixtures.filter { it.state == FixtureState.FINISHED }.sortedByDescending { it.dateMs }.take(30)
+}
+
+/** Every fixture that belongs to today (in play or kicking off later). */
+private fun isToday(fixture: Fixture, zone: ZoneId): Boolean =
+    dayKeyOf(fixture, zone, LocalDate.now(zone)) == LocalDate.now(zone)
+
+/**
+ * The band day of a fixture: its (local) start date, live fixtures that started earlier (a match
+ * running past midnight, a race weekend stage) pinned to today so no stale past-date band shows.
+ */
+private fun dayKeyOf(fixture: Fixture, zone: ZoneId, today: LocalDate): LocalDate {
+    val date = Instant.ofEpochMilli(fixture.dateMs).atZone(zone).toLocalDate()
+    return if (fixture.state == FixtureState.LIVE && date.isBefore(today)) today else date
+}
+
+/** A fixtures-column row: a date band, a LeagueBand toggle, or a game. */
+private sealed interface HubItem {
+    data class Day(val date: LocalDate, val live: Int, val games: Int) : HubItem
+    data class League(val leagueId: String, val day: LocalDate, val live: Int, val games: Int, val folded: Boolean) : HubItem
+    data class Game(val fixture: Fixture) : HubItem
+}
+
+private fun hubRowKey(item: HubItem): String = when (item) {
+    is HubItem.Day -> "day-${item.date}"
+    is HubItem.League -> "lg-${item.leagueId}-${item.day}"
+    is HubItem.Game -> "game-${item.fixture.id}"
+}
+
+/**
+ * The fixtures list rebuilt as Matchday-style rows: date bands (Today / Tomorrow / dated), inside
+ * an aggregate one LeagueBand per league (with fold state), games at their start times otherwise.
+ */
+private fun buildHubRows(
+    fixtures: List<Fixture>,
+    aggregate: Boolean,
+    folded: Map<String, Boolean>,
+    zone: ZoneId,
+    today: LocalDate,
+): List<HubItem> {
+    val rows = mutableListOf<HubItem>()
+    val byDay = fixtures.groupBy { dayKeyOf(it, zone, today) }.toSortedMap(compareBy { day: LocalDate -> day })
+    byDay.forEach { (day, dayGames) ->
+        val live = dayGames.count { it.state == FixtureState.LIVE }
+        rows.add(HubItem.Day(day, live, dayGames.size))
+        if (aggregate) {
+            dayGames.groupBy { it.leagueId }.forEach { (leagueId, games) ->
+                rows.add(HubItem.League(leagueId, day, games.count { it.state == FixtureState.LIVE }, games.size, folded[leagueId] == true))
+                if (folded[leagueId] != true) {
+                    games.sortedBy { it.dateMs }.forEach { rows.add(HubItem.Game(it)) }
+                }
+            }
+        } else {
+            dayGames.sortedBy { it.dateMs }.forEach { rows.add(HubItem.Game(it)) }
+        }
+    }
+    return rows
 }
 
 /** Empty-state text for [tab]. */
 private fun emptyTabLabel(tab: SportsViewModel.FixtureTab): Int = when (tab) {
     SportsViewModel.FixtureTab.LIVE -> R.string.sport_no_live_games
+    SportsViewModel.FixtureTab.TODAY -> R.string.sport_no_games
     SportsViewModel.FixtureTab.UPCOMING -> R.string.sport_no_upcoming_games
     SportsViewModel.FixtureTab.PAST -> R.string.sport_no_past_games
 }
 
-/** One tab in the fixtures column (Live / Demnächst / Vergangen). */
+/** Uppercase band label: Today / Tomorrow / Yesterday / the dated form. */
+@Composable
+private fun dayBandLabel(date: LocalDate): String {
+    val today = LocalDate.now(ZoneId.systemDefault())
+    val text = when (date) {
+        today -> stringResource(R.string.sport_today_word)
+        today.plusDays(1) -> stringResource(R.string.sport_tomorrow_word)
+        today.minusDays(1) -> stringResource(R.string.sport_yesterday_word)
+        else -> date.format(DateTimeFormatter.ofPattern(DayPattern))
+    }
+    return text.uppercase()
+}
+
+/** A date band: the day (accent when it holds live games), a rule and the game count. */
+@Composable
+private fun DayBand(item: HubItem.Day, modifier: Modifier = Modifier) {
+    val labelColor = if (item.live > 0) stageAccent.accent else StageColors.Muted
+    Row(
+        modifier.fillMaxWidth().padding(top = 8.mpx, start = 2.mpx, end = 6.mpx),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.mpx),
+    ) {
+        Text(dayBandLabel(item.date), style = stageText(19, 800), color = labelColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Box(Modifier.weight(1f).height(2.mpx).background(StageColors.Dim.copy(alpha = 0.4f), RoundedCornerShape(1.mpx)))
+        Text(
+            item.games.toString(),
+            style = stageText(16, 600),
+            color = StageColors.Dim,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** A league band inside one day: league name + counts, a click folds/unfolds its rows. */
+@Composable
+private fun LeagueBand(item: HubItem.League, modifier: Modifier = Modifier, onToggle: () -> Unit) {
+    val accent = stageAccent
+    StageSurface(onClick = onToggle, radius = 14.mpx, modifier = modifier.fillMaxWidth()) { focused ->
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.mpx, vertical = 8.mpx),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.mpx),
+        ) {
+            OwnTVIcon(OwnTVIcon.SPORT, if (focused) accent.onAccent else accent.accent, Modifier.size(22.mpx))
+            Text(
+                leagueLabel(item.leagueId),
+                style = stageText(19, 700),
+                color = if (focused) accent.onAccent else StageColors.Text,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
+            if (item.live > 0) LiveDot(item.live.toString())
+            Text(item.games.toString(), style = stageText(16, 600), color = StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            OwnTVIcon(
+                if (item.folded) OwnTVIcon.CHEVRON_DOWN else OwnTVIcon.CHEVRON_UP,
+                if (focused) accent.onAccent else StageColors.Dim,
+                Modifier.size(20.mpx),
+            )
+        }
+    }
+}
+
+@Composable
+private fun leagueLabel(leagueId: String): String =
+    SportsLeagues.firstOrNull { it.id == leagueId }?.let { stringResource(it.labelRes) } ?: leagueId
+
+/** A sport coin (Matchday sidebar): round, emoji glyph (or the star for All), live badge. */
+@Composable
+private fun SportCoin(
+    coinKey: String,
+    glyph: String?,
+    selected: Boolean,
+    liveCount: Int,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    val accent = stageAccent
+    Box(modifier, contentAlignment = Alignment.TopEnd) {
+        StageSurface(
+            onClick = onClick,
+            onLongClick = onLongClick,
+            radius = 104.mpx,
+            idle = if (selected) Modifier.background(accent.accent, RoundedCornerShape(104.mpx)) else Modifier,
+        ) { focused ->
+            Box(
+                Modifier.size(104.mpx),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (glyph == null) {
+                    OwnTVIcon(
+                        OwnTVIcon.STAR,
+                        if (focused) accent.onAccent else if (selected) accent.onAccent else accent.accent,
+                        Modifier.size(42.mpx),
+                    )
+                } else {
+                    Text(
+                        glyph,
+                        style = stageText(CoinGlyphPx, 400),
+                        color = if (selected) accent.onAccent else StageColors.Text,
+                    )
+                }
+            }
+        }
+        if (liveCount > 0 && !selected) {
+            LiveDot(liveCount.toString())
+        }
+    }
+}
+
+/** Emoji per ESPN sport slug for the sidebar coins. */
+private fun sportGlyph(espnSport: String): String = when (espnSport) {
+    "soccer" -> "⚽"
+    "tennis" -> "🎾"
+    "basketball" -> "🏀"
+    "golf" -> "⛳"
+    "football" -> "🏈"
+    "baseball" -> "⚾"
+    "hockey" -> "🏒"
+    "racing" -> "🏎️"
+    "mma" -> "🥊"
+    "cricket" -> "🏏"
+    "volleyball" -> "🏐"
+    "rugby", "rugby-league", "australian-football" -> "🏉"
+    else -> "🏆"
+}
+
+private const val CoinGlyphPx = 44
+
+/** One pill in the fixtures column: filled with the accent when selected (Matchday style). */
 @Composable
 private fun FixtureTabPill(label: String, selected: Boolean, onClick: () -> Unit) {
     val accent = stageAccent
     StageSurface(
         onClick = onClick,
-        radius = 14.mpx,
-        idle = if (selected) Modifier.background(accent.accent.copy(alpha = 0.14f), RoundedCornerShape(14.mpx)) else Modifier,
+        radius = 20.mpx,
+        idle = if (selected) Modifier.background(accent.accent, RoundedCornerShape(20.mpx)) else Modifier,
     ) { focused ->
         Text(
             label,
             style = stageText(18, if (selected) 700 else 500),
-            color = if (focused) accent.onAccent else if (selected) accent.accent else StageColors.Text,
+            color = if (selected) accent.onAccent else if (focused) accent.accent else StageColors.Text,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 18.mpx, vertical = 9.mpx),
         )
-    }
-}
-
-private fun dayLabel(dateMs: Long, today: String, tomorrow: String, yesterday: String): String? {
-    val zone = ZoneId.systemDefault()
-    val date = Instant.ofEpochMilli(dateMs).atZone(zone).toLocalDate()
-    val now = LocalDate.now(zone)
-    return when (date) {
-        now -> null
-        now.plusDays(1) -> tomorrow
-        now.minusDays(1) -> yesterday
-        else -> date.format(DateTimeFormatter.ofPattern(DayPattern))
     }
 }
 
@@ -694,14 +844,25 @@ private fun FixtureCard(fixture: Fixture, followedTeams: Set<String>, focused: B
     val accent = stageAccent
     val titleColor = if (focused) accent.onAccent else StageColors.Text
     val dimColor = if (focused) accent.onAccent.copy(alpha = 0.8f) else StageColors.Dim
-    val today = stringResource(R.string.sport_today_word)
-    val tomorrow = stringResource(R.string.sport_tomorrow_word)
-    val yesterday = stringResource(R.string.sport_yesterday_word)
+    // League bands (sport-in-ago) are not drawn per row, so the row carries the whole matchup.
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.mpx, vertical = 12.mpx),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.mpx),
     ) {
+        // Left rail: the start time, or the LIVE flag when the game is running.
+        Column(Modifier.width(76.mpx), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (fixture.state == FixtureState.LIVE) {
+                LiveDot("LIVE")
+            } else {
+                Text(
+                    fixture.statusLine,
+                    style = stageText(20, 600),
+                    color = dimColor,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
         Box(Modifier.width(5.mpx).height(52.mpx).background(teamColor(fixture.home?.colorHex) ?: Color.Transparent, RoundedCornerShape(3.mpx)))
         Column(Modifier.weight(1f)) {
             val home = fixture.home
@@ -710,7 +871,7 @@ private fun FixtureCard(fixture: Fixture, followedTeams: Set<String>, focused: B
                 listOf(home, away).forEach { team ->
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.mpx)) {
                         TeamLogo(team.logoUrl, 32.mpx)
-                        Text(team.abbreviation, style = stageText(22, 700), color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Text(team.name, style = stageText(21, 700), color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         Text(
                             team.score ?: fixture.statusLine,
                             style = stageText(22, 700),
@@ -727,7 +888,7 @@ private fun FixtureCard(fixture: Fixture, followedTeams: Set<String>, focused: B
                         TeamLogo(entry.logoUrl, 32.mpx)
                         Text(
                             entry.name,
-                            style = stageText(22, if (entry.winner) 700 else 500),
+                            style = stageText(21, if (entry.winner) 700 else 500),
                             color = titleColor,
                             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                         )
@@ -741,7 +902,7 @@ private fun FixtureCard(fixture: Fixture, followedTeams: Set<String>, focused: B
                 // A single occasion (F1 Grand Prix): the race name + circuit, no participants at all.
                 Text(
                     fixture.title ?: fixture.statusLine,
-                    style = stageText(22, 700), color = titleColor, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    style = stageText(21, 700), color = titleColor, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
                 fixture.venue?.let { venue ->
                     Text(venue, style = stageText(16, 500), color = dimColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -750,27 +911,24 @@ private fun FixtureCard(fixture: Fixture, followedTeams: Set<String>, focused: B
                 // A leaderboard (golf): the leader large, the next chasers small.
                 Text(
                     fixture.entries.firstOrNull()?.name ?: fixture.statusLine,
-                    style = stageText(22, 700), color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = stageText(21, 700), color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 fixture.entries.drop(1).take(2).forEach { entry ->
                     Text(entry.name, style = stageText(17, 500), color = dimColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            val day = if (fixture.state == FixtureState.UPCOMING) dayLabel(fixture.dateMs, today, tomorrow, yesterday) else null
-            val subLine = day ?: fixture.statusLine.takeIf { fixture.state == FixtureState.FINISHED }
-            if (subLine != null) {
+            // The day rail carries dates; every non-live row still names its source when it helps.
+            if (fixture.state != FixtureState.LIVE && fixture.broadcasts.isNotEmpty() && fixture.state == FixtureState.UPCOMING) {
                 Text(
-                    subLine,
-                    style = stageText(15, 500),
+                    fixture.broadcasts.first(),
+                    style = stageText(14, 500),
                     color = dimColor,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.mpx),
                 )
             }
         }
-        if (fixture.state == FixtureState.LIVE) {
-            LiveDot(fixture.statusLine)
-        } else if (selected) {
+        if (selected && fixture.state != FixtureState.LIVE) {
             OwnTVIcon(OwnTVIcon.CHECK, accent.accent, Modifier.size(22.mpx))
         }
     }

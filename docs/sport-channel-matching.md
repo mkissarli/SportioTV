@@ -316,28 +316,30 @@ nach oben, alle anderen bleiben darunter gelistet — nichts wird ausgeblendet.
 - Tests: `SportLanguagesTest` (Kürzel, Fremd-Kürzel-Blockade, Marken-Fallback, unbekannter Code)
   und `SportsMatcherTest.thePreferredCountryBoostsItsChannelsAboveTheRest` (UK über US, beide +10).
 
-## 12. Reguläre Sender statt nur PPV (Broadcast-Tier, Pre-Match)
+## 12. Evidenz statt Vermutung: nur Kanäle, die das Spiel wirklich haben
 
-Der Matcher findet reguläre Sender auch **ohne Team-Evidenz** — die Liga- und Sport-Kanäle des
-Providers, damit man vor dem Anpfiff auf „Sky Sports Premier League" / „Sky Sports Football"
-einschalten kann (Vorberichte), statt nur die Event-PPV-Kanäle zu sehen, deren Name das Fixture
-trägt.
+Nach dem Broadcast-Tier-Experiment (v0.2.2/v0.2.3) gilt wieder: **kein Team-Evidenz, kein
+Listing**. Ein Kanal erscheint nur, wenn er das Fixture belegt — beide Teams/Athleten im Namen,
+oder beide zusammen in einem EPG-Programm, das **den Anstoß überdeckt**.
 
-- **Discovery:** `nameDiscoveryQueries` probt zusätzlich — ganz am Ende, damit Team-/Broadcast-Queries
-  den Cap zuerst füllen — die Liga-Phrase (`Fixture.leaguePhrase`, kanonischer Name aus
-  `donottranslate.xml`, z. B. „Premier League") und die Sport-Wörter
-  (`sportChannelWords(leagueId)` in `SportsLeagues.kt`, z. B. „football"/„soccer"/„futbol").
-  Dazu kommt die **Selector-Quelle** (`selectorSportChannels`): alle Live-Kanäle, deren Kategorie
-  der eigene Kanal-Selector als Sport einstuft (`ChannelGenre.SPORT` — dieselbe Tabelle wie der
-  Live-TV-Rail), begrenzt auf 20.000 gescannte Zeilen und 300 Kandidaten.
-- **Scoring:** nur als **Floor**, nie additiv: hat ein Kanal bereits Evidenz (Teams im Namen/EPG,
-  Broadcast, Hint), bleibt sein Score unberührt. Nur ein Kanal **ohne** jede Evidenz bekommt
-  `LeagueChannelScore` (+2, Liga-Name im Kanalnamen), `SportChannelScore` (+1, Sport-Wort im
-  Namen) oder `SelectorChannelScore` (+1, Kategorie = Sport) und das Flag
-  `ChannelMatch.isBroadcastTier`. Damit verdrängt ein Liga-Kanal nie einen
-  echten Treffer — die Länder-Präferenz (§11) kann ihn aber trotzdem nach oben heben.
-- **UI:** `isBroadcastTier` + Upcoming-Fixture ohne EPG-Zeile zeigt „Pre-match — tune in early".
-  Play startet den Kanal immer sofort — Vorberichte schauen heißt einfach: Fixture wählen, Sender
-  anklicken.
-- Tests: `SportsMatcherTest` — Liga-Kanal ohne Evidenz (+2), Sport-Kanal (+1), nie über echter
-  Evidenz, Präferenz hebt den Liga-Kanal vor den US-Feed.
+- **Anstoß-Prüfung (`coversKickoff`):** ein EPG-Eintrag zählt nur, wenn
+  `startMs <= dateMs <= stopMs`. Ein gleichnamiger Eintrag zu anderer Stunde (Replay am Abend,
+  Preview am Vortag) ist nicht das Fixture — exakt das „Sky Sports Cricket beim Fußball"-Problem
+  wird dadurch strukturell ausgeschlossen, ebenso wie die früheren Liga-/Sport-/Kategorie-Tiers
+  (wieder entfernt).
+- **PPV ans Ende (`PpvPenalty`):** Kanäle, deren Name „PPV" trägt, sortieren **immer** ganz nach
+  unten — nach dem Länder-Boost angewendet, damit ein PPV-Feed des bevorzugten Landes nie über
+  einem echten Sender steht, der das Spiel zeigt. Der Score selbst bleibt der Evidenz-Score; die
+  Strafe ist reiner Sortierschlüssel.
+- **Vorberichte schauen** geht weiterhin: das Pre-Match-Programm („Matchday Live" ab 2 h vor
+  Anpfiff) nennt beide Teams und überdeckt den Anstoß → der Sender steht in der Liste, und Play
+  startet ihn sofort.
+- **Performance (50k-Kanal-Playlist):**
+  - Namens-Discovery läuft **in memory** über einen einmal pro Quell-Set gecachten Scan
+    (`channelDao.allForSources`, 120 s TTL) statt ~30 SQL-`LIKE`-Scans über die ganze Tabelle —
+    ein Durchlauf, je Zeile alle Queries.
+  - Das Guide-Scoring liest **keine** `programmesForChannel`-Queries mehr: die `searchTitles`/
+    `searchGuide`-Ergebnisse (volle `EpgProgrammeEntity`-Zeilen) landen als `epgEvidence`-Map im
+    Speicher, Pass 2 ist reine Rechenarbeit. Gecappt: 400 Guide-Kanäle, 40 Zeilen je Kanal.
+- Tests: `SportsMatcherTest` — Programm ohne Anstoß-Überdeckung zählt nicht, Pre-Match-Show
+  zählt, PPV sortiert unter echte Sender (auch mit Länder-Präferenz).

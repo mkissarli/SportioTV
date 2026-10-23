@@ -2,15 +2,11 @@ package tv.own.owntv.features.sport
 
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import tv.own.owntv.core.database.dao.CategoryDao
 import tv.own.owntv.core.database.dao.ChannelDao
 import tv.own.owntv.core.database.dao.EpgDao
 import tv.own.owntv.core.database.entity.ChannelEntity
 import tv.own.owntv.core.database.entity.EpgProgrammeEntity
-import tv.own.owntv.core.model.MediaType
-import tv.own.owntv.ui.components.ChannelGenre
 
 /**
  * What the channel list of one fixture is filtered to (`docs/sport-roadmap.md` Punkt 4).
@@ -104,7 +100,6 @@ data class SportMatchOptions(
 class SportsMatcher(
     private val channelDao: ChannelDao,
     private val epgDao: EpgDao,
-    private val categoryDao: CategoryDao,
     private val vocab: SportsVocab,
     /**
      * The profile's live playlists. Behind [LiveSourceIdsProvider] rather than the concrete
@@ -171,13 +166,13 @@ class SportsMatcher(
         val from = fixture.dateMs - EpgBeforeMs
         val to = fixture.dateMs + EpgAfterMs
 
-        // Pass 1 — candidates, from channel names (legacy), from the guide (new) and from the
-        // app's own channel selector (every live channel whose category reads as SPORT).
-        val candidates = discoverCandidates(fixture, teamSport, duelSport, sourceIds, from, to)
-        val selectorSport = selectorSportChannels(sourceIds)
-        selectorSport.forEach { candidates.putIfAbsent(it.id, it) }
-        val selectorIds = selectorSport.mapTo(HashSet()) { it.id }
+        // Pass 1 — candidates. Channel names are matched in memory over one cached scan of the
+        // profile's channels; the guide probes stay SQL (indexed window) and their rows double as
+        // the EPG evidence for scoring, so pass 2 issues no queries at all.
+        val epgEvidence = HashMap<String, MutableList<EpgProgrammeEntity>>()
+        val candidates = discoverCandidates(fixture, teamSport, duelSport, sourceIds, from, to, epgEvidence)
         if (candidates.isEmpty()) return emptyList()
+
         // Pass 2 — score each candidate against the fixture.
         val homeTokens = home?.scoringTokens().orEmpty()
         val awayTokens = away?.scoringTokens().orEmpty()
@@ -196,9 +191,7 @@ class SportsMatcher(
                 sideATokens = sideATokens,
                 sideBTokens = sideBTokens,
                 tournamentTokens = tournamentTokens,
-                from = from,
-                to = to,
-                selectorSport = channel.id in selectorIds,
+                programmes = epgEvidence[channel.epgChannelId?.trim()?.lowercase(Locale.ROOT)].orEmpty(),
             )
         }.sortedByDescending { it.score }
     }
@@ -208,20 +201,27 @@ class SportsMatcher(
      * per-event channels), then the preferred languages — strict without fallback, legacy with the
      * full post-exclude list when fewer than [SportMatchOptions.minPreferred] survive.
      *
-     * A configured [SportMatchOptions.preferCountry] boosts that country's channels (see
-     * [PreferenceBoost]) and re-sorts **before** the filter passes, so the preference wins the
-     * fixed slots the language filter protects — same reason the language filter itself runs
-     * pre-cap.
+     * Ranking adjustments happen here, in one re-sort: a configured [SportMatchOptions.preferCountry]
+     * boosts that country's channels in their score, and PPV/event channels sort to the very bottom
+     * via [PpvPenalty] — applied AFTER the boost, so a preferred-country PPV feed never tops a real
+     * channel that actually carries the fixture. The PPV demotion is a sort key only; the match's
+     * [ChannelMatch.score] keeps the evidence value.
      */
     private fun applyFilter(scored: List<ChannelMatch>, options: SportMatchOptions): List<ChannelMatch> {
         val limit = options.limit.coerceIn(MinChannelLimit, MaxChannelLimit)
         val country = options.preferCountry?.trim()?.takeIf { it.isNotEmpty() }
-        val ranked = if (country == null) scored else scored
+        val ranked = scored
             .map { m ->
-                if (SportLanguages.isFromCountry(m.channelName, country)) m.copy(score = m.score + PreferenceBoost)
-                else m
+                val boosted = if (country != null && SportLanguages.isFromCountry(m.channelName, country)) {
+                    m.copy(score = m.score + PreferenceBoost)
+                } else {
+                    m
+                }
+                val sortScore = boosted.score - if (isPpvChannel(m.channelName)) PpvPenalty else 0
+                boosted to sortScore
             }
-            .sortedByDescending { it.score }
+            .sortedByDescending { it.second }
+            .map { it.first }
         if (options.strict) {
             return SportLanguages.filterStrict(ranked, options.languages, options.excludedLanguages).take(limit)
         }
@@ -230,31 +230,15 @@ class SportsMatcher(
         return (if (kept.size < options.minPreferred) afterExclude else kept).take(limit)
     }
 
+    /** A PPV/event feed — the fixture's dedicated pay-per-view channel, listed last by policy. */
+    private fun isPpvChannel(name: String): Boolean =
+        SportNameMatch.containsWord(PpvWord, SportNameMatch.normalize(name))
+
     /** Entities for matched ids, in the matches' order — the zap context for playback. */
     suspend fun channels(ids: List<Long>): List<ChannelEntity> =
         withContext(Dispatchers.IO) {
             ids.mapNotNull { runCatching { channelDao.getById(it) }.getOrNull() }
         }
-
-    /**
-     * Channels the app's own channel selector calls sports channels: every live channel whose
-     * category name classifies as [ChannelGenre.SPORT] — the same table the Live-TV rail uses, so
-     * the Sport hub agrees with the selector about what a sports channel is. Bounded by
-     * [SelectorScanLimit] scanned rows and [SelectorCandidateCap] returned channels, so a huge
-     * playlist cannot flood the pane.
-     */
-    private suspend fun selectorSportChannels(sourceIds: List<Long>): List<ChannelEntity> = runCatching {
-        val categories = runCatching { categoryDao.observe(sourceIds, MediaType.LIVE).first() }
-            .getOrDefault(emptyList())
-            .associateBy { it.id }
-        channelDao.allForSources(sourceIds, SelectorScanLimit)
-            .filter { channel ->
-                channel.categoryId != null &&
-                    categories[channel.categoryId]?.name
-                        ?.let { ChannelGenre.fromCategory(it) == ChannelGenre.SPORT } == true
-            }
-            .take(SelectorCandidateCap)
-    }.getOrDefault(emptyList())
 
     // ---- Pass 1: discovery ----------------------------------------------------------------------
 
@@ -291,39 +275,94 @@ class SportsMatcher(
         sourceIds: List<Long>,
         from: Long,
         to: Long,
+        epgEvidence: MutableMap<String, MutableList<EpgProgrammeEntity>>,
     ): LinkedHashMap<Long, ChannelEntity> {
         val out = LinkedHashMap<Long, ChannelEntity>()
 
-        // A — channel names, bounded by [NameCandidateCap].
-        for (query in nameDiscoveryQueries(fixture)) {
-            if (out.size >= NameCandidateCap) break
-            runCatching { channelDao.searchList(query, sourceIds, MatchSearchLimit) }
-                .getOrNull()?.forEach { out.putIfAbsent(it.id, it) }
+        // A — channel names, bounded by [NameCandidateCap], matched IN MEMORY over one cached scan
+        // of the profile's channels instead of ~30 SQL LIKE scans over the whole playlist. Every
+        // row is tested once against all queries, so a 50k-channel playlist costs one pass.
+        val queries = nameDiscoveryQueries(fixture)
+        val folded = queries.map { it.lowercase(Locale.ROOT) to SportNameMatch.normalize(it) }
+        val rows = scanRows(sourceIds)
+        for (row in rows) {
+            if (folded.any { (raw, norm) -> row.rawLower.contains(raw) || row.normName.contains(norm) }) {
+                out.putIfAbsent(row.channel.id, row.channel)
+                if (out.size >= NameCandidateCap) break
+            }
         }
 
         // B — the guide. A programme title naming a team is enough to pull its channel in; the
         // scoring below still decides whether it finally qualifies. Runs regardless of how full A
-        // got — see the gotcha above.
+        // got — see the gotcha above. The returned rows are kept as [epgEvidence], so pass 2
+        // scores from memory instead of querying each candidate's programmes.
         if (teamSport || duelSport || !fixture.tournament.isNullOrBlank()) {
             val epgKeys = LinkedHashSet<String>()
+            val seen = HashSet<String>()
+            fun add(rows: List<EpgProgrammeEntity>) {
+                for (programme in rows) {
+                    val key = programme.epgChannelId.trim().lowercase(Locale.ROOT)
+                    if (key.isEmpty()) continue
+                    epgKeys += key
+                    // Dedup by content: a row can come back from several probes, and the entity
+                    // id is 0 on hand-built rows.
+                    val dedup = key + "|" + programme.startMs + "|" + programme.stopMs + "|" + programme.title
+                    if (seen.add(dedup)) {
+                        val bucket = epgEvidence.getOrPut(key) { ArrayList() }
+                        if (bucket.size < EpgEvidencePerChannelCap) bucket.add(programme)
+                    }
+                }
+            }
             // Broad probes (phrases, single words, abbreviations) stay title-only: a single word
             // like "Newcastle" is far too common in guide *bodies*.
             for (token in epgDiscoveryTokens(fixture)) {
-                runCatching { epgDao.searchTitles(token, from, to, EpgMatchLimit) }
-                    .getOrNull()?.forEach { epgKeys += it.epgChannelId.trim().lowercase(Locale.ROOT) }
+                runCatching { epgDao.searchTitles(token, from, to, EpgMatchLimit) }.getOrNull()?.let(::add)
             }
             // Full club names additionally search the description — where a generic-titled foreign
             // feed ("Fußball: England, Premier League") actually names the teams.
             for (phrase in epgDescriptionPhrases(fixture)) {
-                runCatching { epgDao.searchGuide(phrase, from, to, EpgMatchLimit) }
-                    .getOrNull()?.forEach { epgKeys += it.epgChannelId.trim().lowercase(Locale.ROOT) }
+                runCatching { epgDao.searchGuide(phrase, from, to, EpgMatchLimit) }.getOrNull()?.let(::add)
             }
             if (epgKeys.isNotEmpty()) {
-                runCatching { channelDao.byEpgKeys(sourceIds, epgKeys.toList()) }
+                runCatching { channelDao.byEpgKeys(sourceIds, epgKeys.take(EpgKeyCap).toList()) }
                     .getOrNull()?.forEach { out.putIfAbsent(it.id, it) }
             }
         }
         return out
+    }
+
+    // ---- Channel-name scan (one pass over the playlist, cached) --------------------------------
+
+    /** One channel of the cached name scan, pre-folded so each match is two `contains` calls. */
+    private data class ScanRow(val channel: ChannelEntity, val rawLower: String, val normName: String)
+
+    @Volatile
+    private var scanCache: Pair<List<Long>, List<ScanRow>>? = null
+    private var scanCacheAtMs = 0L
+
+    /**
+     * All of the profile's channels, folded once, cached per source set for [ScanCacheTtlMs]. A
+     * playlist sync takes effect at the next fixture after the TTL; a 50k-channel playlist costs
+     * one query (~a few hundred ms) instead of one SQL LIKE scan per name probe.
+     */
+    private suspend fun scanRows(sourceIds: List<Long>): List<ScanRow> {
+        val now = System.currentTimeMillis()
+        val cached = scanCache
+        if (cached != null && cached.first == sourceIds && now - scanCacheAtMs < ScanCacheTtlMs) {
+            return cached.second
+        }
+        val rows = runCatching { channelDao.allForSources(sourceIds, ScanRowLimit) }
+            .getOrDefault(emptyList())
+            .map { channel ->
+                ScanRow(
+                    channel = channel,
+                    rawLower = channel.name.lowercase(Locale.ROOT),
+                    normName = SportNameMatch.normalize(channel.name),
+                )
+            }
+        scanCache = sourceIds to rows
+        scanCacheAtMs = now
+        return rows
     }
 
     /**
@@ -367,12 +406,6 @@ class SportsMatcher(
         fixture.tournament?.let { queries += SportNameMatch.discoveryPhrases(it, vocab.broadcastStopwords) }
         for (broadcast in fixture.broadcasts) {
             queries += SportNameMatch.discoveryPhrases(broadcast, vocab.broadcastStopwords)
-        }
-        // The league's own channels ("SKY SPORTS PREMIER LEAGUE") and the sport's generic channels
-        // ("SKY SPORTS FOOTBALL") — last, so team/broadcast probes always spend the cap first.
-        fixture.leaguePhrase?.let { queries += SportNameMatch.discoveryPhrases(it, vocab.broadcastStopwords) }
-        for (word in sportChannelWords(fixture.leagueId)) {
-            queries += SportNameMatch.discoveryPhrases(word, vocab.broadcastStopwords)
         }
         return queries.distinct()
     }
@@ -488,9 +521,13 @@ class SportsMatcher(
      * names a single team (a news ticker, a soap set in the club's city, a movie blurb) is not the
      * fixture and scores nothing. A duel candidate qualifies on both athletes the same way, and —
      * for recall — on one athlete together with tennis context or on the tournament alone (see the
-     * class KDoc). Returns a [ChannelMatch] only when the score is positive.
+     * class KDoc). Every EPG programme must also **cover the kickoff** ([coversKickoff]) — a
+     * same-name listing at another hour is a replay or a preview, not this fixture.
+     *
+     * [programmes] are the channel's guide rows collected during discovery, so this function issues
+     * no queries. Returns a [ChannelMatch] only when the score is positive.
      */
-    private suspend fun scoreChannel(
+    private fun scoreChannel(
         channel: ChannelEntity,
         fixture: Fixture,
         home: SportTeam?,
@@ -500,9 +537,7 @@ class SportsMatcher(
         sideATokens: Set<String>,
         sideBTokens: Set<String>,
         tournamentTokens: Set<String>,
-        from: Long,
-        to: Long,
-        selectorSport: Boolean,
+        programmes: List<EpgProgrammeEntity>,
     ): ChannelMatch? {
         var score = 0
         var epgTitle: String? = null
@@ -546,10 +581,8 @@ class SportsMatcher(
             score += HintScore
         }
 
-        // --- EPG tier (Lume): a programme counts only when it names BOTH teams ---
-        val epgKey = channel.epgChannelId?.trim()?.lowercase(Locale.ROOT)
-        if (!epgKey.isNullOrBlank() && homeTokens.isNotEmpty() && awayTokens.isNotEmpty()) {
-            val programmes = runCatching { epgDao.programmesForChannel(epgKey, from, to) }.getOrNull().orEmpty()
+        // --- EPG tier (Lume): a programme counts only when it names BOTH teams AND covers kickoff ---
+        if (programmes.isNotEmpty() && homeTokens.isNotEmpty() && awayTokens.isNotEmpty()) {
             // Short abbreviations ("NEW", "COV") are far too noisy against guide prose ("New Girl",
             // "Covenant"), so the EPG match uses only tokens of [EpgMinTokenLength] or more.
             val epgHomeTokens = homeTokens.filter { it.length >= EpgMinTokenLength }
@@ -557,6 +590,9 @@ class SportsMatcher(
             var best = 0
             var bestTitle: String? = null
             for (programme in programmes) {
+                // The programme must actually be on at kickoff — a same-name listing at another
+                // hour (a replay later that evening) is not this fixture.
+                if (!coversKickoff(programme, fixture.dateMs)) continue
                 val titleNorm = SportNameMatch.normalize(programme.title)
                 val descriptionNorm = SportNameMatch.normalize(
                     programme.description?.take(EpgDescriptionScanChars).orEmpty(),
@@ -598,16 +634,16 @@ class SportsMatcher(
 
         // --- EPG duel/tournament tier: the same both-sides rule for the two athletes, then the two
         // recall tiers (one athlete with tennis context, tournament alone) below it ---
-        if (!epgKey.isNullOrBlank() &&
+        if (programmes.isNotEmpty() &&
             (sideATokens.isNotEmpty() || sideBTokens.isNotEmpty() || tournamentTokens.isNotEmpty())
         ) {
-            val programmes = runCatching { epgDao.programmesForChannel(epgKey, from, to) }.getOrNull().orEmpty()
             val epgSideATokens = sideATokens.filter { it.length >= EpgMinTokenLength }
             val epgSideBTokens = sideBTokens.filter { it.length >= EpgMinTokenLength }
             val epgTournamentTokens = tournamentTokens.filter { it.length >= EpgMinTokenLength }
             var best = 0
             var bestTitle: String? = null
             for (programme in programmes) {
+                if (!coversKickoff(programme, fixture.dateMs)) continue
                 val titleNorm = SportNameMatch.normalize(programme.title)
                 val descriptionNorm = SportNameMatch.normalize(
                     programme.description?.take(EpgDescriptionScanChars).orEmpty(),
@@ -663,28 +699,6 @@ class SportsMatcher(
             }
         }
 
-        // --- Broadcast tier (pre-match, floor only): the league's own channel, the sport's generic
-        // channel, or any channel the selector calls a sports channel — accepted WITHOUT team
-        // evidence, but only when nothing else matched. Below every real match, so it never beats
-        // one; with a country preference it can still top the list for tuning in early.
-        var broadcastTier = false
-        if (score == 0) {
-            when {
-                fixture.leaguePhrase?.let { SportNameMatch.containsPhrase(it, nameNorm) } == true -> {
-                    score += LeagueChannelScore
-                    broadcastTier = true
-                }
-                sportChannelWords(fixture.leagueId).any { SportNameMatch.containsWord(it, nameNorm) } -> {
-                    score += SportChannelScore
-                    broadcastTier = true
-                }
-                selectorSport -> {
-                    score += SelectorChannelScore
-                    broadcastTier = true
-                }
-            }
-        }
-
         // --- Region tier (US fixtures): a US-tagged feed sorts above equal foreign evidence ---
         // College/NFL/… games are US broadcasts; a `US:` feed carrying the same game as a CA/AU/UK
         // feed is the home feed and wins the tie. Deliberately bonus-only, never a filter or malus:
@@ -706,12 +720,15 @@ class SportsMatcher(
                 epgTitle = epgTitle,
                 score = score,
                 isExact = exact,
-                isBroadcastTier = broadcastTier && !exact,
             )
         } else {
             null
         }
     }
+
+    /** The programme must actually be on at kickoff — a same-name listing at another hour is not it. */
+    private fun coversKickoff(programme: EpgProgrammeEntity, dateMs: Long): Boolean =
+        programme.startMs <= dateMs && programme.stopMs >= dateMs
 
     /**
      * Whether a programme carries tennis context for the single-athlete recall tier: the tennis
@@ -817,8 +834,15 @@ class SportsMatcher(
          * preferred broadcaster always sorts first — while every other channel stays listed.
          */
         const val PreferenceBoost = 50
-        /** Per-query cap for the channel-name search (was 20). */
-        private const val MatchSearchLimit = 30
+        /**
+         * A PPV/event feed — the fixture's dedicated pay-per-view channel — is pushed to the very
+         * bottom by policy (real channels that carry the fixture come first), even when it sits in
+         * the preferred country. Applied in [applyFilter] AFTER the preference boost, so the
+         * penalty wins every time.
+         */
+        private const val PpvPenalty = 100
+        /** The channel-name word that marks a PPV feed (normalized matching). */
+        private const val PpvWord = "ppv"
         /**
          * Cap on channels discovered **by name**, across all name queries (was 60, then 120). The
          * guide discovery is deliberately NOT bounded by this — see `discoverCandidates`.
@@ -828,6 +852,10 @@ class SportsMatcher(
         private const val EpgMatchLimit = 40
         /** How many tokens are probed against the guide. */
         private const val EpgTokenCap = 24
+        /** How many guide channels at most resolve to candidates (bounds the scoring set). */
+        private const val EpgKeyCap = 400
+        /** How many guide rows are kept per channel as scoring evidence. */
+        private const val EpgEvidencePerChannelCap = 40
         /** How much of a programme description is searched (a conference fronts its games). */
         private const val EpgDescriptionScanChars = 400
         /** Only team/broadcast/hint phrases at least this long are probed. */
@@ -836,6 +864,10 @@ class SportsMatcher(
         private const val MinTokenLength = 3
         /** Shortest token allowed against guide prose; below this an abbreviation is too ambiguous. */
         private const val EpgMinTokenLength = 4
+        /** How many channels the cached name scan reads — above any real playlist's size. */
+        private const val ScanRowLimit = 100_000
+        /** How long the cached name scan survives; a resync shows up at the next fixture after it. */
+        private const val ScanCacheTtlMs = 120_000L
 
         /** How far before kickoff a programme may be the pre-match build-up. */
         private const val EpgBeforeMs = 2L * 60L * 60L * 1000L
@@ -857,20 +889,6 @@ class SportsMatcher(
         private const val EpgSingleWithContextScore = 2
         private const val EpgTournamentScore = 1
         private const val SportCategoryScore = 1
-        /**
-         * The league's own channel ("SKY SPORTS PREMIER LEAGUE") — no team evidence, but the
-         * league's channel probably carries it. Above [SportChannelScore] (league beats a generic
-         * sport channel), below every real match, so it never displaces evidence.
-         */
-        private const val LeagueChannelScore = 2
-        /** The sport's generic channel ("SKY SPORTS FOOTBALL") — the lowest, tune-in-early tier. */
-        private const val SportChannelScore = 1
-        /** Any channel the selector classifies as a sports channel (category SPORT) — same tier. */
-        private const val SelectorChannelScore = 1
-        /** How many live channels the selector scan reads (mirrors the Live-TV language scan). */
-        private const val SelectorScanLimit = 20_000
-        /** How many selector-sport channels at most join one fixture's candidates. */
-        private const val SelectorCandidateCap = 300
         /**
          * Region tie-break for US-league games: a `US:`-tagged feed outranks an equally evidenced
          * foreign feed, but never outranks genuinely stronger evidence (a +10 title hit still beats

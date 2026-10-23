@@ -1,18 +1,14 @@
 package tv.own.owntv.features.sport
 
 import java.lang.reflect.Proxy
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import tv.own.owntv.core.database.dao.CategoryDao
 import tv.own.owntv.core.database.dao.ChannelDao
 import tv.own.owntv.core.database.dao.EpgDao
-import tv.own.owntv.core.database.entity.CategoryEntity
 import tv.own.owntv.core.database.entity.ChannelEntity
 import tv.own.owntv.core.database.entity.EpgProgrammeEntity
-import tv.own.owntv.core.model.MediaType
 
 /**
  * The matcher's Lume rules, nailed down on the JVM with fake DAOs — no emulator, no Android.
@@ -590,7 +586,6 @@ class SportsMatcherTest {
         val matcher = SportsMatcher(
             channelDao = store.channelDao,
             epgDao = store.epgDao,
-            categoryDao = store.categoryDao,
             vocab = vocab,
             sources = LiveSourceIdsProvider { ids },
         )
@@ -602,7 +597,7 @@ class SportsMatcherTest {
         assertEquals(1, matcher.match(fixture()).size)
     }
 
-    // --- the soft country preference -------------------------------------------------------------
+    // --- the preferred country (soft boost) -----------------------------------------------------
 
     @Test
     fun thePreferredCountryBoostsItsChannelsAboveTheRest() = runBlocking {
@@ -632,114 +627,58 @@ class SportsMatcherTest {
         assertEquals(10, preferred.last().score)
     }
 
-    // --- the broadcast tier (regular channels, no team evidence) -------------------------------
+    // --- kickoff containment: a same-name listing at another hour is not the fixture ------------
 
     @Test
-    fun theLeaguesOwnChannelMatchesWithoutTeamEvidence() = runBlocking {
+    fun aProgrammeNotCoveringKickoffDoesNotScore() = runBlocking {
+        // The guide lists the fixture at 23:55 — three hours after the 20:55 kickoff (a replay),
+        // still inside the discovery window but not covering kickoff.
         val store = FakeStore(
-            channels = listOf(channel(700, "UK| SKY SPORTS PREMIER LEAGUE")),
-            programmes = emptyList(),
-        )
-
-        val matches = matcher(store).match(fixture())
-
-        assertEquals(listOf("UK| SKY SPORTS PREMIER LEAGUE"), matches.map { it.channelName })
-        assertEquals(2, matches.single().score)
-        assertTrue(matches.single().isBroadcastTier)
-        assertTrue(!matches.single().isExact)
-    }
-
-    @Test
-    fun theSportsGenericChannelMatchesAtTheLowestTier() = runBlocking {
-        val store = FakeStore(
-            channels = listOf(channel(701, "UK| SKY SPORTS FOOTBALL")),
-            programmes = emptyList(),
-        )
-
-        val matches = matcher(store).match(fixture())
-
-        assertEquals(listOf("UK| SKY SPORTS FOOTBALL"), matches.map { it.channelName })
-        assertEquals(1, matches.single().score)
-        assertTrue(matches.single().isBroadcastTier)
-    }
-
-    @Test
-    fun aBroadcastTierChannelNeverBeatsRealEvidence() = runBlocking {
-        val store = FakeStore(
-            channels = listOf(
-                channel(702, "UK| SKY SPORTS PREMIER LEAGUE"),
-                channel(703, "US: ESPN+", epgKey = "us"),
+            channels = listOf(channel(610, "UK| SKY SPORTS MAIN EVENT", epgKey = "late")),
+            programmes = listOf(
+                programme(
+                    "late",
+                    title = "Coventry City v Newcastle United",
+                    startMs = Noon + 3 * HourMs,
+                    stopMs = Noon + 5 * HourMs,
+                ),
             ),
-            programmes = listOf(programme("us", title = "Coventry City v Newcastle United")),
-        )
-
-        val matches = matcher(store).match(fixture())
-
-        // Without a country preference the team-evidenced feed leads, the league channel follows.
-        assertEquals(listOf("US: ESPN+", "UK| SKY SPORTS PREMIER LEAGUE"), matches.map { it.channelName })
-        assertEquals(10, matches.first().score)
-        assertEquals(2, matches.last().score)
-    }
-
-    @Test
-    fun thePreferredCountryLiftsTheLeagueChannelForTuningInEarly() = runBlocking {
-        val store = FakeStore(
-            channels = listOf(
-                channel(704, "US: ESPN+", epgKey = "us"),
-                channel(705, "UK| SKY SPORTS PREMIER LEAGUE"),
-            ),
-            programmes = listOf(programme("us", title = "Coventry City v Newcastle United")),
-        )
-
-        val matches = matcher(store).match(
-            fixture().copy(state = FixtureState.UPCOMING),
-            SportMatchOptions(preferCountry = "UK", languages = emptySet()),
-        )
-
-        assertEquals(
-            listOf("UK| SKY SPORTS PREMIER LEAGUE", "US: ESPN+"),
-            matches.map { it.channelName },
-        )
-        assertEquals(SportsMatcher.PreferenceBoost + 2, matches.first().score)
-    }
-
-    // --- the selector tier (sports category from the channel selector) --------------------------
-
-    @Test
-    fun aChannelTheSelectorCallsSportMatchesAtTheLowestTier() = runBlocking {
-        val store = FakeStore(
-            channels = listOf(channel(706, "VIP: SUPERSPORT VARIETY 1", categoryId = 9)),
-            programmes = emptyList(),
-            categories = listOf(category(9, "Sports")),
-        )
-
-        val matches = matcher(store).match(fixture())
-
-        assertEquals(listOf("VIP: SUPERSPORT VARIETY 1"), matches.map { it.channelName })
-        assertEquals(1, matches.single().score)
-        assertTrue(matches.single().isBroadcastTier)
-    }
-
-    @Test
-    fun aChannelTheSelectorDoesNotCallSportDoesNotMatch() = runBlocking {
-        val store = FakeStore(
-            channels = listOf(channel(707, "VIP: MOVIES NOW", categoryId = 10)),
-            programmes = emptyList(),
-            categories = listOf(category(10, "Movies")),
         )
 
         assertTrue(matcher(store).match(fixture()).isEmpty())
     }
 
     @Test
-    fun selectorSportChannelsStillYieldToRealEvidence() = runBlocking {
+    fun thePreMatchShowCoveringKickoffStillScores() = runBlocking {
+        // Build-up from 2h before kickoff through the final whistle names both teams and covers
+        // kickoff — the pre-match channel the viewer wants to tune into early.
+        val store = FakeStore(
+            channels = listOf(channel(611, "UK| SKY SPORTS MAIN EVENT", epgKey = "buildup")),
+            programmes = listOf(
+                programme(
+                    "buildup",
+                    title = "Coventry City v Newcastle United",
+                    startMs = Noon - 2 * HourMs,
+                    stopMs = Noon + 3 * HourMs,
+                ),
+            ),
+        )
+
+        val matches = matcher(store).match(fixture())
+        assertEquals(listOf("UK| SKY SPORTS MAIN EVENT"), matches.map { it.channelName })
+        assertEquals(10, matches.single().score)
+    }
+
+    // --- PPV channels sort below real channels, even in the preferred country -------------------
+
+    @Test
+    fun ppvChannelsSortBelowRealChannelsEvenWithPreference() = runBlocking {
         val store = FakeStore(
             channels = listOf(
-                channel(708, "US: ESPN+", epgKey = "us"),
-                channel(709, "UK| SKY SPORTS MAIN EVENT", categoryId = 11),
+                channel(612, "US: ESPN+", epgKey = "us"),
+                channel(613, "UK| PPV EVENT 01 | Coventry City v Newcastle United"),
             ),
             programmes = listOf(programme("us", title = "Coventry City v Newcastle United")),
-            categories = listOf(category(11, "Sport")),
         )
 
         val matches = matcher(store).match(
@@ -747,14 +686,13 @@ class SportsMatcherTest {
             SportMatchOptions(preferCountry = "UK", languages = emptySet()),
         )
 
-        // The selector-tier Sky channel is the only UK channel: the preference lifts it above the
-        // US-evidenced feed for tuning in early, exactly as intended.
+        // The UK PPV feed names both teams and gets the UK boost, but the PPV demotion — applied
+        // after the boost — keeps it below the US channel that actually carries the fixture.
         assertEquals(
-            listOf("UK| SKY SPORTS MAIN EVENT", "US: ESPN+"),
+            listOf("US: ESPN+", "UK| PPV EVENT 01 | Coventry City v Newcastle United"),
             matches.map { it.channelName },
         )
-        assertEquals(SportsMatcher.PreferenceBoost + 1, matches.first().score)
-        assertEquals(10, matches.last().score)
+        assertEquals(10, matches.first().score)
     }
 
     // --- fixtures / vocabulary ------------------------------------------------------------------
@@ -773,7 +711,6 @@ class SportsMatcherTest {
     private fun matcher(store: FakeStore, vocab: SportsVocab = this.vocab) = SportsMatcher(
         channelDao = store.channelDao,
         epgDao = store.epgDao,
-        categoryDao = store.categoryDao,
         vocab = vocab,
         sources = object : LiveSourceIdsProvider {
             override suspend fun liveSourceIds(): List<Long> = listOf(SourceId)
@@ -789,7 +726,6 @@ class SportsMatcherTest {
         home = SportTeam("1", "Coventry City", "COV", null, null, "1", false, "home"),
         away = SportTeam("2", "Newcastle United", "NEW", null, null, "0", false, "away"),
         broadcasts = emptyList(),
-        leaguePhrase = "Premier League",
         venue = null,
     )
 
@@ -831,28 +767,25 @@ class SportsMatcherTest {
         venue = null,
     )
 
-    private fun channel(id: Long, name: String, epgKey: String? = null, categoryId: Long? = null) = ChannelEntity(
+    private fun channel(id: Long, name: String, epgKey: String? = null) = ChannelEntity(
         id = id,
         sourceId = SourceId,
-        categoryId = categoryId,
         name = name,
         streamUrl = "http://provider.invalid/$id.ts",
         epgChannelId = epgKey,
     )
 
-    private fun category(id: Long, name: String) = CategoryEntity(
-        id = id,
-        sourceId = SourceId,
-        mediaType = MediaType.LIVE,
-        name = name,
-        remoteId = "cat-$id",
-    )
-
-    private fun programme(key: String, title: String, description: String? = null) = EpgProgrammeEntity(
+    private fun programme(
+        key: String,
+        title: String,
+        description: String? = null,
+        startMs: Long = Noon,
+        stopMs: Long = Noon + 2 * HourMs,
+    ) = EpgProgrammeEntity(
         sourceId = SourceId,
         epgChannelId = key,
-        startMs = Noon,
-        stopMs = Noon + 2L * 60L * 60L * 1000L,
+        startMs = startMs,
+        stopMs = stopMs,
         title = title,
         description = description,
     )
@@ -862,6 +795,7 @@ class SportsMatcherTest {
 
         /** A kickoff time; every programme above sits inside the matcher's t-2h … t+4h window. */
         const val Noon = 1_760_000_000_000L
+        const val HourMs = 60L * 60L * 1000L
     }
 }
 
@@ -874,7 +808,6 @@ class SportsMatcherTest {
 private class FakeStore(
     private val channels: List<ChannelEntity>,
     private val programmes: List<EpgProgrammeEntity>,
-    private val categories: List<CategoryEntity> = emptyList(),
 ) {
     val channelDao: ChannelDao = proxy(ChannelDao::class.java) { name, args ->
         when (name) {
@@ -889,13 +822,6 @@ private class FakeStore(
             }
             "getById" -> channels.firstOrNull { it.id == args!![0] as Long }
             "allForSources" -> channels
-            else -> null
-        }
-    }
-
-    val categoryDao: CategoryDao = proxy(CategoryDao::class.java) { name, _ ->
-        when (name) {
-            "observe" -> flowOf(categories)
             else -> null
         }
     }

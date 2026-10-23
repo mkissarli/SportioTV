@@ -14,6 +14,13 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.4
+
+### ✨ New features
+- **Evidence-only channel lists: a channel appears only when its EPG actually carries the fixture at kickoff (no more unrelated sports channels)**
+- **PPV/event feeds sort to the bottom; real channels come first, even under the country preference**
+- **Much faster matching on huge playlists: channel names match in memory over one cached scan, and EPG scoring reads probe results instead of querying per channel**
+
 ## v0.2.3
 
 ### ✨ New features

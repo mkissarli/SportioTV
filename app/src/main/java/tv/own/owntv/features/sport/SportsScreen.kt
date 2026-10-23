@@ -1339,9 +1339,6 @@ private fun FixtureDetail(
                                                 match.epgTitle?.let { title ->
                                                     Text(title, style = stageText(14, 500), color = if (focused) accent.onAccent.copy(alpha = 0.8f) else StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                 }
-                                                if (match.epgTitle == null && match.isBroadcastTier && fixture.state == FixtureState.UPCOMING) {
-                                                    Text(stringResource(R.string.sport_pre_match_hint), style = stageText(14, 500), color = if (focused) accent.onAccent.copy(alpha = 0.8f) else StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                }
                                             }
                                             Text(stringResource(R.string.sport_play), style = stageText(15, 600), color = if (focused) accent.onAccent else StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         }

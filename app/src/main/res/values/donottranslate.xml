@@ -17,6 +17,7 @@
     <string name="sport_league_tennis_atp" translatable="false">ATP</string>
     <string name="sport_league_tennis_wta" translatable="false">WTA</string>
     <string name="sport_league_racing_f1" translatable="false">Formula 1</string>
+    <string name="sport_league_racing_irl" translatable="false">IndyCar</string>
     <string name="sport_league_mma_ufc" translatable="false">UFC</string>
     <string name="sport_league_golf_pga" translatable="false">PGA Tour</string>
     <string name="sport_league_soccer_ger_2" translatable="false">2. Bundesliga</string>

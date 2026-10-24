@@ -142,6 +142,15 @@ val SportsLeagues: List<SportLeague> = listOf(
         extraChannelRes = R.string.sport_channel_sky_main_event,
     ),
     SportLeague(
+        id = "racing.irl",
+        espnSport = "racing",
+        espnLeague = "irl",
+        labelRes = R.string.sport_league_racing_irl,
+        region = LeagueRegion.AMERICAS,
+        kind = LeagueKind.EVENT,
+        defaultActive = true,
+    ),
+    SportLeague(
         id = "mma.ufc",
         espnSport = "mma",
         espnLeague = "ufc",

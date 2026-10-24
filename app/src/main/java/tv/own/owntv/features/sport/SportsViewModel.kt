@@ -39,6 +39,7 @@ import tv.own.owntv.core.settings.SettingsRepository
 class SportsViewModel(
     private val prefs: SportsPrefs,
     private val api: EspnApi,
+    private val f1Api: F1ScheduleApi,
     private val matcher: SportsMatcher,
     private val aiClient: DeepSeekClient,
     private val aiMatcher: AiChannelMatcher,
@@ -782,7 +783,11 @@ class SportsViewModel(
             if (boards.value[league.id] is BoardState.Loading) return
         }
         boards.value = boards.value + (league.id to BoardState.Loading)
-        val result = runCatching { api.scoreboard(league) }
+        // ESPN's racing scoreboard only carries the most recent event (already `post` during the
+        // weekend), so F1 boards come from Jolpica's session calendar instead.
+        val result = runCatching {
+            if (league.id == F1Schedule.F1LeagueId) f1Api.scoreboard() else api.scoreboard(league)
+        }
         result.onFailure { android.util.Log.w("SportsHub", "board failed " + league.id, it) }
         result.onSuccess { android.util.Log.d("SportsHub", "board ok " + league.id + " fixtures=" + it.fixtures.size) }
         boardAt[league.id] = now

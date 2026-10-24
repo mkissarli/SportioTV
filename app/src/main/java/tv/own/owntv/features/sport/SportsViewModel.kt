@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -316,6 +317,8 @@ class SportsViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     init {
+        // The TV guide is fetched once in the background: fixture selection must never wait on it.
+        viewModelScope.launch(Dispatchers.IO) { guideApi.refresh() }
         // Load exactly the active leagues (+ leagues of followed teams, for Favourites); re-run when
         // the user changes the selection, so adding/removing a league fetches/drops it live.
         viewModelScope.launch { loadingLeagues.collect { applyLeagues(it) } }
@@ -461,7 +464,7 @@ class SportsViewModel(
         }
         _matches.value = MatchesState.Loading
         viewModelScope.launch {
-            val found = runCatching { matcher.match(fixture, matchOptions(fixture)) }.getOrDefault(emptyList())
+            val found = runCatching { matcher.match(fixture, matchOptions()) }.getOrDefault(emptyList())
             matchesCache[fixture.id] = found
             if (_selectedFixture.value?.id == fixture.id) _matches.value = MatchesState.Content(found)
         }
@@ -514,8 +517,7 @@ class SportsViewModel(
         viewModelScope.launch {
             prefs.setPreferredLanguages(languages.map { it.name }.toSet())
             // The prefs flow may lag the write, so re-resolve with the just-picked value directly.
-            val fixture = _selectedFixture.value ?: return@launch
-            reResolveSelected(matchOptions(fixture).copy(languages = languages))
+            reResolveSelected(matchOptions().copy(languages = languages))
         }
     }
 
@@ -523,8 +525,7 @@ class SportsViewModel(
     fun setChannelLimit(limit: Int) {
         viewModelScope.launch {
             prefs.setChannelLimit(limit)
-            val fixture = _selectedFixture.value ?: return@launch
-            reResolveSelected(matchOptions(fixture).copy(limit = limit))
+            reResolveSelected(matchOptions().copy(limit = limit))
         }
     }
 
@@ -643,8 +644,7 @@ class SportsViewModel(
             val current = excludedLanguages.value
             val next = if (language in current) current - language else current + language
             prefs.setExcludedLanguages(next.map { it.name }.toSet())
-            val fixture = _selectedFixture.value ?: return@launch
-            reResolveSelected(matchOptions(fixture).copy(excludedLanguages = next))
+            reResolveSelected(matchOptions().copy(excludedLanguages = next))
         }
     }
 
@@ -653,22 +653,22 @@ class SportsViewModel(
         viewModelScope.launch {
             prefs.setPreferredCountry(code)
             val next = code.takeIf { it in SportLanguages.preferredCountryOptions }.orEmpty()
-            val fixture = _selectedFixture.value ?: return@launch
-            reResolveSelected(matchOptions(fixture).copy(preferCountry = next.takeIf { it.isNotBlank() }))
+            reResolveSelected(matchOptions().copy(preferCountry = next.takeIf { it.isNotBlank() }))
         }
     }
 
     /**
-     * The matcher's filter from the current prefs plus the TV-guide-confirmed broadcasters for
-     * [fixture] — one place, so every setter re-resolves alike.
+     * The matcher's filter from the current prefs plus the TV-guide-confirmed broadcasters for the
+     * selected fixture. The guide read is a cached snapshot — never a network call — so this never
+     * blocks.
      */
-    private suspend fun matchOptions(fixture: Fixture): SportMatchOptions = SportMatchOptions(
+    private fun matchOptions(): SportMatchOptions = SportMatchOptions(
         languages = preferredLanguages.value,
         excludedLanguages = excludedLanguages.value,
         limit = channelLimit.value,
         strict = languageFilterStrict.value,
         preferCountry = preferredCountry.value.takeIf { it.isNotBlank() },
-        confirmedBroadcasters = guideApi.confirmedBroadcasters(fixture),
+        confirmedBroadcasters = _selectedFixture.value?.let { guideApi.confirmedBroadcasters(it) }.orEmpty(),
     )
 
     /** Drop the cached channels and match the selected fixture again (per-game refresh button). */
@@ -684,7 +684,7 @@ class SportsViewModel(
         matchesCache.clear()
         val fixture = _selectedFixture.value ?: return
         _matches.value = MatchesState.Loading
-        val resolved = options ?: matchOptions(fixture)
+        val resolved = options ?: matchOptions()
         val found = runCatching { matcher.match(fixture, resolved) }.getOrDefault(emptyList())
         matchesCache[fixture.id] = found
         if (_selectedFixture.value?.id == fixture.id) _matches.value = MatchesState.Content(found)
@@ -786,6 +786,10 @@ class SportsViewModel(
     fun stopRemoteListener() = companion.stop()
 
     private suspend fun loadBoard(league: SportLeague, force: Boolean) {
+        // Keep the TV guide fresh in the background — never as part of a selection.
+        if (guideApi.isStale()) {
+            viewModelScope.launch(Dispatchers.IO) { guideApi.refresh() }
+        }
         val now = System.currentTimeMillis()
         if (!force) {
             val at = boardAt[league.id] ?: 0L
@@ -803,7 +807,16 @@ class SportsViewModel(
         boardAt[league.id] = now
         boards.value = boards.value + (
             league.id to
-                (result.getOrNull()?.let { BoardState.Content(it) } ?: BoardState.Error)
+                (result.getOrNull()?.let { board ->
+                    // Tennis boards carry 250+ matches: bound the data (and the hub's work) — a
+                    // fixture list never needs more than the next days' worth per league.
+                    val fixtures = if (board.fixtures.size > MaxFixturesPerLeague) {
+                        board.fixtures.take(MaxFixturesPerLeague)
+                    } else {
+                        board.fixtures
+                    }
+                    BoardState.Content(EspnApi.Scoreboard(board.leagueName, fixtures))
+                } ?: BoardState.Error)
             )
     }
 
@@ -820,6 +833,8 @@ class SportsViewModel(
     }
 
     companion object {
+        /** A league board is capped here — tennis alone returns 280+ matches per tour. */
+        private const val MaxFixturesPerLeague = 120
         /** Sentinel rail selection for the Favourites aggregate (no single league). */
         const val FavouritesId = "__favourites__"
         const val SportAllId = "__sport_all__"

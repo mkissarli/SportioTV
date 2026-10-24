@@ -907,7 +907,7 @@ class SportsMatcher(
         /** How many channels the cached name scan reads — above any real playlist's size. */
         private const val ScanRowLimit = 100_000
         /** How long the cached name scan survives; a resync shows up at the next fixture after it. */
-        private const val ScanCacheTtlMs = 120_000L
+        private const val ScanCacheTtlMs = 30_000L
 
         /** How far before kickoff a programme may be the pre-match build-up. */
         private const val EpgBeforeMs = 2L * 60L * 60L * 1000L

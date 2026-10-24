@@ -14,6 +14,13 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.10
+
+### 🐛 Fixes
+- **Channel lists never block on the TV-guide scrape: the guide loads in the background and matching reads the cached snapshot — no more multi-second hangs while the list computes**
+- **A league board is capped at 120 fixtures (tennis alone returns 280+ per tour) — less data, less work in the hub**
+- **The channel-name scan cache is held for 30 s instead of 2 min, so a 57k-channel playlist is not kept in memory while the Sports page idles**
+
 ## v0.2.9
 
 ### 🐛 Fixes

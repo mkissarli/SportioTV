@@ -32,44 +32,46 @@ class BroadcastGuideApi(private val client: OkHttpClient, context: Context) {
 
     private val appContext = context.applicationContext
 
-    private class Snapshot(val entries: List<GuideEntry>)
-
+    /** The last successful guide snapshot — read synchronously, refreshed in the background. */
     @Volatile
-    private var cache: Snapshot? = null
-    private var cacheAtMs = 0L
+    private var entries: List<GuideEntry> = emptyList()
+    private var refreshedAtMs = 0L
 
-    /** The guide channels that (probably) carry [fixture] — empty when nothing matches or the guide is down. */
-    suspend fun confirmedBroadcasters(fixture: Fixture): List<String> = runCatching {
-        withContext(Dispatchers.IO) {
-            val league = sportsLeagueById(fixture.leagueId) ?: return@withContext emptyList()
-            val label = appContext.getString(league.labelRes)
-            val entries = snapshot().entries
-            val home = fixture.home?.name.orEmpty()
-            val away = fixture.away?.name.orEmpty()
-            val tournament = fixture.tournament.orEmpty()
-            entries.filter { entry ->
-                GuideMatch.leagueMatches(entry.league, label) &&
-                    GuideMatch.timeMatches(entry.dateMs, fixture.dateMs) &&
-                    GuideMatch.teamsMatch(entry.teams, home, away, tournament)
-            }.flatMap { it.channels }.distinct()
+    /** Whether a background refresh is worth starting (never decide in the UI path). */
+    fun isStale(nowMs: Long = System.currentTimeMillis()): Boolean =
+        nowMs - refreshedAtMs >= CacheTtlMs
+
+    /**
+     * The guide channels that (probably) carry [fixture]. Never fetches: reads the last snapshot,
+     * so fixture selection is instant whether or not a refresh has finished yet.
+     */
+    fun confirmedBroadcasters(fixture: Fixture): List<String> {
+        val league = sportsLeagueById(fixture.leagueId) ?: return emptyList()
+        val label = appContext.getString(league.labelRes)
+        val home = fixture.home?.name.orEmpty()
+        val away = fixture.away?.name.orEmpty()
+        val tournament = fixture.tournament.orEmpty()
+        return entries.filter { entry ->
+            GuideMatch.leagueMatches(entry.league, label) &&
+                GuideMatch.timeMatches(entry.dateMs, fixture.dateMs) &&
+                GuideMatch.teamsMatch(entry.teams, home, away, tournament)
+        }.flatMap { it.channels }.distinct()
+    }
+
+    /** Background refresh; every page independently guarded — a bad site never breaks the rest. */
+    suspend fun refresh() {
+        val merged = withContext(Dispatchers.IO) {
+            val found = ArrayList<GuideEntry>()
+            runCatching { get(FootballGuideUrl) }.getOrNull()?.let { html -> runCatching { GuideParsers.wtm(html) }.getOrNull()?.let { found += it } }
+            runCatching { get(TennisGuideUrl) }.getOrNull()?.let { html -> runCatching { GuideParsers.wtm(html) }.getOrNull()?.let { found += it } }
+            runCatching { get(LiveFootballUrl) }.getOrNull()?.let { html -> runCatching { GuideParsers.liveFootball(html) }.getOrNull()?.let { found += it } }
+            found.groupBy { Triple(it.dateMs, it.league, it.teams) }
+                .map { (key, group) -> GuideEntry(key.first, key.second, key.third, group.flatMap { it.channels }.distinct()) }
         }
-    }.getOrDefault(emptyList())
-
-    private suspend fun snapshot(): Snapshot {
-        val now = System.currentTimeMillis()
-        cache?.let { if (now - cacheAtMs < CacheTtlMs) return it }
-        val entries = ArrayList<GuideEntry>()
-        // Each page independently guarded — one site down/hanging/redesigned must not break the rest.
-        runCatching { get(FootballGuideUrl) }.getOrNull()?.let { html -> runCatching { GuideParsers.wtm(html) }.getOrNull()?.let { entries += it } }
-        runCatching { get(TennisGuideUrl) }.getOrNull()?.let { html -> runCatching { GuideParsers.wtm(html) }.getOrNull()?.let { entries += it } }
-        runCatching { get(LiveFootballUrl) }.getOrNull()?.let { html -> runCatching { GuideParsers.liveFootball(html) }.getOrNull()?.let { entries += it } }
-        val merged = entries
-            .groupBy { Triple(it.dateMs, it.league, it.teams) }
-            .map { (key, group) -> GuideEntry(key.first, key.second, key.third, group.flatMap { it.channels }.distinct()) }
-        val snapshot = Snapshot(merged)
-        cache = snapshot
-        cacheAtMs = now
-        return snapshot
+        if (merged.isNotEmpty()) {
+            entries = merged
+            refreshedAtMs = System.currentTimeMillis()
+        }
     }
 
     private fun get(url: String): String {

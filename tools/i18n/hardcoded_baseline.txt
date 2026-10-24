@@ -58,6 +58,7 @@
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	baseball
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	basketball
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	cricket
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	end-spacer
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	football
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	golf
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	hockey

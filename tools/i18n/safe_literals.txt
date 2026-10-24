@@ -1477,7 +1477,6 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	channels
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	day-${item.date}
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	detail
-1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	end-spacer
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	game-${item.fixture.id}
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	lg-${item.leagueId}-${item.day}
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	table

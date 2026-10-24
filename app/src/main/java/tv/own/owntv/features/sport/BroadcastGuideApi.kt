@@ -39,27 +39,30 @@ class BroadcastGuideApi(private val client: OkHttpClient, context: Context) {
     private var cacheAtMs = 0L
 
     /** The guide channels that (probably) carry [fixture] — empty when nothing matches or the guide is down. */
-    suspend fun confirmedBroadcasters(fixture: Fixture): List<String> = withContext(Dispatchers.IO) {
-        val league = sportsLeagueById(fixture.leagueId) ?: return@withContext emptyList()
-        val label = appContext.getString(league.labelRes)
-        val entries = snapshot().entries
-        val home = fixture.home?.name.orEmpty()
-        val away = fixture.away?.name.orEmpty()
-        val tournament = fixture.tournament.orEmpty()
-        entries.filter { entry ->
-            GuideMatch.leagueMatches(entry.league, label) &&
-                GuideMatch.timeMatches(entry.dateMs, fixture.dateMs) &&
-                GuideMatch.teamsMatch(entry.teams, home, away, tournament)
-        }.flatMap { it.channels }.distinct()
-    }
+    suspend fun confirmedBroadcasters(fixture: Fixture): List<String> = runCatching {
+        withContext(Dispatchers.IO) {
+            val league = sportsLeagueById(fixture.leagueId) ?: return@withContext emptyList()
+            val label = appContext.getString(league.labelRes)
+            val entries = snapshot().entries
+            val home = fixture.home?.name.orEmpty()
+            val away = fixture.away?.name.orEmpty()
+            val tournament = fixture.tournament.orEmpty()
+            entries.filter { entry ->
+                GuideMatch.leagueMatches(entry.league, label) &&
+                    GuideMatch.timeMatches(entry.dateMs, fixture.dateMs) &&
+                    GuideMatch.teamsMatch(entry.teams, home, away, tournament)
+            }.flatMap { it.channels }.distinct()
+        }
+    }.getOrDefault(emptyList())
 
     private suspend fun snapshot(): Snapshot {
         val now = System.currentTimeMillis()
         cache?.let { if (now - cacheAtMs < CacheTtlMs) return it }
         val entries = ArrayList<GuideEntry>()
-        runCatching { get(FootballGuideUrl) }.getOrNull()?.let { entries += GuideParsers.wtm(it) }
-        runCatching { get(TennisGuideUrl) }.getOrNull()?.let { entries += GuideParsers.wtm(it) }
-        runCatching { get(LiveFootballUrl) }.getOrNull()?.let { entries += GuideParsers.liveFootball(it) }
+        // Each page independently guarded — one site down/hanging/redesigned must not break the rest.
+        runCatching { get(FootballGuideUrl) }.getOrNull()?.let { html -> runCatching { GuideParsers.wtm(html) }.getOrNull()?.let { entries += it } }
+        runCatching { get(TennisGuideUrl) }.getOrNull()?.let { html -> runCatching { GuideParsers.wtm(html) }.getOrNull()?.let { entries += it } }
+        runCatching { get(LiveFootballUrl) }.getOrNull()?.let { html -> runCatching { GuideParsers.liveFootball(html) }.getOrNull()?.let { entries += it } }
         val merged = entries
             .groupBy { Triple(it.dateMs, it.league, it.teams) }
             .map { (key, group) -> GuideEntry(key.first, key.second, key.third, group.flatMap { it.channels }.distinct()) }
@@ -75,10 +78,15 @@ class BroadcastGuideApi(private val client: OkHttpClient, context: Context) {
             .header(UserAgentHeader, UserAgentValue)
             .header(AcceptLanguageHeader, AcceptLanguageValue)
             .build()
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw java.io.IOException("Guide HTTP " + response.code)
-            return response.body.string()
-        }
+        // Bounded timeouts: a hanging guide page must not stall matching for ever.
+        client.newBuilder()
+            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+            .newCall(request).execute().use { response ->
+                if (!response.isSuccessful) throw java.io.IOException("Guide HTTP " + response.code)
+                return response.body.string()
+            }
     }
 
     private companion object {

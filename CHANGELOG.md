@@ -14,6 +14,11 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.9
+
+### 🐛 Fixes
+- **Crash hardening for the TV-guide layer: every fetch, parse and match is now exception-proof and the guide requests carry timeouts — a blocked or redesigned guide page can no longer take the channel list down**
+
 ## v0.2.8
 
 ### ✨ New features

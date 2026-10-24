@@ -327,10 +327,14 @@ oder beide zusammen in einem EPG-Programm, das **den Anstoß überdeckt**.
   Preview am Vortag) ist nicht das Fixture — exakt das „Sky Sports Cricket beim Fußball"-Problem
   wird dadurch strukturell ausgeschlossen, ebenso wie die früheren Liga-/Sport-/Kategorie-Tiers
   (wieder entfernt).
-- **PPV ans Ende (`PpvPenalty`):** Kanäle, deren Name „PPV" trägt, sortieren **immer** ganz nach
-  unten — nach dem Länder-Boost angewendet, damit ein PPV-Feed des bevorzugten Landes nie über
-  einem echten Sender steht, der das Spiel zeigt. Der Score selbst bleibt der Evidenz-Score; die
-  Strafe ist reiner Sortierschlüssel.
+- **PPV ans Ende (`PpvPenalty`), aber nur bei Teamsportarten:** Kanäle, deren Name „PPV" trägt,
+  sortieren bei Mannschaftssport (Fußball, Basketball, …) **immer** ganz nach unten — nach dem
+  Länder-Boost angewendet, damit ein PPV-Feed des bevorzugten Landes nie über einem echten Sender
+  steht, der das Spiel zeigt. Bei Duellen (Tennis/MMA) und Events (F1/Golf) **bleibt** die
+  PPV-Reihenfolge normal: dort ist „US TENNIS PPV" selbst der Träger. Der Score bleibt der
+  Evidenz-Score; die Strafe ist reiner Sortierschlüssel.
+- **Kürzere Standard-Liste:** `DefaultChannelLimit` 20 → 12 (einstellbar 5–50 in den
+  Sport-Einstellungen → Kanäle).
 - **Broadcast-Wörter nur bei Ein-Wort-Broadcasts:** ein mehrwortiger Broadcast („NBA League Pass",
   „USA Network") zählt nur als **ganze Phrase** — aufgesplittet („league", „network") matcht er
   fremde Kanäle („UK: NATIONAL LEAGUE" bei einem NBA-Fixture). Nur ein Ein-Wort-Broadcast

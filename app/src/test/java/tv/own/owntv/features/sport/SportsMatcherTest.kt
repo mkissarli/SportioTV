@@ -669,7 +669,7 @@ class SportsMatcherTest {
         assertEquals(10, matches.single().score)
     }
 
-    // --- PPV channels sort below real channels, even in the preferred country -------------------
+    // --- PPV channels: demoted for team sports, kept for duels (tennis/MMA) and events ----------
 
     @Test
     fun ppvChannelsSortBelowRealChannelsEvenWithPreference() = runBlocking {
@@ -693,6 +693,30 @@ class SportsMatcherTest {
             matches.map { it.channelName },
         )
         assertEquals(10, matches.first().score)
+    }
+
+    @Test
+    fun ppvChannelsAreNotDemotedForDuelFixtures() = runBlocking {
+        // Tennis: "US TENNIS PPV" IS the carrier. The tournament tier (+1) plus the "Tennis" hint
+        // (+6) must keep it above a channel that only names the tournament — the PPV demotion is
+        // for team sports, where a dedicated event feed competes with real broadcasters.
+        val store = FakeStore(
+            channels = listOf(
+                channel(622, "US TENNIS PPV", epgKey = "ppv"),
+                channel(623, "IT: SUPER SPORT ARENA", epgKey = "it"),
+            ),
+            programmes = listOf(
+                programme("ppv", title = "Tennis: ATP Shanghai"),
+                programme("it", title = "Tennis: ATP Shanghai"),
+            ),
+        )
+
+        val duel = duelFixture(hints = listOf("Tennis"), tournament = "ATP Shanghai")
+        val matches = matcher(store).match(duel, SportMatchOptions(languages = emptySet()))
+
+        assertEquals(listOf("US TENNIS PPV", "IT: SUPER SPORT ARENA"), matches.map { it.channelName })
+        assertEquals(7, matches.first().score)
+        assertEquals(1, matches.last().score)
     }
 
     // --- broadcast words: a multi-word broadcast must not match by one generic word ------------

@@ -129,7 +129,11 @@ class SportsMatcher(
         withContext(Dispatchers.IO) {
             // Legacy path: quota 1, so the full-list fallback triggers exactly when the filter
             // keeps nothing (the previous SportLanguages.filter behaviour).
-            applyFilter(resolveSorted(fixture), SportMatchOptions(languages, limit = limit, minPreferred = 1, strict = false))
+            applyFilter(
+                resolveSorted(fixture),
+                SportMatchOptions(languages, limit = limit, minPreferred = 1, strict = false),
+                demotePpv = fixture.isTeamSport(),
+            )
         }
 
     /**
@@ -144,8 +148,11 @@ class SportsMatcher(
      */
     suspend fun match(fixture: Fixture, options: SportMatchOptions): List<ChannelMatch> =
         withContext(Dispatchers.IO) {
-            applyFilter(resolveSorted(fixture), options)
+            applyFilter(resolveSorted(fixture), options, demotePpv = fixture.isTeamSport())
         }
+
+    /** Team sports have home/away sides; duels (tennis/MMA) and events (F1/golf) do not. */
+    private fun Fixture.isTeamSport(): Boolean = home != null && away != null
 
     /**
      * Discovery (pass 1) + scoring (pass 2), strongest first, unfiltered. Pure IO; both [match]
@@ -202,12 +209,18 @@ class SportsMatcher(
      * full post-exclude list when fewer than [SportMatchOptions.minPreferred] survive.
      *
      * Ranking adjustments happen here, in one re-sort: a configured [SportMatchOptions.preferCountry]
-     * boosts that country's channels in their score, and PPV/event channels sort to the very bottom
-     * via [PpvPenalty] — applied AFTER the boost, so a preferred-country PPV feed never tops a real
-     * channel that actually carries the fixture. The PPV demotion is a sort key only; the match's
+     * boosts that country's channels in their score, and — for **team sports only** ([demotePpv]) —
+     * PPV/event channels sort to the very bottom via [PpvPenalty], applied AFTER the boost so a
+     * preferred-country PPV feed never tops a real channel that actually carries the fixture. Duels
+     * (tennis/MMA) and events (F1/golf) keep PPV feeds in normal order: those channels ("US TENNIS
+     * PPV") ARE the carriers there. The PPV demotion is a sort key only; the match's
      * [ChannelMatch.score] keeps the evidence value.
      */
-    private fun applyFilter(scored: List<ChannelMatch>, options: SportMatchOptions): List<ChannelMatch> {
+    private fun applyFilter(
+        scored: List<ChannelMatch>,
+        options: SportMatchOptions,
+        demotePpv: Boolean,
+    ): List<ChannelMatch> {
         val limit = options.limit.coerceIn(MinChannelLimit, MaxChannelLimit)
         val country = options.preferCountry?.trim()?.takeIf { it.isNotEmpty() }
         val ranked = scored
@@ -217,7 +230,7 @@ class SportsMatcher(
                 } else {
                     m
                 }
-                val sortScore = boosted.score - if (isPpvChannel(m.channelName)) PpvPenalty else 0
+                val sortScore = boosted.score - if (demotePpv && isPpvChannel(m.channelName)) PpvPenalty else 0
                 boosted to sortScore
             }
             .sortedByDescending { it.second }
@@ -827,7 +840,7 @@ class SportsMatcher(
 
     companion object {
         /** How many channels one fixture shows (user-settable, see [SportMatchOptions.limit]). */
-        const val DefaultChannelLimit = 20
+        const val DefaultChannelLimit = 12
         /** Smallest list a fixture shows — below this the language quota could never be met. */
         const val MinChannelLimit = 5
         /** Largest list a fixture shows — bounds the TV pane and the preview zap context. */

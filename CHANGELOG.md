@@ -14,6 +14,12 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.6
+
+### ✨ New features
+- **PPV channels stay in normal order for tennis, F1, golf and MMA — they are the carriers there; the PPV demotion now applies to team sports only**
+- **Shorter default channel list (12, adjustable 5–50 in Sport settings → Channels)**
+
 ## v0.2.5
 
 ### 🐛 Fixes

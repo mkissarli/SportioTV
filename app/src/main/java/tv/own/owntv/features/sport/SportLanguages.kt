@@ -134,8 +134,12 @@ object SportLanguages {
         SportLanguage.UKRAINIAN,
     )
 
-    /** An empty set means "all languages" — no filter. The default matches the app's audience. */
-    val default: Set<SportLanguage> = setOf(SportLanguage.GERMAN)
+    /**
+     * An empty set means "all languages" — no filter. That is the first-run default: hiding a
+     * broadcaster the TV guide names (Sky Sports for a Premier League game) is worse than showing
+     * a few foreign feeds, and the country tiers already put UK first.
+     */
+    val default: Set<SportLanguage> = emptySet()
 
     /**
      * The country code of the tag at the start of [name], upper-cased, or null when the name

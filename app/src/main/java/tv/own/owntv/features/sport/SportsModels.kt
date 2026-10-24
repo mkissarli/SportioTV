@@ -136,6 +136,12 @@ data class ChannelMatch(
      * language filter: they are the event itself, not a foreign-language feed of it.
      */
     val isExact: Boolean = false,
+    /**
+     * The TV guide names this channel as the fixture's carrier. Kept even when the preferred-language
+     * filter would drop it: the guide is the authority on who shows the match, so a German-only
+     * language preference must not hide "Sky Sports Main Event" for a Premier League game.
+     */
+    val guideConfirmed: Boolean = false,
 )
 
 /** A league's team from the ESPN teams endpoint — the phone picker's team rows. */

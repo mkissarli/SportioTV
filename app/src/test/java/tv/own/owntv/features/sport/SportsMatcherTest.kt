@@ -884,6 +884,30 @@ class SportsMatcherTest {
         assertEquals(listOf("UK: SKY SPORT PLUS ᴿᴬᵂ"), matches.map { it.channelName })
     }
 
+    @Test
+    fun aGuideCarrierSurvivesAStrictLanguagePreference() = runBlocking {
+        // The user's preference is German-only and strict; the guide says a UK channel carries it.
+        // The guide wins: the list must still show the channel Where's The Match names.
+        val store = FakeStore(
+            channels = listOf(
+                channel(660, "UK: SKY SPORTS PREMIER LEAGUE"),
+                channel(661, "DE: SKY SPORT PREMIER LEAGUE"),
+            ),
+            programmes = emptyList(),
+        )
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(
+                languages = setOf(SportLanguage.GERMAN),
+                strict = true,
+                confirmedBroadcasters = listOf("Sky Sports Premier League"),
+            ),
+        )
+
+        assertEquals("UK: SKY SPORTS PREMIER LEAGUE", matches.first().channelName)
+    }
+
     // --- fixtures / vocabulary ------------------------------------------------------------------
 
     private val vocab = SportsVocab.of(

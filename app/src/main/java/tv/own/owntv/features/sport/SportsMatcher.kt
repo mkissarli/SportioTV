@@ -241,12 +241,18 @@ class SportsMatcher(
             }
             .sortedByDescending { it.second }
             .map { it.first }
-        if (options.strict) {
-            return SportLanguages.filterStrict(ranked, options.languages, options.excludedLanguages).take(limit)
+        // The guide's carriers are always listed: they are the answer to "who shows this?", and the
+        // preferred-language filter is a preference, not a veto. Excluded languages still apply.
+        val guide = SportLanguages.filterStrict(ranked.filter { it.guideConfirmed }, emptySet(), options.excludedLanguages)
+        val rest = ranked.filterNot { it.guideConfirmed }
+        val filtered = if (options.strict) {
+            SportLanguages.filterStrict(rest, options.languages, options.excludedLanguages)
+        } else {
+            val afterExclude = SportLanguages.filterStrict(rest, emptySet(), options.excludedLanguages)
+            val kept = SportLanguages.filterStrict(afterExclude, options.languages)
+            if (kept.size < options.minPreferred) afterExclude else kept
         }
-        val afterExclude = SportLanguages.filterStrict(ranked, emptySet(), options.excludedLanguages)
-        val kept = SportLanguages.filterStrict(afterExclude, options.languages)
-        return (if (kept.size < options.minPreferred) afterExclude else kept).take(limit)
+        return (guide + filtered).take(limit)
     }
 
     /**
@@ -658,7 +664,10 @@ class SportsMatcher(
         // ESPN's own broadcast field never would. Phrase-only (a multi-word broadcaster name is one
         // unit). Above every other signal, including the country tiers, so the guide's own list
         // comes first and the country order decides inside it.
-        if (confirmedBroadcasters.any { SportNameMatch.containsPhraseLoose(guidePhrase(it), nameNorm) }) {
+        val guideConfirmed = confirmedBroadcasters.any {
+            SportNameMatch.containsPhraseLoose(guidePhrase(it), nameNorm)
+        }
+        if (guideConfirmed) {
             score += ConfirmedBroadcasterScore
         }
 
@@ -801,6 +810,7 @@ class SportsMatcher(
                 epgTitle = epgTitle,
                 score = score,
                 isExact = exact,
+                guideConfirmed = guideConfirmed,
             )
         } else {
             null

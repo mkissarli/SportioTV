@@ -175,6 +175,15 @@ class SportsViewModel(
     private val _selectedFixture = MutableStateFlow<Fixture?>(null)
     val selectedFixture: StateFlow<Fixture?> = _selectedFixture.asStateFlow()
 
+    /**
+     * The TV guide's own carriers for the selected fixture ("Sky Sports Main Event"), from the last
+     * scrape. Shown above the channel list so it is obvious what the guide said; re-read when a new
+     * snapshot lands.
+     */
+    val guideBroadcasters: StateFlow<List<String>> = combine(_selectedFixture, guideApi.version) { fixture, _ ->
+        fixture?.let { guideApi.confirmedBroadcasters(it) }.orEmpty()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** Which bucket of the selected league's fixtures is shown (Live / Upcoming / Past). */
     private val _tab = MutableStateFlow(FixtureTab.UPCOMING)
     val tab: StateFlow<FixtureTab> = _tab.asStateFlow()

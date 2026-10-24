@@ -27,6 +27,7 @@
     <string name="sport_leagues">Leagues</string>
     <string name="sport_my_teams">My teams</string>
     <string name="sport_details">Details</string>
+    <string name="sport_tv_guide_line">TV guide: %1$s</string>
     <string name="sport_standings">Standings</string>
     <string name="sport_channels">Channels</string>
     <string name="sport_channels_classic">Classic</string>

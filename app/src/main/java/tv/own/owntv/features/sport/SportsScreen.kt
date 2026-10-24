@@ -120,6 +120,7 @@ fun SportsScreen(
     val activeLeagues by vm.activeLeagues.collectAsStateWithLifecycle()
     val selectedLeagueId by vm.selectedLeagueId.collectAsStateWithLifecycle()
     val selectedFixture by vm.selectedFixture.collectAsStateWithLifecycle()
+    val guideBroadcasters by vm.guideBroadcasters.collectAsStateWithLifecycle()
     val matchesState by vm.matches.collectAsStateWithLifecycle()
     val standings by vm.standings.collectAsStateWithLifecycle()
     val standingsLoading by vm.standingsLoading.collectAsStateWithLifecycle()
@@ -455,6 +456,7 @@ fun SportsScreen(
                     val zapTitle = fixtureZapTitle(fixture)
                     FixtureDetail(
                         fixture = fixture,
+                        guideBroadcasters = guideBroadcasters,
                         followedTeams = followedTeams,
                         followedPlayers = followedPlayers,
                         matchesState = matchesState,
@@ -1047,6 +1049,8 @@ private fun fixtureZapTitle(fixture: Fixture): String {
 @Composable
 private fun FixtureDetail(
     fixture: Fixture,
+    /** The TV guide's own carriers for this fixture, shown above the channel list. */
+    guideBroadcasters: List<String>,
     followedTeams: Set<String>,
     followedPlayers: Set<String>,
     matchesState: SportsViewModel.MatchesState,
@@ -1122,6 +1126,16 @@ private fun FixtureDetail(
         liveVm.playPreview(entity)
     }
     Column(modifier = Modifier.fillMaxHeight()) {
+        if (guideBroadcasters.isNotEmpty()) {
+            Text(
+                stringResource(R.string.sport_tv_guide_line, guideBroadcasters.joinToString(", ")),
+                style = stageText(16, 600),
+                color = StageColors.Text,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(bottom = 4.mpx),
+            )
+        }
         if (previewEntity != null) {
             GuideVideo(
                 channel = previewEntity,

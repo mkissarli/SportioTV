@@ -250,7 +250,7 @@ class SportsPrefs(private val context: Context) {
         private val AiSuggestionLimitKey = intPreferencesKey("ai_suggestion_limit")
         private val AiCountriesKey = stringSetPreferencesKey("ai_countries")
         private val AiEnabledKey = booleanPreferencesKey("ai_enabled")
-        private val DefaultLanguageNames = setOf(SportLanguage.GERMAN.name)
+        private val DefaultLanguageNames = emptySet<String>()
         /** First-run preferred country: Sky Sports (UK) ranks above the US feeds. */
         const val DefaultPreferredCountry = "UK"
         private const val TeamSeparator = "|"

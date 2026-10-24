@@ -14,6 +14,15 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.13
+
+### ✨ New features
+- **The TV guide's carriers are named above the channel list ("TV guide: Sky Sports Main Event, …") so the guide's answer is visible**
+- **Where's The Match / Live Football On TV channels always come first — the preferred-language filter no longer hides them**
+
+### 🐛 Fixes
+- **First-run channel languages are "all" instead of German, so a fresh install cannot hide every UK feed**
+
 ## v0.2.12
 
 ### ✨ New features

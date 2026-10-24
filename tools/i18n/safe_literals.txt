@@ -854,6 +854,7 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	EEEE d MMMM yyyy
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	Europe/London
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	Guide HTTP
+1	log	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	Guide page too large
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	H:mm
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	Mozilla/5.0 (Windows NT 10.0; Win64; x64) Matchday/1
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	User-Agent
@@ -1494,7 +1495,7 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	🏐
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	🏒
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	🥊
-1	empty	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	\0
+1	log	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	$it$TeamKeySep
 1	protocol	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	,
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	-

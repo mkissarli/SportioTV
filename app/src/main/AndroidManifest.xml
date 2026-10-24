@@ -50,6 +50,9 @@
         android:usesCleartextTraffic="true"
         tools:targetApi="26">
 
+        <!-- Debug/profile builds only: lets shell tools (perfetto/heapprofd) profile the app. -->
+        <profileable android:shell="true" />
+
         <!-- Exposes the downloaded update APK to the system installer. -->
         <provider
             android:name="androidx.core.content.FileProvider"

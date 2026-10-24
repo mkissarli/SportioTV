@@ -365,7 +365,8 @@ class SportsMatcher(
     /**
      * All of the profile's channels, folded once, cached per source set for [ScanCacheTtlMs]. A
      * playlist sync takes effect at the next fixture after the TTL; a 50k-channel playlist costs
-     * one query (~a few hundred ms) instead of one SQL LIKE scan per name probe.
+     * one query (~a few hundred ms) instead of one SQL LIKE scan per name probe. Huge playlists are
+     * NOT cached: on a Fire TV Stick the 57k cached rows cost more memory than a re-scan costs time.
      */
     private suspend fun scanRows(sourceIds: List<Long>): List<ScanRow> {
         val now = System.currentTimeMillis()
@@ -382,8 +383,12 @@ class SportsMatcher(
                     normName = SportNameMatch.normalize(channel.name),
                 )
             }
-        scanCache = sourceIds to rows
-        scanCacheAtMs = now
+        if (rows.size <= ScanCacheMaxRows) {
+            scanCache = sourceIds to rows
+            scanCacheAtMs = now
+        } else {
+            scanCache = null
+        }
         return rows
     }
 
@@ -908,6 +913,8 @@ class SportsMatcher(
         private const val ScanRowLimit = 100_000
         /** How long the cached name scan survives; a resync shows up at the next fixture after it. */
         private const val ScanCacheTtlMs = 30_000L
+        /** Playlists above this many channels are not cached in memory at all (stick RAM). */
+        private const val ScanCacheMaxRows = 20_000
 
         /** How far before kickoff a programme may be the pre-match build-up. */
         private const val EpgBeforeMs = 2L * 60L * 60L * 1000L

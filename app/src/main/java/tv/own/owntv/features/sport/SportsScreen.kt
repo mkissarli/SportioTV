@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -68,8 +69,6 @@ import tv.own.owntv.core.companion.CompanionLink
 import tv.own.owntv.core.companion.CompanionSelectItem
 import tv.own.owntv.core.companion.CompanionServerState
 import tv.own.owntv.core.database.entity.ChannelEntity
-import tv.own.owntv.features.epg.GuideVideo
-import tv.own.owntv.features.live.LiveViewModel
 import tv.own.owntv.ui.components.OwnTVIcon
 import tv.own.owntv.ui.components.OwnTVPopup
 import tv.own.owntv.ui.components.OwnTVTextField
@@ -114,7 +113,6 @@ fun SportsScreen(
     modifier: Modifier = Modifier,
 ) {
     val vm: SportsViewModel = koinViewModel()
-    val liveVm: LiveViewModel = koinViewModel()
     val sportCoins by vm.sportCoins.collectAsStateWithLifecycle()
     val selectedSportId by vm.selectedSportId.collectAsStateWithLifecycle()
     val activeLeagues by vm.activeLeagues.collectAsStateWithLifecycle()
@@ -126,9 +124,6 @@ fun SportsScreen(
     val myTeams by vm.myTeamFixtures.collectAsStateWithLifecycle()
     val followedTeams by vm.followedTeams.collectAsStateWithLifecycle()
     val followedPlayers by vm.followedPlayers.collectAsStateWithLifecycle()
-    val livePreviewSetting by liveVm.livePreviewEnabled.collectAsStateWithLifecycle()
-    val previewArmed by liveVm.previewArmed.collectAsStateWithLifecycle()
-    val effectivePreview = previewEnabled && livePreviewSetting
     val preferredLanguages by vm.preferredLanguages.collectAsStateWithLifecycle()
     val preferredCountry by vm.preferredCountry.collectAsStateWithLifecycle()
     val languageAsked by vm.languageAsked.collectAsStateWithLifecycle()
@@ -237,18 +232,6 @@ fun SportsScreen(
 
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 24 } }
     LaunchedEffect(scrolled) { onContentScrolled(scrolled) }
-
-    // A different (or no) game selected: drop the previous game's in-pane preview stream. Tracked as a
-    // change, NOT a dispose handler, on purpose — going full-screen hides the whole browse UI and disposes
-    // this screen, and stopping here would abort the very channel that was just started (the trap
-    // LiveScreen documents). The null sentinel keeps a fresh composition (first entry, or back from the
-    // full-screen/mini player) from stopping the stream that is still playing.
-    var previewedFixtureId by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(selectedFixture?.id) {
-        val id = selectedFixture?.id
-        if (previewedFixtureId != null && previewedFixtureId != id) liveVm.stopPreview()
-        previewedFixtureId = id
-    }
 
     // The first time a fixture's channels are ready, ask which languages to show — before the list
     // can be read. Choosing (or dismissing) records the answer, so this runs at most once.
@@ -497,9 +480,6 @@ fun SportsScreen(
                             }
                         },
                         sportsVm = vm,
-                        liveVm = liveVm,
-                        effectivePreview = effectivePreview,
-                        previewArmed = previewArmed,
                     )
                 }
             }
@@ -1068,9 +1048,6 @@ private fun FixtureDetail(
     onOpenAiSettings: () -> Unit,
     onPlayAi: (AiSuggestion, List<AiSuggestion>) -> Unit,
     sportsVm: SportsViewModel,
-    liveVm: LiveViewModel,
-    effectivePreview: Boolean,
-    previewArmed: Boolean,
 ) {
     val accent = stageAccent
     // The matcher already filtered by the preferred languages (before its cap) — show them as-is.
@@ -1080,16 +1057,8 @@ private fun FixtureDetail(
     // While the AI functions are switched off there is no AI list: the tab does not exist and
     // nothing of the AI is on screen.
     val aiVisible = aiEnabled && aiListSelected
-    var entities by remember(fixture.id) { mutableStateOf(emptyList<ChannelEntity>()) }
-    var aiEntities by remember(fixture.id) { mutableStateOf(emptyList<ChannelEntity>()) }
-    var focusedChannelId by remember(fixture.id) { mutableStateOf<Long?>(null) }
     var focusedAiId by remember(fixture.id) { mutableStateOf<Long?>(null) }
-    LaunchedEffect(fixture.id, matches) {
-        entities = if (matches.isEmpty()) emptyList() else sportsVm.entitiesFor(matches)
-        if (focusedChannelId == null) focusedChannelId = matches.firstOrNull()?.channelId
-    }
     LaunchedEffect(fixture.id, aiSuggestions) {
-        aiEntities = if (aiSuggestions.isEmpty()) emptyList() else sportsVm.entitiesForAi(aiSuggestions)
         when {
             aiSuggestions.isEmpty() -> focusedAiId = null
             aiSuggestions.none { it.channelId == focusedAiId } ->
@@ -1101,38 +1070,21 @@ private fun FixtureDetail(
     } else {
         null
     }
-    val aiPreviewEntity = if (aiVisible) {
-        aiEntities.firstOrNull { it.id == focusedAiId }
-    } else {
-        null
-    }
     // AI results own the preview only while the AI tab is open; focusing a normal channel clears
     // focusedAiId, and switching back to Classic immediately returns the preview to the matcher.
-    val previewEntity = aiPreviewEntity
-        ?: entities.firstOrNull { it.id == focusedChannelId }
-        ?: entities.firstOrNull()
-    val previewEpg = focusedAiSuggestion?.broadcaster
-        ?: matches.firstOrNull { it.channelId == previewEntity?.id }?.epgTitle
-    LaunchedEffect(previewEntity?.id, effectivePreview, previewArmed) {
-        val entity = previewEntity ?: return@LaunchedEffect
-        if (!effectivePreview || !previewArmed) return@LaunchedEffect
-        delay(700)
-        liveVm.playPreview(entity)
-    }
+    // Deliberately NO fallback to the first match: previewing an unfocused channel auto-plays a
     Column(modifier = Modifier.fillMaxHeight()) {
-        if (previewEntity != null) {
-            GuideVideo(
-                channel = previewEntity,
-                channelLine = previewEntity.name,
-                nowTitle = previewEpg,
-                previewEngine = liveVm.previewEngine,
-                showVideo = effectivePreview && previewArmed,
-                showStreamChips = true, // Sport-Hub preview: quality + fps chips like the LiveStage
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.mpx),
-            )
-        }
-        // Fixed above the scrolling details: the preview and the heading stay visible while the
-        // user browses channels or returns from playback.
+        // The preview area stays as a black slot on purpose: the player engine is deliberately NOT
+        // loaded on the Sports page — that engine plus the hub was what ran a Fire TV Stick out of
+        // memory. Playback starts from a channel row through the app's single zap path.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .background(Color.Black, RoundedCornerShape(12.mpx)),
+        )
+        Spacer(Modifier.height(8.mpx))
+        // Fixed above the scrolling details: the heading stays visible while the user browses.
         Text(
             stringResource(R.string.sport_details),
             style = stageText(30, 700),
@@ -1288,10 +1240,6 @@ private fun FixtureDetail(
                         onPlay = onPlayAi,
                         onFocusSuggestion = { suggestion ->
                             focusedAiId = suggestion.channelId
-                            focusedChannelId = null
-                            aiEntities.firstOrNull { it.id == suggestion.channelId }?.let { entity ->
-                                liveVm.onChannelFocused(entity)
-                            }
                         },
                     )
                 } else {
@@ -1321,10 +1269,6 @@ private fun FixtureDetail(
                                             .onFocusChanged {
                                                 if (it.hasFocus) {
                                                     focusedAiId = null
-                                                    focusedChannelId = match.channelId
-                                                    entities.firstOrNull { entity -> entity.id == match.channelId }?.let { entity ->
-                                                        liveVm.onChannelFocused(entity)
-                                                    }
                                                 }
                                             },
                                     ) { focused ->

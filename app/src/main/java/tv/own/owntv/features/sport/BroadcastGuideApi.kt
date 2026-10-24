@@ -36,6 +36,7 @@ class BroadcastGuideApi(private val client: OkHttpClient, context: Context) {
     @Volatile
     private var entries: List<GuideEntry> = emptyList()
     private var refreshedAtMs = 0L
+    private val refreshing = java.util.concurrent.atomic.AtomicBoolean(false)
 
     /** Whether a background refresh is worth starting (never decide in the UI path). */
     fun isStale(nowMs: Long = System.currentTimeMillis()): Boolean =
@@ -60,6 +61,17 @@ class BroadcastGuideApi(private val client: OkHttpClient, context: Context) {
 
     /** Background refresh; every page independently guarded — a bad site never breaks the rest. */
     suspend fun refresh() {
+        // One refresh at a time: callers (every board load) would otherwise stack whole copies of
+        // the pages and their parses on top of each other.
+        if (!refreshing.compareAndSet(false, true)) return
+        try {
+            refreshOnce()
+        } finally {
+            refreshing.set(false)
+        }
+    }
+
+    private suspend fun refreshOnce() {
         val merged = withContext(Dispatchers.IO) {
             val found = ArrayList<GuideEntry>()
             runCatching { get(FootballGuideUrl) }.getOrNull()?.let { html -> runCatching { GuideParsers.wtm(html) }.getOrNull()?.let { found += it } }
@@ -87,7 +99,10 @@ class BroadcastGuideApi(private val client: OkHttpClient, context: Context) {
             .build()
             .newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw java.io.IOException("Guide HTTP " + response.code)
-                return response.body.string()
+                val source = response.body.source()
+                // A page that ballooned would cost more memory than the confirmation is worth.
+                if (source.request(MaxPageBytes)) throw java.io.IOException("Guide page too large")
+                return source.readUtf8()
             }
     }
 
@@ -100,6 +115,7 @@ class BroadcastGuideApi(private val client: OkHttpClient, context: Context) {
         const val AcceptLanguageHeader = "Accept-Language"
         const val AcceptLanguageValue = "en-GB,en;q=0.9"
         const val CacheTtlMs = 4L * 60L * 60L * 1000L
+        const val MaxPageBytes = 4L * 1024L * 1024L
     }
 }
 
@@ -163,11 +179,15 @@ object GuideParsers {
         val out = ArrayList<GuideEntry>()
         // Walk the document in order: date headers set the day, time blocks carry one fixture each
         // (everything up to the next date/time marker).
-        val markers = MARKER.findAll(html).toList()
+        // One shared java.util.regex matcher: Kotlin's Regex.findAll re-creates a matcher per match,
+        // and on Android each of those copies the whole page (gigabytes on a real guide page).
+        val marks = ArrayList<Marker>()
+        val matcher = MARKER.toPattern().matcher(html)
+        while (matcher.find()) marks += Marker(matcher.end(), matcher.group(1), matcher.group(2))
         var day: LocalDate? = null
-        for (i in markers.indices) {
-            val marker = markers[i]
-            val dateText = marker.groups[1]?.value
+        for (i in marks.indices) {
+            val marker = marks[i]
+            val dateText = marker.date
             if (dateText != null) {
                 runCatching {
                     LocalDate.parse(stripOrdinal(dateText.trim()), DayFormat)
@@ -175,9 +195,9 @@ object GuideParsers {
                 continue
             }
             val currentDay = day ?: continue
-            val time = marker.groups[2]?.value?.trim() ?: continue
-            val end = markers.getOrNull(i + 1)?.range?.first ?: html.length
-            val block = html.substring(marker.range.last + 1, end)
+            val time = marker.time?.trim() ?: continue
+            val end = marks.getOrNull(i + 1)?.start ?: html.length
+            val block = html.substring(marker.start, end)
             val teams = BLOCK_TEAMS.find(block)?.groupValues?.get(1)?.trim() ?: continue
             val league = BLOCK_COMPETITION.find(block)?.groupValues?.get(1)?.trim() ?: ""
             val channels = CHANNEL_PILL.findAll(block).map { decode(it.groupValues[1].trim()) }.toList()
@@ -194,7 +214,9 @@ object GuideParsers {
         return out
     }
 
-    private fun stripTags(text: String): String = text.replace(TagRegex, " ").replace("\\s+".toRegex(), " ").trim()
+    private fun stripTags(text: String): String = text.replace(TagRegex, " ").replace(WhitespaceRegex, " ").trim()
+
+    private class Marker(val start: Int, val date: String?, val time: String?)
 
     private fun stripOrdinal(text: String): String = text.replace(OrdinalRegex, "$1")
 
@@ -202,6 +224,7 @@ object GuideParsers {
         text.replace("&amp;", "&").replace("&nbsp;", " ").replace("&#39;", "'").trim()
 
     private val TagRegex = Regex("<[^>]*>")
+    private val WhitespaceRegex = Regex("\\s+")
     private val OrdinalRegex = Regex("(\\d)(st|nd|rd|th)\\b")
     private val ROW_SPLIT = Regex("<tr")
     private val TIME_DATETIME = Regex("<time[^>]*datetime=\"([^\"]+)\"")

@@ -14,6 +14,14 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.11
+
+### 🐛 Fixes
+- **The Sports page no longer runs out of memory on a large playlist: the TV-guide parser rebuilt a regex matcher per listing, copying the whole page each time (1.2 GB on the real guide)**
+- **One guide refresh at a time — board loads no longer stack a full download and parse per league**
+- **Guide pages above 4 MB are skipped instead of parsed**
+- **The Sports-page preview is gone: the slot stays, rendering black and loading nothing**
+
 ## v0.2.10
 
 ### 🐛 Fixes

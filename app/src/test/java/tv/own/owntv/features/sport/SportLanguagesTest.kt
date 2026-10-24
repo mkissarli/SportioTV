@@ -11,6 +11,14 @@ import org.junit.Test
  */
 class SportLanguagesTest {
 
+    @Test
+    fun nowIsATvUkChannel() {
+        // NOW is Sky's UK streaming brand, not a country tag.
+        assertTrue(SportLanguages.isFromCountry("NOW: SKY SPORTS PREMIER LEAGUE ᴿᴬᵂ", "UK"))
+        assertTrue(SportLanguages.isFromCountry("UK: SKY SPORT MAIN EVENT", "UK"))
+        assertEquals(-1, SportLanguages.countryRank("NZ: SKY SPORT PREMIER LEAGUE", SportLanguages.countryOrder("UK")))
+    }
+
     // --- countryCodeOf: the tag forms a provider actually writes ---
 
     @Test

@@ -509,6 +509,8 @@ object SportLanguages {
      * [code] is one of [preferredCountryOptions]'s keys; anything else returns false.
      */
     fun isFromCountry(name: String, code: String): Boolean {
+        // NOW is Sky's UK streaming brand ("Now Entertainment"), so "NOW: SKY SPORTS …" is a UK feed.
+        if (code == UkCode && SportNameMatch.normalize(name).trim().startsWith(NowBrand)) return true
         val tags = PreferredCountryTags[code] ?: return false
         val country = countryCodeOf(name)
         if (country != null) return country in tags
@@ -519,6 +521,21 @@ object SportLanguages {
 
     /** The countries a user can prefer channels from; the key is stored in `SportsPrefs`. */
     val preferredCountryOptions: List<String> = listOf("UK", "US", "FR", "AR", "DE")
+
+    /**
+     * The ranking order the matcher applies: the user's pick first, then the house order
+     * UK → US → FR → AR. Countries not in the list rank with no bonus at all.
+     */
+    fun countryOrder(preferred: String?): List<String> {
+        val first = preferred?.trim()?.uppercase(Locale.ROOT)?.takeIf { it.isNotEmpty() }
+        return (listOfNotNull(first) + HouseCountryOrder).distinct()
+    }
+
+    /** Position of [name] in [order], or -1 when no country applies. */
+    fun countryRank(name: String, order: List<String>): Int =
+        order.indexOfFirst { isFromCountry(name, it) }
+
+    private val HouseCountryOrder: List<String> = listOf("UK", "US", "FR", "AR")
 
     /**
      * Country tag sets per preferred country. UK covers GB/IE, DE covers AT/CH, FR the French
@@ -545,6 +562,9 @@ object SportLanguages {
      * news" cannot reach the matcher anyway (the both-teams rule keeps news channels out). "AR"
      * also matches language-tagged names ("ARABIC: …"), which carry no country code.
      */
+    private const val UkCode = "UK"
+    private const val NowBrand = "now"
+
     private val PreferredBrandWords: Map<String, List<String>> = mapOf(
         "UK" to listOf("sky sport", "tnt sport", "bt sport", "itv", "bbc"),
         "US" to listOf("espn", "fox sport", "cbs sport", "nbc sport", "peacock", "paramount", "usa network", "fubo"),

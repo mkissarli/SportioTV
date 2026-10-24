@@ -319,9 +319,9 @@ class SportsViewModel(
     init {
         // The TV guide is fetched once in the background: fixture selection must never wait on it.
         viewModelScope.launch(Dispatchers.IO) { guideApi.refresh() }
-        // Load exactly the active leagues (+ leagues of followed teams, for Favourites); re-run when
-        // the user changes the selection, so adding/removing a league fetches/drops it live.
-        viewModelScope.launch { loadingLeagues.collect { applyLeagues(it) } }
+        // When that scrape lands, re-match the open fixture: the guide's own broadcaster list is
+        // the top of the list, and the user should not have to re-select to see it.
+        viewModelScope.launch { guideApi.version.drop(1).collect { reResolveSelected() } }
         // A new selection resets the tab to its default (Live if the view has live games, else
         // Upcoming). The boards arrive asynchronously, so re-apply until the user picks by hand.
         viewModelScope.launch {

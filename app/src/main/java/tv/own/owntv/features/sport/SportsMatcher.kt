@@ -28,10 +28,9 @@ data class SportMatchOptions(
     val minPreferred: Int = SportsMatcher.MinPreferredCount,
     val strict: Boolean = true,
     /**
-     * A country code ("UK", "US", "DE") whose channels get [SportsMatcher.PreferenceBoost] added
-     * to their score before filtering, so they rank above equal- or better-scoring feeds from
-     * elsewhere (Sky Sports above ESPN+ for the same fixture). Soft: other channels stay listed,
-     * they just sort below. Null or blank = no preference, pure score ranking.
+     * The country the user picked, ranked first; the rest follow the house order UK → US → FR → AR
+     * (see [SportLanguages.countryOrder]). Soft: other channels stay listed, they just sort below.
+     * Null or blank = the house order alone.
      */
     val preferCountry: String? = null,
     /**
@@ -216,9 +215,11 @@ class SportsMatcher(
      * per-event channels), then the preferred languages — strict without fallback, legacy with the
      * full post-exclude list when fewer than [SportMatchOptions.minPreferred] survive.
      *
-     * Ranking adjustments happen here, in one re-sort: a configured [SportMatchOptions.preferCountry]
-     * boosts that country's channels in their score, and — for **team sports only** ([demotePpv]) —
-     * PPV/event channels sort to the very bottom via [PpvPenalty], applied AFTER the boost so a
+     * Ranking adjustments happen here, in one re-sort: [ChannelMatch.score] already puts a
+     * web-guide-confirmed broadcaster on top ([ConfirmedBroadcasterScore]); a country tier then
+     * ranks the rest of the list — the user's pick first, then UK, US, FR, AR
+     * ([SportLanguages.countryOrder]) — and, for **team sports only** ([demotePpv]), PPV/event
+     * channels sort to the very bottom via [PpvPenalty], applied AFTER the tiers so a
      * preferred-country PPV feed never tops a real channel that actually carries the fixture. Duels
      * (tennis/MMA) and events (F1/golf) keep PPV feeds in normal order: those channels ("US TENNIS
      * PPV") ARE the carriers there. The PPV demotion is a sort key only; the match's
@@ -230,16 +231,13 @@ class SportsMatcher(
         demotePpv: Boolean,
     ): List<ChannelMatch> {
         val limit = options.limit.coerceIn(MinChannelLimit, MaxChannelLimit)
-        val country = options.preferCountry?.trim()?.takeIf { it.isNotEmpty() }
+        val order = SportLanguages.countryOrder(options.preferCountry)
         val ranked = scored
             .map { m ->
-                val boosted = if (country != null && SportLanguages.isFromCountry(m.channelName, country)) {
-                    m.copy(score = m.score + PreferenceBoost)
-                } else {
-                    m
-                }
-                val sortScore = boosted.score - if (demotePpv && isPpvChannel(m.channelName)) PpvPenalty else 0
-                boosted to sortScore
+                val rank = SportLanguages.countryRank(m.channelName, order)
+                val bonus = if (rank >= 0) (order.size - rank) * CountryTierStep else 0
+                val sortScore = m.score + bonus - if (demotePpv && isPpvChannel(m.channelName)) PpvPenalty else 0
+                m to sortScore
             }
             .sortedByDescending { it.second }
             .map { it.first }
@@ -250,6 +248,14 @@ class SportsMatcher(
         val kept = SportLanguages.filterStrict(afterExclude, options.languages)
         return (if (kept.size < options.minPreferred) afterExclude else kept).take(limit)
     }
+
+    /**
+     * Whether a channel name looks like a sports channel at all. The ESPN broadcast field is a brand
+     * ("Paramount+"), and a brand match alone would pull in "DE: PARAMOUNT CINEMA 1" for a football
+     * game — a name-only signal must at least be a sports channel.
+     */
+    private fun isSportishName(nameNorm: String): Boolean =
+        SportsChannelWords.any { SportNameMatch.containsWord(it, nameNorm) }
 
     /** A PPV/event feed — the fixture's dedicated pay-per-view channel, listed last by policy. */
     private fun isPpvChannel(name: String): Boolean =
@@ -304,15 +310,11 @@ class SportsMatcher(
         // A — channel names, bounded by [NameCandidateCap], matched IN MEMORY over one cached scan
         // of the profile's channels instead of ~30 SQL LIKE scans over the whole playlist. Every
         // row is tested once against all queries, so a 50k-channel playlist costs one pass.
-        val queries = nameDiscoveryQueries(fixture, confirmedBroadcasters)
-        val folded = queries.map { it.lowercase(Locale.ROOT) to SportNameMatch.normalize(it) }
         val rows = scanRows(sourceIds)
-        for (row in rows) {
-            if (folded.any { (raw, norm) -> row.rawLower.contains(raw) || row.normName.contains(norm) }) {
-                out.putIfAbsent(row.channel.id, row.channel)
-                if (out.size >= NameCandidateCap) break
-            }
-        }
+        // The web guide's carriers get their own budget: a 50k playlist holds dozens of
+        // "SKY SPORT …" variants, and sharing one cap let them crowd out the team-name channels.
+        addNameMatches(rows, guideNameQueries(confirmedBroadcasters), GuideCandidateCap, out)
+        addNameMatches(rows, nameDiscoveryQueries(fixture, emptyList()), NameCandidateCap, out)
 
         // B — the guide. A programme title naming a team is enough to pull its channel in; the
         // scoring below still decides whether it finally qualifies. Runs regardless of how full A
@@ -405,6 +407,42 @@ class SportsMatcher(
      * while a tournament word ("Masters") also matches other sports' channels and would otherwise
      * spend the cap first.
      */
+    /**
+     * Guide broadcaster phrases — FULL phrases only, as written and with plural "s" dropped
+     * ("Sky Sports Premier League" → "sky sport premier league"). Never their single words: "sky"
+     * or "premier" alone fill the guide budget with channels that carry nothing.
+     */
+    private fun guideNameQueries(confirmedBroadcasters: List<String>): List<String> =
+        confirmedBroadcasters.map { guidePhrase(it) }
+            .flatMap { listOf(it.trim(), SportNameMatch.singularize(it).trim()) }
+            .filter { it.isNotEmpty() }
+            .distinct()
+
+    /**
+     * A guide name as the playlist would spell it: "Sky Sports+" is the Sky "Plus" service, and a
+     * literal "+" would otherwise normalise away and match every Sky channel in the country.
+     */
+    private fun guidePhrase(name: String): String = name.replace("+", " plus")
+
+    /** One pass over the playlist for [queries], adding at most [cap] new channels to [out]. */
+    private fun addNameMatches(
+        rows: List<ScanRow>,
+        queries: List<String>,
+        cap: Int,
+        out: LinkedHashMap<Long, ChannelEntity>,
+    ) {
+        if (queries.isEmpty()) return
+        val folded = queries.map { it.lowercase(Locale.ROOT) to SportNameMatch.normalize(it) }
+        var added = 0
+        for (row in rows) {
+            if (out.containsKey(row.channel.id)) continue
+            if (folded.any { (raw, norm) -> row.rawLower.contains(raw) || row.normName.contains(norm) }) {
+                out[row.channel.id] = row.channel
+                if (++added >= cap) break
+            }
+        }
+    }
+
     private fun nameDiscoveryQueries(fixture: Fixture, confirmedBroadcasters: List<String>): List<String> {
         val home = teamNameQueries(fixture.home)
         val away = teamNameQueries(fixture.away)
@@ -433,10 +471,6 @@ class SportsMatcher(
         fixture.tournament?.let { queries += SportNameMatch.discoveryPhrases(it, vocab.broadcastStopwords) }
         for (broadcast in fixture.broadcasts) {
             queries += SportNameMatch.discoveryPhrases(broadcast, vocab.broadcastStopwords)
-        }
-        // TV-guide-confirmed broadcasters ("Sky Sports Premier League") — full phrases only.
-        for (confirmed in confirmedBroadcasters) {
-            queries += SportNameMatch.discoveryPhrases(confirmed, vocab.broadcastStopwords)
         }
         return queries.distinct()
     }
@@ -605,9 +639,10 @@ class SportsMatcher(
         // multi-word broadcast into words ("NBA League Pass" → "league", "USA Network" → "network")
         // matches unrelated channels ("UK: NATIONAL LEAGUE"), so a multi-word broadcast must match
         // as a whole phrase or not at all.
-        if (fixture.broadcasts.any { SportNameMatch.containsPhrase(it, nameNorm) }) {
+        val sportish = isSportishName(nameNorm)
+        if (sportish && fixture.broadcasts.any { SportNameMatch.containsPhrase(it, nameNorm) }) {
             score += BroadcastPhraseScore
-        } else if (fixture.broadcasts.any { broadcast ->
+        } else if (sportish && fixture.broadcasts.any { broadcast ->
                 val word = broadcast.words().singleOrNull() ?: return@any false
                 word.length >= MinHintLength &&
                     SportNameMatch.normalize(word) !in vocab.broadcastStopwords &&
@@ -616,13 +651,14 @@ class SportsMatcher(
         ) {
             score += BroadcastWordScore
         }
-        if (fixture.channelHints.any { it.isNotBlank() && name.contains(it.lowercase(Locale.ROOT)) }) {
+        if (sportish && fixture.channelHints.any { it.isNotBlank() && name.contains(it.lowercase(Locale.ROOT)) }) {
             score += HintScore
         }
-        // TV-guide-confirmed broadcasters: the guide names this channel as the carrier, which
-        // ESPN's own broadcast field never would. Phrase-only (a multi-word broadcaster name is
-        // one unit); below direct EPG evidence (+10) but above every name-only signal.
-        if (confirmedBroadcasters.any { SportNameMatch.containsPhrase(it, nameNorm) }) {
+        // TV-guide-confirmed broadcasters: the web guide names this channel as the carrier, which
+        // ESPN's own broadcast field never would. Phrase-only (a multi-word broadcaster name is one
+        // unit). Above every other signal, including the country tiers, so the guide's own list
+        // comes first and the country order decides inside it.
+        if (confirmedBroadcasters.any { SportNameMatch.containsPhraseLoose(guidePhrase(it), nameNorm) }) {
             score += ConfirmedBroadcasterScore
         }
 
@@ -873,26 +909,35 @@ class SportsMatcher(
         /** Preferred-language hits for a list to count as covered (strict mode never pads up to it). */
         const val MinPreferredCount = 5
         /**
-         * Score added to a fixture's channels from the preferred country (see
-         * [SportMatchOptions.preferCountry]). Above any natural score (the highest signal, a guide
-         * title carrying both teams, is [EpgBothTeamsScore] and the signals add up to ~25), so the
-         * preferred broadcaster always sorts first — while every other channel stays listed.
+         * Score per country tier in [applyFilter]: the first country in
+         * [SportLanguages.countryOrder] gets `order.size * CountryTierStep`, the next one step less,
+         * and so on. With the house order (UK, US, FR, AR) that is UK 400, US 300, FR 200, AR 100 —
+         * above any evidence signal (~25) so the country ranking decides, and below
+         * [ConfirmedBroadcasterScore] so the web guide's own list still comes first.
          */
-        const val PreferenceBoost = 50
+        private const val CountryTierStep = 100
         /**
          * A PPV/event feed — the fixture's dedicated pay-per-view channel — is pushed to the very
          * bottom by policy (real channels that carry the fixture come first), even when it sits in
          * the preferred country. Applied in [applyFilter] AFTER the preference boost, so the
          * penalty wins every time.
          */
-        private const val PpvPenalty = 100
+        private const val PpvPenalty = 2000
         /** The channel-name word that marks a PPV feed (normalized matching). */
         private const val PpvWord = "ppv"
+        /** Words that make a channel name a sports channel (brand-only matches need one). */
+        private val SportsChannelWords = listOf(
+            "sport", "sports", "football", "soccer", "futbol", "fussball", "calcio", "tennis",
+            "golf", "cricket", "rugby", "racing", "motorsport", "boxing", "mma", "ufc", "wwe",
+            "nfl", "nba", "mlb", "nhl", "f1", "espn", "dazn", "eurosport", "tsn",
+        )
         /**
          * Cap on channels discovered **by name**, across all name queries (was 60, then 120). The
          * guide discovery is deliberately NOT bounded by this — see `discoverCandidates`.
          */
         private const val NameCandidateCap = 120
+        /** Channels the TV guide's broadcasters may add to the candidate set on their own. */
+        private const val GuideCandidateCap = 60
         /** Per-token cap for a guide-title probe. */
         private const val EpgMatchLimit = 40
         /** How many tokens are probed against the guide. */
@@ -937,7 +982,7 @@ class SportsMatcher(
         private const val EpgTournamentScore = 1
         private const val SportCategoryScore = 1
         /** A TV-guide-confirmed carrier ("Sky Sports Premier League") — below EPG evidence, above names. */
-        private const val ConfirmedBroadcasterScore = 9
+        const val ConfirmedBroadcasterScore = 1000
         /**
          * Region tie-break for US-league games: a `US:`-tagged feed outranks an equally evidenced
          * foreign feed, but never outranks genuinely stronger evidence (a +10 title hit still beats

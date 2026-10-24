@@ -8,6 +8,9 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -37,6 +40,11 @@ class BroadcastGuideApi(private val client: OkHttpClient, context: Context) {
     private var entries: List<GuideEntry> = emptyList()
     private var refreshedAtMs = 0L
     private val refreshing = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    private val _version = MutableStateFlow(0)
+
+    /** Bumped when a new snapshot lands, so the open fixture can be re-matched with it. */
+    val version: StateFlow<Int> = _version.asStateFlow()
 
     /** Whether a background refresh is worth starting (never decide in the UI path). */
     fun isStale(nowMs: Long = System.currentTimeMillis()): Boolean =
@@ -77,12 +85,15 @@ class BroadcastGuideApi(private val client: OkHttpClient, context: Context) {
             runCatching { get(FootballGuideUrl) }.getOrNull()?.let { html -> runCatching { GuideParsers.wtm(html) }.getOrNull()?.let { found += it } }
             runCatching { get(TennisGuideUrl) }.getOrNull()?.let { html -> runCatching { GuideParsers.wtm(html) }.getOrNull()?.let { found += it } }
             runCatching { get(LiveFootballUrl) }.getOrNull()?.let { html -> runCatching { GuideParsers.liveFootball(html) }.getOrNull()?.let { found += it } }
+            if (found.isNotEmpty()) {
+            }
             found.groupBy { Triple(it.dateMs, it.league, it.teams) }
                 .map { (key, group) -> GuideEntry(key.first, key.second, key.third, group.flatMap { it.channels }.distinct()) }
         }
         if (merged.isNotEmpty()) {
             entries = merged
             refreshedAtMs = System.currentTimeMillis()
+            _version.value++
         }
     }
 
@@ -166,7 +177,8 @@ object GuideParsers {
             val teams = FIXTURE_BLOCK.find(row)?.let { m -> decode(stripTags(m.groupValues[1])) } ?: continue
             if (teams.isBlank()) continue
             val league = COMPETITION_SPAN.find(row)?.groupValues?.get(1)?.trim() ?: ""
-            val channels = COVERAGE_ANCHOR.findAll(row).map { decode(it.groupValues[1].trim()) }.toList()
+            val channels = COVERAGE_ANCHOR.findAll(row).map { decode(it.groupValues[1].trim()) }
+                .filterNot { isNotABroadcaster(it) }.toList()
             if (channels.isEmpty()) continue
             out += GuideEntry(dateMs, league, teams, channels.distinct())
         }
@@ -213,6 +225,10 @@ object GuideParsers {
         }
         return out
     }
+
+    /** WTM writes "[Not Televised]" in the channel column; that is a marker, not a carrier. */
+    private fun isNotABroadcaster(name: String): Boolean =
+        name.trim().trim('[', ']').equals("Not Televised", ignoreCase = true)
 
     private fun stripTags(text: String): String = text.replace(TagRegex, " ").replace(WhitespaceRegex, " ").trim()
 

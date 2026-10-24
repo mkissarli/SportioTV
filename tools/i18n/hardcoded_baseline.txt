@@ -37,6 +37,7 @@
 2	app/src/main/java/tv/own/owntv/features/settings/VideoPlayerSettingsScreen.kt	#FFFFFF
 1	app/src/main/java/tv/own/owntv/features/shell/components/MediaDetailsScreen.kt	\0
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	<div class="fixture-date">([^<]+)</div>|<div class="fixture__time">([^<]+)</div>
+1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	Not Televised
 1	app/src/main/java/tv/own/owntv/features/sport/SportsLeagues.kt	3
 1	app/src/main/java/tv/own/owntv/features/sport/SportsLeagues.kt	rugby-league.3
 2	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	\0
@@ -45,11 +46,37 @@
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	baseball.
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	basketball.
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	basketball.euroleague
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	boxing
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	calcio
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	college
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	cricket
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	dazn
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	espn
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	eurosport
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	f1
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	football
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	football.
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	fussball
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	futbol
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	golf
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	hockey.
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	jugend
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	mlb
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	mma
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	motorsport
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	nba
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	nfl
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	nhl
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	ppv
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	racing
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	rugby
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	soccer
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	sport
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	sports
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	tennis
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	tsn
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	ufc
+1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	wwe
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	youth
 1	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	live_excluded_languages
 1	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	live_show_other

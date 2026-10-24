@@ -61,6 +61,27 @@ object SportNameMatch {
     }
 
     /**
+     * [containsPhrase] that ignores a trailing plural "s" on any word — providers write
+     * "UK: SKY SPORT MAIN EVENT" and "UK: TNT SPORT 1" where the guides write "Sky Sports" and
+     * "TNT Sports", and a literal phrase match would never see them.
+     */
+    fun containsPhraseLoose(phrase: String, haystack: String): Boolean =
+        containsPhrase(singularize(normalize(phrase)), singularize(haystack))
+
+    /**
+     * [text] normalized with a trailing plural "s" dropped from every word ("sports" → "sport").
+     * Keeps normalize's space padding, so the result still works with [containsPhrase].
+     */
+    fun singularize(text: String): String {
+        val norm = normalize(text)
+        if (norm.isEmpty()) return norm
+        val words = norm.trim().split(' ').joinToString(" ") { word ->
+            if (word.length > 3 && word.endsWith("s") && !word.endsWith("ss")) word.dropLast(1) else word
+        }
+        return PaddedSpace + words + PaddedSpace
+    }
+
+    /**
      * The distinctive tokens of one name for scoring: normalized words of at least
      * [MinTokenLength], with [stopwords] removed. Falls back to the unfiltered words when filtering
      * would leave nothing (e.g. a club actually named "Club"), never to empty.

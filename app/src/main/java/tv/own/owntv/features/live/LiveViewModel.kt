@@ -273,6 +273,11 @@ class LiveViewModel(
     val livePreviewEnabled: StateFlow<Boolean> = settings.livePreviewEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    /** Shared with Settings → video player: one switch turns the preview off everywhere. */
+    fun setLivePreviewEnabled(enabled: Boolean) {
+        viewModelScope.launch { settings.setLivePreviewEnabled(enabled) }
+    }
+
     /** List ordering for this section (Playlist order vs A–Z), persisted in DataStore. */
     val sortMode: StateFlow<SettingsRepository.SortMode> = settings.sortLive
         .stateIn(viewModelScope, SharingStarted.Eagerly, SettingsRepository.SortMode.PLAYLIST)

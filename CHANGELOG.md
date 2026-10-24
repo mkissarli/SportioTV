@@ -20,7 +20,7 @@
 - **The Sports page no longer runs out of memory on a large playlist: the TV-guide parser rebuilt a regex matcher per listing, copying the whole page each time (1.2 GB on the real guide)**
 - **One guide refresh at a time — board loads no longer stack a full download and parse per league**
 - **Guide pages above 4 MB are skipped instead of parsed**
-- **The Sports-page preview is gone: the slot stays, rendering black and loading nothing**
+- **The in-pane preview is back on the Sports page, with a Live preview on/off switch in the hub settings (the same switch as Settings → Video player)**
 
 ## v0.2.10
 

@@ -14,6 +14,18 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.8
+
+### ✨ New features
+- **UK TV-guide confirmation: broadcasters from Where's The Match (football + tennis) and Live Football On TV are matched against the fixture (league, teams, kickoff) and their channels score +9 — Sky Sports Premier League now appears even when the provider EPG names nothing**
+- **Confirmed carriers rank below direct EPG evidence but above all name-only signals**
+
+## v0.2.7
+
+### ✨ New features
+- **F1 weekends now come from the Jolpica schedule (practice, sprint, qualifying, race as live fixtures) — ESPN's racing feed only ever returned the last race, already marked over**
+- **IndyCar league added (default active)**
+
 ## v0.2.6
 
 ### ✨ New features

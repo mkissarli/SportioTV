@@ -30,6 +30,7 @@ import tv.own.owntv.features.settings.EpgSourcesViewModel
 import tv.own.owntv.features.settings.HomeSettingsViewModel
 import tv.own.owntv.features.settings.LanguageSettingsViewModel
 import tv.own.owntv.features.sport.AiChannelMatcher
+import tv.own.owntv.features.sport.BroadcastGuideApi
 import tv.own.owntv.features.sport.DeepSeekClient
 import tv.own.owntv.features.sport.EspnApi
 import tv.own.owntv.features.sport.F1ScheduleApi
@@ -206,6 +207,7 @@ val appModule = module {
     // Sports hub (Lume-style): ESPN fixtures/scores/standings matched to the user's channels.
     singleOf(::EspnApi)
     singleOf(::F1ScheduleApi)
+    singleOf(::BroadcastGuideApi)
     // AI recommendation: DeepSeek names broadcasters, the local matcher resolves them against the
     // user's own playlists. The model never sees a channel id or a stream URL.
     singleOf(::DeepSeekClient)

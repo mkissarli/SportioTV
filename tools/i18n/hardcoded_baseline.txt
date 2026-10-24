@@ -36,6 +36,7 @@
 1	app/src/main/java/tv/own/owntv/features/settings/VideoPlayerSettingsScreen.kt	#FFEB3B
 2	app/src/main/java/tv/own/owntv/features/settings/VideoPlayerSettingsScreen.kt	#FFFFFF
 1	app/src/main/java/tv/own/owntv/features/shell/components/MediaDetailsScreen.kt	\0
+1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	<div class="fixture-date">([^<]+)</div>|<div class="fixture__time">([^<]+)</div>
 1	app/src/main/java/tv/own/owntv/features/sport/SportsLeagues.kt	3
 1	app/src/main/java/tv/own/owntv/features/sport/SportsLeagues.kt	rugby-league.3
 2	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	\0

@@ -769,6 +769,47 @@ class SportsMatcherTest {
         assertEquals(3, matches.single().score)
     }
 
+    // --- TV-guide-confirmed broadcasters --------------------------------------------------------
+
+    @Test
+    fun aConfirmedBroadcasterScoresBelowEpgEvidenceButAboveNames() = runBlocking {
+        // The guide names "Sky Sports Premier League" as the carrier; the provider's EPG says
+        // nothing, so the confirmed tier is the channel's only evidence.
+        val store = FakeStore(
+            channels = listOf(channel(630, "UK| SKY SPORTS PREMIER LEAGUE")),
+            programmes = emptyList(),
+        )
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(languages = emptySet(), confirmedBroadcasters = listOf("Sky Sports Premier League")),
+        )
+
+        assertEquals(listOf("UK| SKY SPORTS PREMIER LEAGUE"), matches.map { it.channelName })
+        assertEquals(9, matches.single().score)
+    }
+
+    @Test
+    fun aConfirmedBroadcasterNeverBeatsDirectEpgEvidence() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(
+                channel(631, "UK| SKY SPORTS PREMIER LEAGUE"),
+                channel(632, "US: ESPN+", epgKey = "us"),
+            ),
+            programmes = listOf(programme("us", title = "Coventry City v Newcastle United")),
+        )
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(languages = emptySet(), confirmedBroadcasters = listOf("Sky Sports Premier League")),
+        )
+
+        // Direct EPG evidence (both teams, covers kickoff) still outranks the guide confirmation.
+        assertEquals(listOf("US: ESPN+", "UK| SKY SPORTS PREMIER LEAGUE"), matches.map { it.channelName })
+        assertEquals(10, matches.first().score)
+        assertEquals(9, matches.last().score)
+    }
+
     // --- fixtures / vocabulary ------------------------------------------------------------------
 
     private val vocab = SportsVocab.of(

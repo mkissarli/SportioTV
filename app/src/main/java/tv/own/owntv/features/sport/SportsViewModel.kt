@@ -40,6 +40,7 @@ class SportsViewModel(
     private val prefs: SportsPrefs,
     private val api: EspnApi,
     private val f1Api: F1ScheduleApi,
+    private val guideApi: BroadcastGuideApi,
     private val matcher: SportsMatcher,
     private val aiClient: DeepSeekClient,
     private val aiMatcher: AiChannelMatcher,
@@ -460,7 +461,7 @@ class SportsViewModel(
         }
         _matches.value = MatchesState.Loading
         viewModelScope.launch {
-            val found = runCatching { matcher.match(fixture, matchOptions()) }.getOrDefault(emptyList())
+            val found = runCatching { matcher.match(fixture, matchOptions(fixture)) }.getOrDefault(emptyList())
             matchesCache[fixture.id] = found
             if (_selectedFixture.value?.id == fixture.id) _matches.value = MatchesState.Content(found)
         }
@@ -513,7 +514,8 @@ class SportsViewModel(
         viewModelScope.launch {
             prefs.setPreferredLanguages(languages.map { it.name }.toSet())
             // The prefs flow may lag the write, so re-resolve with the just-picked value directly.
-            reResolveSelected(matchOptions().copy(languages = languages))
+            val fixture = _selectedFixture.value ?: return@launch
+            reResolveSelected(matchOptions(fixture).copy(languages = languages))
         }
     }
 
@@ -521,7 +523,8 @@ class SportsViewModel(
     fun setChannelLimit(limit: Int) {
         viewModelScope.launch {
             prefs.setChannelLimit(limit)
-            reResolveSelected(matchOptions().copy(limit = limit))
+            val fixture = _selectedFixture.value ?: return@launch
+            reResolveSelected(matchOptions(fixture).copy(limit = limit))
         }
     }
 
@@ -640,7 +643,8 @@ class SportsViewModel(
             val current = excludedLanguages.value
             val next = if (language in current) current - language else current + language
             prefs.setExcludedLanguages(next.map { it.name }.toSet())
-            reResolveSelected(matchOptions().copy(excludedLanguages = next))
+            val fixture = _selectedFixture.value ?: return@launch
+            reResolveSelected(matchOptions(fixture).copy(excludedLanguages = next))
         }
     }
 
@@ -649,17 +653,22 @@ class SportsViewModel(
         viewModelScope.launch {
             prefs.setPreferredCountry(code)
             val next = code.takeIf { it in SportLanguages.preferredCountryOptions }.orEmpty()
-            reResolveSelected(matchOptions().copy(preferCountry = next.takeIf { it.isNotBlank() }))
+            val fixture = _selectedFixture.value ?: return@launch
+            reResolveSelected(matchOptions(fixture).copy(preferCountry = next.takeIf { it.isNotBlank() }))
         }
     }
 
-    /** The matcher's filter from the current prefs — one place, so every setter re-resolves alike. */
-    private fun matchOptions(): SportMatchOptions = SportMatchOptions(
+    /**
+     * The matcher's filter from the current prefs plus the TV-guide-confirmed broadcasters for
+     * [fixture] — one place, so every setter re-resolves alike.
+     */
+    private suspend fun matchOptions(fixture: Fixture): SportMatchOptions = SportMatchOptions(
         languages = preferredLanguages.value,
         excludedLanguages = excludedLanguages.value,
         limit = channelLimit.value,
         strict = languageFilterStrict.value,
         preferCountry = preferredCountry.value.takeIf { it.isNotBlank() },
+        confirmedBroadcasters = guideApi.confirmedBroadcasters(fixture),
     )
 
     /** Drop the cached channels and match the selected fixture again (per-game refresh button). */
@@ -671,11 +680,12 @@ class SportsViewModel(
      * Matches are language-filtered inside the matcher, so the cache is only valid for the options
      * it was built with — drop it and re-resolve the selected fixture.
      */
-    private suspend fun reResolveSelected(options: SportMatchOptions = matchOptions()) {
+    private suspend fun reResolveSelected(options: SportMatchOptions? = null) {
         matchesCache.clear()
         val fixture = _selectedFixture.value ?: return
         _matches.value = MatchesState.Loading
-        val found = runCatching { matcher.match(fixture, options) }.getOrDefault(emptyList())
+        val resolved = options ?: matchOptions(fixture)
+        val found = runCatching { matcher.match(fixture, resolved) }.getOrDefault(emptyList())
         matchesCache[fixture.id] = found
         if (_selectedFixture.value?.id == fixture.id) _matches.value = MatchesState.Content(found)
     }

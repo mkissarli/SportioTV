@@ -34,6 +34,13 @@ data class SportMatchOptions(
      * they just sort below. Null or blank = no preference, pure score ranking.
      */
     val preferCountry: String? = null,
+    /**
+     * Broadcaster names confirmed by an independent TV guide (Where's The Match / Live Football
+     * On TV) for this fixture ("Sky Sports Premier League"). Probed against channel names and
+     * scored [SportsMatcher.ConfirmedBroadcasterScore] — evidence the guide names the carrier,
+     * which ESPN's US-centric broadcast field never would.
+     */
+    val confirmedBroadcasters: List<String> = emptyList(),
 )
 
 /**
@@ -130,7 +137,7 @@ class SportsMatcher(
             // Legacy path: quota 1, so the full-list fallback triggers exactly when the filter
             // keeps nothing (the previous SportLanguages.filter behaviour).
             applyFilter(
-                resolveSorted(fixture),
+                resolveSorted(fixture, emptyList()),
                 SportMatchOptions(languages, limit = limit, minPreferred = 1, strict = false),
                 demotePpv = fixture.isTeamSport(),
             )
@@ -148,7 +155,7 @@ class SportsMatcher(
      */
     suspend fun match(fixture: Fixture, options: SportMatchOptions): List<ChannelMatch> =
         withContext(Dispatchers.IO) {
-            applyFilter(resolveSorted(fixture), options, demotePpv = fixture.isTeamSport())
+            applyFilter(resolveSorted(fixture, options.confirmedBroadcasters), options, demotePpv = fixture.isTeamSport())
         }
 
     /** Team sports have home/away sides; duels (tennis/MMA) and events (F1/golf) do not. */
@@ -158,7 +165,7 @@ class SportsMatcher(
      * Discovery (pass 1) + scoring (pass 2), strongest first, unfiltered. Pure IO; both [match]
      * overloads share it so only the final filter differs.
      */
-    private suspend fun resolveSorted(fixture: Fixture): List<ChannelMatch> {
+    private suspend fun resolveSorted(fixture: Fixture, confirmedBroadcasters: List<String>): List<ChannelMatch> {
         val sourceIds = sources.liveSourceIds()
         if (sourceIds.isEmpty()) return emptyList()
 
@@ -177,7 +184,7 @@ class SportsMatcher(
         // profile's channels; the guide probes stay SQL (indexed window) and their rows double as
         // the EPG evidence for scoring, so pass 2 issues no queries at all.
         val epgEvidence = HashMap<String, MutableList<EpgProgrammeEntity>>()
-        val candidates = discoverCandidates(fixture, teamSport, duelSport, sourceIds, from, to, epgEvidence)
+        val candidates = discoverCandidates(fixture, teamSport, duelSport, sourceIds, from, to, epgEvidence, confirmedBroadcasters)
         if (candidates.isEmpty()) return emptyList()
 
         // Pass 2 — score each candidate against the fixture.
@@ -199,6 +206,7 @@ class SportsMatcher(
                 sideBTokens = sideBTokens,
                 tournamentTokens = tournamentTokens,
                 programmes = epgEvidence[channel.epgChannelId?.trim()?.lowercase(Locale.ROOT)].orEmpty(),
+                confirmedBroadcasters = confirmedBroadcasters,
             )
         }.sortedByDescending { it.score }
     }
@@ -289,13 +297,14 @@ class SportsMatcher(
         from: Long,
         to: Long,
         epgEvidence: MutableMap<String, MutableList<EpgProgrammeEntity>>,
+        confirmedBroadcasters: List<String>,
     ): LinkedHashMap<Long, ChannelEntity> {
         val out = LinkedHashMap<Long, ChannelEntity>()
 
         // A — channel names, bounded by [NameCandidateCap], matched IN MEMORY over one cached scan
         // of the profile's channels instead of ~30 SQL LIKE scans over the whole playlist. Every
         // row is tested once against all queries, so a 50k-channel playlist costs one pass.
-        val queries = nameDiscoveryQueries(fixture)
+        val queries = nameDiscoveryQueries(fixture, confirmedBroadcasters)
         val folded = queries.map { it.lowercase(Locale.ROOT) to SportNameMatch.normalize(it) }
         val rows = scanRows(sourceIds)
         for (row in rows) {
@@ -391,7 +400,7 @@ class SportsMatcher(
      * while a tournament word ("Masters") also matches other sports' channels and would otherwise
      * spend the cap first.
      */
-    private fun nameDiscoveryQueries(fixture: Fixture): List<String> {
+    private fun nameDiscoveryQueries(fixture: Fixture, confirmedBroadcasters: List<String>): List<String> {
         val home = teamNameQueries(fixture.home)
         val away = teamNameQueries(fixture.away)
         val queries = ArrayList<String>(home.size + away.size + fixture.broadcasts.size + fixture.channelHints.size)
@@ -419,6 +428,10 @@ class SportsMatcher(
         fixture.tournament?.let { queries += SportNameMatch.discoveryPhrases(it, vocab.broadcastStopwords) }
         for (broadcast in fixture.broadcasts) {
             queries += SportNameMatch.discoveryPhrases(broadcast, vocab.broadcastStopwords)
+        }
+        // TV-guide-confirmed broadcasters ("Sky Sports Premier League") — full phrases only.
+        for (confirmed in confirmedBroadcasters) {
+            queries += SportNameMatch.discoveryPhrases(confirmed, vocab.broadcastStopwords)
         }
         return queries.distinct()
     }
@@ -551,6 +564,7 @@ class SportsMatcher(
         sideBTokens: Set<String>,
         tournamentTokens: Set<String>,
         programmes: List<EpgProgrammeEntity>,
+        confirmedBroadcasters: List<String>,
     ): ChannelMatch? {
         var score = 0
         var epgTitle: String? = null
@@ -599,6 +613,12 @@ class SportsMatcher(
         }
         if (fixture.channelHints.any { it.isNotBlank() && name.contains(it.lowercase(Locale.ROOT)) }) {
             score += HintScore
+        }
+        // TV-guide-confirmed broadcasters: the guide names this channel as the carrier, which
+        // ESPN's own broadcast field never would. Phrase-only (a multi-word broadcaster name is
+        // one unit); below direct EPG evidence (+10) but above every name-only signal.
+        if (confirmedBroadcasters.any { SportNameMatch.containsPhrase(it, nameNorm) }) {
+            score += ConfirmedBroadcasterScore
         }
 
         // --- EPG tier (Lume): a programme counts only when it names BOTH teams AND covers kickoff ---
@@ -909,6 +929,8 @@ class SportsMatcher(
         private const val EpgSingleWithContextScore = 2
         private const val EpgTournamentScore = 1
         private const val SportCategoryScore = 1
+        /** A TV-guide-confirmed carrier ("Sky Sports Premier League") — below EPG evidence, above names. */
+        private const val ConfirmedBroadcasterScore = 9
         /**
          * Region tie-break for US-league games: a `US:`-tagged feed outranks an equally evidenced
          * foreign feed, but never outranks genuinely stronger evidence (a +10 title hit still beats

@@ -14,6 +14,18 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.12
+
+### ✨ New features
+- **The TV-guide's own broadcaster list leads every channel list — Sky Sports Main Event / Premier League now come from Where's The Match and Live Football On TV, not from guesswork**
+- **Guide names match with any prefix or suffix and with singular/plural ("UK: SKY SPORT MAIN EVENT", "NOW: SKY SPORTS PREMIER LEAGUE")**
+- **Country order in the list: your pick first, then UK, US, France, Arabic; NOW is treated as UK**
+
+### 🐛 Fixes
+- **"Sky Sports+" now means the Plus service instead of matching every Sky channel in the country**
+- **"[Not Televised]" is no longer treated as a broadcaster**
+- **A finished guide scrape re-matches the open fixture instead of waiting for a re-select**
+
 ## v0.2.11
 
 ### 🐛 Fixes

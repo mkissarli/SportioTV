@@ -14,6 +14,19 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.14
+
+### ✨ New features
+- **Where's The Match now covers every sport in one TV-guide lookup**
+- **Duplicate channel variants collapse to the best resolution**
+- **F1 and tennis fixtures show the guide's real carriers**
+
+### 🐛 Fixes
+- **Wrong channels per match: a listing now needs both teams and the closest kick-off**
+- **A broadcaster name alone no longer suggests a channel**
+- **F1 no longer shows Sky Sports Main Event variants instead of Sky Sports F1**
+- **Tennis matches no longer show unrelated channels**
+
 ## v0.2.13
 
 ### ✨ New features

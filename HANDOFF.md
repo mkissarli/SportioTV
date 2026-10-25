@@ -39,3 +39,7 @@
 - v1.0.9 (2026-10-20): released — App-only, Core-Pin bleibt 1.0.71. `CountryTags` liest
   Provider-Tags in Balkenform (`┃DE┃`) und gemischtes Vokabular; Badges und Live-Filter teilen
   dieselbe Deutung, 37 Sprachen dazu, „All languages" ist ein Schalter. APKs live, CI grün.
+- Sports-Hub-Matching (2026-10-25): Web-Guide ist nur noch Where's The Match (Day-Window,
+  alle Sportarten), Beide-Teams-/Eventtitel-Matching, Broadcast-/Hint-Wörter nur noch Bonus,
+  Regel-4-Dedup (`ChannelDedup`). F1-Hint („Sky Sports Main Event") entfernt — Kanäle kommen
+  dynamisch aus Guide + Eventtitel. Details: `docs/SPORT-HUB.md`, `docs/sport-channel-matching.md` §13.

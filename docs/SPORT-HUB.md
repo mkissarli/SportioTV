@@ -44,6 +44,11 @@
   mergeEvidence`): ein nicht-leerer Guide unterdrückt weder die EPG-Suche noch eine
   bestätigte Voll-Playlist-KI-Antwort. Evidenzklassen sortieren Guide > EPG/Name >
   KI-only; Priors und Länderwunsch sind nur Tie-Breaker. Details: `AI-PLAYLIST.md`.
+- **Automatischer Board-KI-Abgleich (2026-10-25):** ein Discovery-Request für den ganzen
+  Tag, parallele lokale Kandidatensuche über die komplette Playlist/EPG, dann wenige
+  gebündelte Adjudication-Requests. Schalter **KI-Senderabgleich für Sport** (Default an),
+  Treffer erscheinen asynchron als Zähler auf der Fixture-Karte und als zusätzliche Evidenz
+  in der Kanalliste. Details: `AI-SPORTS-MATCHING.md`.
 - KI-Empfehlung: DeepSeek nennt Sender je gewähltem Land, `AiChannelMatcher`
   prüft sie gegen die eigenen Live-Playlists. Der Kanäle-Bereich hat oben die Tabs
   **Classic | AI**; im AI-Tab stehen die Treffer als normale vertikale Liste, nach

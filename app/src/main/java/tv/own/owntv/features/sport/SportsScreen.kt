@@ -142,6 +142,7 @@ fun SportsScreen(
     val playlistAiState by vm.playlistAiState.collectAsStateWithLifecycle()
     val aiListSelected by vm.aiListSelected.collectAsStateWithLifecycle()
     val aiEnabled by vm.aiEnabled.collectAsStateWithLifecycle()
+    val aiBoardHits by vm.aiBoardHits.collectAsStateWithLifecycle()
     var showSettings by remember { mutableStateOf(false) }
     var settingsTab by remember { mutableIntStateOf(0) }
     var showLanguage by remember { mutableStateOf(false) }
@@ -438,7 +439,13 @@ fun SportsScreen(
                                             modifier = Modifier.fillMaxWidth().focusRequester(gameRequester(row.fixture.id)),
                                             idle = if (selected) Modifier.background(stageAccent.accent.copy(alpha = 0.14f), RoundedCornerShape(18.mpx)) else Modifier,
                                         ) { focused ->
-                                            FixtureCard(row.fixture, followedTeams, focused, selected)
+                                            FixtureCard(
+                                                row.fixture,
+                                                followedTeams,
+                                                focused,
+                                                selected,
+                                                aiHits = aiBoardHits[row.fixture.id] ?: 0,
+                                            )
                                         }
                                     }
                                 }
@@ -923,7 +930,13 @@ private fun teamColor(hex: String?): Color? {
 }
 
 @Composable
-private fun FixtureCard(fixture: Fixture, followedTeams: Set<String>, focused: Boolean, selected: Boolean) {
+private fun FixtureCard(
+    fixture: Fixture,
+    followedTeams: Set<String>,
+    focused: Boolean,
+    selected: Boolean,
+    aiHits: Int = 0,
+) {
     val accent = stageAccent
     val titleColor = if (focused) accent.onAccent else StageColors.Text
     val dimColor = if (focused) accent.onAccent.copy(alpha = 0.8f) else StageColors.Dim
@@ -1008,6 +1021,25 @@ private fun FixtureCard(fixture: Fixture, followedTeams: Set<String>, focused: B
                     color = dimColor,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.mpx),
+                )
+            }
+        }
+        if (aiHits > 0) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.mpx),
+            ) {
+                OwnTVIcon(
+                    OwnTVIcon.SPARKLE,
+                    if (focused) accent.onAccent else accent.accent,
+                    Modifier.size(16.mpx),
+                )
+                Text(
+                    aiHits.toString(),
+                    style = stageText(15, 700),
+                    color = if (focused) accent.onAccent else accent.accent,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

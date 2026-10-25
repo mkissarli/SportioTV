@@ -336,7 +336,8 @@ fun SettingsScreen(
     // `sports` DataStore — the Sport settings write the very same key there.
     val sportsPrefs: SportsPrefs = koinInject()
     val deepSeekKey by sportsPrefs.deepSeekApiKey.collectAsStateWithLifecycle(initialValue = "")
-    val aiEnabled by sportsPrefs.aiEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val aiEnabled by sportsPrefs.aiEnabled.collectAsStateWithLifecycle(initialValue = true)
+    val aiSportsMatching by sportsPrefs.aiSportsMatching.collectAsStateWithLifecycle(initialValue = true)
     val currentLocaleTag by languageVm.currentTag.collectAsStateWithLifecycle()
     val languageChip = languageChipText(currentLocaleTag)
     val livePreview by settingsVm.livePreviewEnabled.collectAsStateWithLifecycle()
@@ -784,6 +785,13 @@ fun SettingsScreen(
         // The switch above decides whether the AI may run at all; without it there is nothing to
         // put a key into, so the row only appears while the AI functions are on.
         RootRow(
+            "ai_sports_matching", TileTone.PRIMARY, OwnTVIcon.SPARKLE,
+            title = stringResource(R.string.sport_ai_matching_title), desc = stringResource(R.string.sport_ai_matching_description),
+            chip = stringResource(if (aiSportsMatching) R.string.common_on else R.string.common_off),
+            chipTone = if (aiSportsMatching) TileTone.PRIMARY else TileTone.SECONDARY,
+            onClick = { settingsScope.launch { sportsPrefs.setAiSportsMatching(!aiSportsMatching) } },
+        ),
+        RootRow(
             "ai_functions", TileTone.PRIMARY, OwnTVIcon.SPARKLE,
             title = stringResource(R.string.sport_ai_functions_title), desc = stringResource(R.string.sport_ai_functions_description),
             chip = stringResource(if (aiEnabled) R.string.common_on else R.string.common_off),
@@ -1070,6 +1078,9 @@ fun SettingsScreen(
                 chip = if (updateCheckOnStart) stringResource(R.string.common_on) else stringResource(R.string.common_off), chipTone = if (updateCheckOnStart) TileTone.PRIMARY else TileTone.SECONDARY, showChevron = false) { settingsVm.setUpdateCheckOnStart(!updateCheckOnStart) },
             // The AI switch and the DeepSeek key — findable by name. The key row only exists while
             // the AI functions are on.
+            SettingsSearchEntry(stringResource(R.string.settings_group_app), stringResource(R.string.sport_ai_matching_title), stringResource(R.string.sport_ai_matching_description), OwnTVIcon.SPARKLE, TileTone.PRIMARY,
+                chip = stringResource(if (aiSportsMatching) R.string.common_on else R.string.common_off),
+                chipTone = if (aiSportsMatching) TileTone.PRIMARY else TileTone.SECONDARY, showChevron = false) { settingsScope.launch { sportsPrefs.setAiSportsMatching(!aiSportsMatching) } },
             SettingsSearchEntry(stringResource(R.string.settings_group_app), stringResource(R.string.sport_ai_functions_title), stringResource(R.string.sport_ai_functions_description), OwnTVIcon.SPARKLE, TileTone.PRIMARY,
                 chip = stringResource(if (aiEnabled) R.string.common_on else R.string.common_off),
                 chipTone = if (aiEnabled) TileTone.PRIMARY else TileTone.SECONDARY, showChevron = false) { settingsScope.launch { sportsPrefs.setAiEnabled(!aiEnabled) } },

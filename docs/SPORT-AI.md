@@ -7,16 +7,18 @@
 Umgesetzt 2026-10-18, erweitert 2026-10-19 und 2026-10-20. Erster Provider: DeepSeek (`deepseek-chat`).
 Die KI liefert nur **Sender-Namen**; abgespielt werden kann ausschließlich ein Kanal aus dem
 lokalen Katalog. Die Treffer sind nach Land gruppiert, hart ländergefiltert und nach
-Qualität/Dubletten sortiert. Seit 2026-10-20 gibt es einen **Schalter für die KI-Funktionen**,
-der standardmäßig aus ist.
+Qualität/Dubletten sortiert. Seit 2026-10-20 gibt es einen **Schalter für die KI-Funktionen**;
+seit 2026-10-25 steht er standardmäßig auf **an**, die manuellen Aktionen brauchen aber weiterhin
+einen Klick. Der automatische Board-Abgleich hat einen eigenen Schalter
+(`AI-SPORTS-MATCHING.md`).
 
 ## Änderungen 2026-10-20
 
 - **KI-Schalter:** Einstellungen → Gruppe **App** → **KI-Funktionen** (Schalter, Chip *Ein* /
-  *Aus*). **Aus ist der Standard**, auch nach einem Update: die KI-Funktionen sind dann
-  komplett abgeschaltet — es wird nichts an DeepSeek gesendet, auch nicht der Preis einer
-  Anfrage. Der Schalter gilt für beide Funktionen (Sport-Hub-Empfehlung und KI-Auswertung beim
-  Playlist-Import).
+  *Aus*). **Ein ist der Standard**; die manuellen KI-Aktionen brauchen weiterhin einen Klick
+  bzw. eine Einwilligung, der automatische Board-Abgleich steht zusätzlich unter
+  `AI-SPORTS-MATCHING.md`. Der Schalter gilt für beide alten Funktionen (Sport-Hub-Empfehlung
+  und KI-Auswertung beim Playlist-Import).
 - **Der DeepSeek-Schlüssel ist jetzt auch in den normalen Einstellungen erreichbar:**
   Einstellungen → Gruppe **App** → Zeile **DeepSeek-API-Schlüssel** (Chip: *Hinterlegt* /
   *Nicht hinterlegt*) öffnet denselben Schlüssel-Dialog wie der Sport-Hub. Beide Wege
@@ -53,7 +55,7 @@ der standardmäßig aus ist.
 
 ## Ablauf
 
-Der AI-Tab existiert nur, wenn die KI-Funktionen eingeschaltet sind (Standard: **aus** —
+Der AI-Tab existiert nur, wenn die KI-Funktionen eingeschaltet sind (Standard: **an** —
 siehe Einstellungen).
 
 1. Im Sport-Hub ein Spiel auswählen.
@@ -108,6 +110,10 @@ den KI-Tab der Sport-Einstellungen.
   Anzeigenamen **aller** Playlist-Sender. Sie läuft nur nach dem Einwilligungsdialog
   („Ganze Playlist prüfen"), nie automatisch. Stream-URLs, Zugangsdaten und Token
   bleiben auch dort ausgeschlossen. Details: `AI-PLAYLIST.md`.
+  **Zweite Ausnahme (seit 2026-10-25):** der automatische Board-Abgleich
+  (`AI-SPORTS-MATCHING.md`) sendet dieselbe Art Metadaten (Fixtures, Kandidaten-Anzeigenamen,
+  Territorium/Gruppe, passende EPG-Ausschnitte), aber nur wenn der eigene Schalter
+  **KI-Senderabgleich für Sport** an ist; der Beschreibungstext ist die Offenlegung.
 - Der API-Key wird ausschließlich als `Authorization: Bearer …`-Header übertragen, nie in
   einer URL und nie in einem Log.
 - Prompt: `app/src/main/res/raw/sports_ai_prompt.txt` (technisch, nicht übersetzt).
@@ -178,10 +184,10 @@ auf „Sky Sport News“ passt. Der KI-Name allein erzeugt nie einen abspielbare
 
 ## Bewusst nicht eingebaut
 
-- **Kein zweiter KI-Pass / Rerank.** Die gemeldeten Fehler lassen sich lokal über
-  Ländertag, Qualität und Dubletten lösen. Ein zweiter DeepSeek-Aufruf würde zusätzlich
-  Geld und Zeit kosten und Kanalnamen an den Dienst senden. Er bleibt der nächste Schritt,
-  wenn nach den lokalen Regeln noch falsche Sender übrig bleiben.
+- **Kein zweiter KI-Pass im alten KI-Tab.** Die gemeldeten Fehler lassen sich lokal über
+  Ländertag, Qualität und Dubletten lösen. Ein zweiter DeepSeek-Aufruf pro Fixture würde
+  zusätzlich Geld und Zeit kosten. Der boardweite zweite Pass lebt getrennt im automatischen
+  Abgleich (`AI-SPORTS-MATCHING.md`) und ersetzt diesen Tab nicht.
 - **Keine echte Bitraten-/Auflösungsmessung.** Die Qualitätsstufe kommt aus dem
   Provider-Namen. Ein `HD`-Tag kann falsch sein; nur eine Probe oder Wiedergabe würde die
   echte Qualität zeigen. Eine solche Probe ist teuer, langsam und verbraucht Verbindungen.

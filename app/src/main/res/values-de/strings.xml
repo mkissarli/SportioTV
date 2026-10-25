@@ -190,6 +190,8 @@
     <string name="sport_ai_key_missing_title">API-Schlüssel fehlt</string>
     <string name="sport_ai_functions_title">KI-Funktionen</string>
     <string name="sport_ai_functions_description">Sender-Empfehlung im Sport-Hub und die KI-Auswertung einer eingefügten Anbieter-Nachricht</string>
+    <string name="sport_ai_matching_title">KI-Senderabgleich für Sport</string>
+    <string name="sport_ai_matching_description">Gleicht die Spiele des Tages automatisch mit deiner Playlist ab. Sendet Spieldaten, Kanalnamen und passende EPG-Einträge an DeepSeek. Nie Stream-URLs, Zugangsdaten oder Kontodaten.</string>
     <string name="sport_ai_functions_off_hint">Die KI-Funktionen sind ausgeschaltet. Aktiviere sie unter Einstellungen › App.</string>
     <string name="sport_ai_error_disabled">Die KI-Funktionen sind in den Einstellungen ausgeschaltet.</string>
     <string name="sport_ai_playlist_check">Ganze Playlist prüfen</string>

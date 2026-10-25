@@ -5,8 +5,9 @@
 
 ## Status
 
-Umgesetzt 2026-10-25. Standardmässig **aus** (KI-Schalter, Standard aus) und zusätzlich pro Fixture
-nur nach ausdrücklicher Bestätigung. Der alte KI-Tab (Länder-Empfehlung, `SPORT-AI.md`) bleibt
+Umgesetzt 2026-10-25. Zusätzlich pro Fixture nur nach ausdrücklicher Bestätigung; der
+KI-Schalter steht seit 2026-10-25 standardmässig auf **an**, die Voll-Playlist-Prüfung bleibt
+aber eine ausdrückliche Aktion. Der alte KI-Tab (Länder-Empfehlung, `SPORT-AI.md`) bleibt
 unabhängig bestehen; die Voll-Playlist-Prüfung ist eine eigene Aktion in der Klassisch-Liste.
 
 ## Ablauf

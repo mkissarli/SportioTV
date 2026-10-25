@@ -191,6 +191,8 @@
     <string name="sport_ai_key_missing_title">API key missing</string>
     <string name="sport_ai_functions_title">AI functions</string>
     <string name="sport_ai_functions_description">Channel recommendation in the Sports hub and the AI reading of a pasted provider message</string>
+    <string name="sport_ai_matching_title">AI sports channel matching</string>
+    <string name="sport_ai_matching_description">Matches the day\'s fixtures to your playlist automatically. Sends fixture metadata, channel display names and matching EPG entries to DeepSeek. Never stream URLs, credentials or account data.</string>
     <string name="sport_ai_functions_off_hint">The AI functions are switched off. Turn them on under Settings › App.</string>
     <string name="sport_ai_error_disabled">The AI functions are switched off in the settings.</string>
     <string name="sport_ai_playlist_check">Check full playlist</string>

@@ -14,6 +14,15 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.17
+
+### ✨ New features
+- **Two-phase AI sports channel matching for the day's board**
+- **AI match count on fixture cards**
+
+### 🐛 Fixes
+- **Sports Hub boards now load automatically for active leagues**
+
 ## v0.2.16
 
 ### ✨ New features

@@ -30,6 +30,7 @@ import tv.own.owntv.features.settings.EpgSourcesViewModel
 import tv.own.owntv.features.settings.HomeSettingsViewModel
 import tv.own.owntv.features.settings.LanguageSettingsViewModel
 import tv.own.owntv.features.sport.AiChannelMatcher
+import tv.own.owntv.features.sport.AiBoardMatcher
 import tv.own.owntv.features.sport.AiPlaylistAnalyst
 import tv.own.owntv.features.sport.BroadcastGuideApi
 import tv.own.owntv.features.sport.DeepSeekClient
@@ -230,6 +231,24 @@ val appModule = module {
                 sportsLeagueById(leagueId)?.let { context.getString(it.labelRes) } ?: leagueId
             },
             ask = get<DeepSeekClient>()::completePlaylistSelection,
+        )
+    }
+    // Board-level two-phase matching: one discovery call, local broad candidate discovery over the
+    // whole catalogue and EPG, then a few batched adjudication calls. Runs while the disclosed
+    // switch and the master AI switch are on and a key is configured.
+    single {
+        val context = androidContext()
+        AiBoardMatcher(
+            channelDao = get(),
+            epgDao = get(),
+            categoryDao = get(),
+            sources = get(),
+            vocab = get(),
+            priors = get(),
+            leagueLabel = { leagueId ->
+                sportsLeagueById(leagueId)?.let { context.getString(it.labelRes) } ?: leagueId
+            },
+            ask = get<DeepSeekClient>()::completeBoardMatching,
         )
     }
     // Static matcher vocabulary (team aliases/exonyms + stop-words) from res/raw/sports_matching.json.

@@ -108,6 +108,17 @@ class DeepSeekClient(
     }
 
     /**
+     * One two-phase board request. Both prompts are built locally; this method only enforces the
+     * key, the bounded timeout and the typed failure mapping. The answer stays raw so schema
+     * validation remains a pure, testable step.
+     */
+    suspend fun completeBoardMatching(system: String, user: String, apiKey: String): String {
+        val key = extractKey(apiKey)
+        if (key.isEmpty()) throw AiRequestException(AiFailure.NO_KEY)
+        return ask(system, user, key, playlistHttp, BoardMaxTokens)
+    }
+
+    /**
      * One chat completion, returning the answer's content. Every error path becomes an
      * [AiRequestException] with a typed [AiFailure], so the caller never has to read an HTTP code.
      */
@@ -116,13 +127,14 @@ class DeepSeekClient(
         user: String,
         key: String,
         client: OkHttpClient = http,
+        maxTokens: Int = MaxTokens,
     ): String = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url(Endpoint)
             .header(AuthorizationHeader, AuthPrefix + key)
             .header(ContentTypeHeader, JsonMediaType)
             .header(AcceptHeader, JsonMediaType)
-            .post(requestBody(system, user))
+            .post(requestBody(system, user, maxTokens))
             .build()
 
         val responseText = try {
@@ -165,7 +177,7 @@ class DeepSeekClient(
         return withoutPrefix.filterNot { it.isWhitespace() }
     }
 
-    private fun requestBody(system: String, user: String): okhttp3.RequestBody {
+    private fun requestBody(system: String, user: String, maxTokens: Int): okhttp3.RequestBody {
         val messages = JSONArray()
             .put(JSONObject().put(RoleKey, SystemRole).put(ContentKey, system))
             .put(JSONObject().put(RoleKey, UserRole).put(ContentKey, user))
@@ -173,7 +185,7 @@ class DeepSeekClient(
             .put(ModelKey, Model)
             .put(MessagesKey, messages)
             .put(TemperatureKey, Temperature)
-            .put(MaxTokensKey, MaxTokens)
+            .put(MaxTokensKey, maxTokens)
             .put(ResponseFormatKey, JSONObject().put(ResponseFormatTypeKey, JsonObjectType))
         return body.toString().toRequestBody(JsonMediaType.toMediaType())
     }
@@ -256,6 +268,7 @@ class DeepSeekClient(
         const val UnknownValue = "unknown"
         const val Temperature = 0.2
         const val MaxTokens = 3_000
+        const val BoardMaxTokens = 8_000
         const val MaxPromptBroadcasts = 8
         const val ConnectTimeoutSeconds = 15L
         const val ReadTimeoutSeconds = 60L

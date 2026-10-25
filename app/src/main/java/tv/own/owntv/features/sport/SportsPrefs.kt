@@ -112,12 +112,19 @@ class SportsPrefs(private val context: Context) {
      * Whether the AI functions may run at all: the Sport hub's channel recommendation and the
      * AI reading of a pasted provider message (playlist import).
      *
-     * Off by default: the AI costs money, sends data to a third party and is not what every
-     * user wants. The switch does not touch the stored key — it only decides whether the app
-     * may call the provider.
+     * On by default. No request leaves the device without an explicit action or the disclosed
+     * automatic sports matching below; the switch does not touch the stored key.
      */
     val aiEnabled: Flow<Boolean> =
-        context.sportsDataStore.data.map { it[AiEnabledKey] ?: false }
+        context.sportsDataStore.data.map { it[AiEnabledKey] ?: true }
+
+    /**
+     * Automatic, board-level AI sports channel matching. On by default for a fresh install.
+     * It only runs while [aiEnabled] is also on and a DeepSeek key is configured; turning it off
+     * keeps the deterministic guide/EPG matcher (and the manual AI actions) available.
+     */
+    val aiSportsMatching: Flow<Boolean> =
+        context.sportsDataStore.data.map { it[AiSportsMatchingKey] ?: true }
 
     suspend fun setLeagueFollowed(leagueId: String, followed: Boolean) {
         context.sportsDataStore.edit { prefs ->
@@ -228,6 +235,11 @@ class SportsPrefs(private val context: Context) {
         context.sportsDataStore.edit { prefs -> prefs[AiEnabledKey] = enabled }
     }
 
+    /** Switch automatic board-level AI channel matching on or off. */
+    suspend fun setAiSportsMatching(enabled: Boolean) {
+        context.sportsDataStore.edit { prefs -> prefs[AiSportsMatchingKey] = enabled }
+    }
+
     companion object {
         fun teamKey(leagueId: String, teamAbbrev: String): String = leagueId + TeamSeparator + teamAbbrev
 
@@ -250,6 +262,7 @@ class SportsPrefs(private val context: Context) {
         private val AiSuggestionLimitKey = intPreferencesKey("ai_suggestion_limit")
         private val AiCountriesKey = stringSetPreferencesKey("ai_countries")
         private val AiEnabledKey = booleanPreferencesKey("ai_enabled")
+        private val AiSportsMatchingKey = booleanPreferencesKey("ai_sports_matching")
         private val DefaultLanguageNames = emptySet<String>()
         /** First-run preferred country: Sky Sports (UK) ranks above the US feeds. */
         const val DefaultPreferredCountry = "UK"

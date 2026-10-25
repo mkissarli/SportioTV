@@ -30,6 +30,7 @@ import tv.own.owntv.features.settings.EpgSourcesViewModel
 import tv.own.owntv.features.settings.HomeSettingsViewModel
 import tv.own.owntv.features.settings.LanguageSettingsViewModel
 import tv.own.owntv.features.sport.AiChannelMatcher
+import tv.own.owntv.features.sport.AiPlaylistAnalyst
 import tv.own.owntv.features.sport.BroadcastGuideApi
 import tv.own.owntv.features.sport.DeepSeekClient
 import tv.own.owntv.features.sport.EspnApi
@@ -38,8 +39,10 @@ import tv.own.owntv.features.sport.LiveSourceIdsProvider
 import tv.own.owntv.features.sport.ProfileLiveSourceIdsProvider
 import tv.own.owntv.features.sport.SportsMatcher
 import tv.own.owntv.features.sport.SportsPrefs
+import tv.own.owntv.features.sport.SportsPriors
 import tv.own.owntv.features.sport.SportsViewModel
 import tv.own.owntv.features.sport.SportsVocab
+import tv.own.owntv.features.sport.sportsLeagueById
 import tv.own.owntv.features.settings.OpenSubtitlesViewModel
 import tv.own.owntv.features.settings.SettingsViewModel
 import tv.own.owntv.features.setup.DisplaySizeViewModel
@@ -212,6 +215,23 @@ val appModule = module {
     // user's own playlists. The model never sees a channel id or a stream URL.
     singleOf(::DeepSeekClient)
     singleOf(::AiChannelMatcher)
+    // Versioned broadcaster priors: context/tie-break only, loaded once from res/raw.
+    single { SportsPriors.load(androidContext()) }
+    // Full-playlist matching: the complete live catalogue goes to the model, ids come back and are
+    // mapped to playable rows. Opt-in per fixture (consent in the UI), never a background call.
+    single {
+        val context = androidContext()
+        AiPlaylistAnalyst(
+            channelDao = get(),
+            epgDao = get(),
+            sources = get(),
+            priors = get(),
+            leagueLabel = { leagueId ->
+                sportsLeagueById(leagueId)?.let { context.getString(it.labelRes) } ?: leagueId
+            },
+            ask = get<DeepSeekClient>()::completePlaylistSelection,
+        )
+    }
     // Static matcher vocabulary (team aliases/exonyms + stop-words) from res/raw/sports_matching.json.
     // Takes a Context, resolved from androidContext().
     single { SportsVocab.load(androidContext()) }

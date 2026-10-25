@@ -101,8 +101,13 @@ den KI-Tab der Sport-Einstellungen.
 
 - An DeepSeek gehen nur: Spielname, Wettbewerb, Anstosszeit, Spielort, die von ESPN
   gelieferten Broadcast-Namen (max. 8) und die gewählten Länder.
-- **Nicht** gesendet werden: Playlist-Namen, Kanalnamen, Kanal-IDs, Stream-URLs, EPG-Daten,
-  Profil- oder Gerätekennungen.
+- **Nicht** gesendet werden (Länder-Empfehlung): Playlist-Namen, Kanalnamen, Kanal-IDs,
+  Stream-URLs, EPG-Daten, Profil- oder Gerätekennungen.
+  **Ausnahme (seit 2026-10-25):** die separate, pro Fixture ausdrücklich bestätigte
+  **Voll-Playlist-Prüfung** sendet Eventdaten, relevanten Guide-/EPG-Text und die
+  Anzeigenamen **aller** Playlist-Sender. Sie läuft nur nach dem Einwilligungsdialog
+  („Ganze Playlist prüfen"), nie automatisch. Stream-URLs, Zugangsdaten und Token
+  bleiben auch dort ausgeschlossen. Details: `AI-PLAYLIST.md`.
 - Der API-Key wird ausschließlich als `Authorization: Bearer …`-Header übertragen, nie in
   einer URL und nie in einem Log.
 - Prompt: `app/src/main/res/raw/sports_ai_prompt.txt` (technisch, nicht übersetzt).

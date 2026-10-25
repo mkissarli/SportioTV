@@ -45,6 +45,8 @@ class SportsViewModel(
     private val matcher: SportsMatcher,
     private val aiClient: DeepSeekClient,
     private val aiMatcher: AiChannelMatcher,
+    private val aiPlaylistAnalyst: AiPlaylistAnalyst,
+    private val priors: SportsPriors,
     private val companion: CompanionController,
     private val settings: SettingsRepository,
     private val sourceRepository: SourceRepository,
@@ -71,6 +73,19 @@ class SportsViewModel(
             val countries: Set<AiCountry> = emptySet(),
         ) : AiState
         data class Error(val failure: AiFailure) : AiState
+    }
+
+    /** The per-fixture full-playlist AI action's state (opt-in; never runs on its own). */
+    sealed interface PlaylistAiState {
+        data object Idle : PlaylistAiState
+        data object Loading : PlaylistAiState
+        data class Content(
+            /** Verified playlist rows added/confirmed by the accepted answer. */
+            val added: Int,
+            /** How many playlist entries the request(s) covered. */
+            val checked: Int,
+        ) : PlaylistAiState
+        data class Error(val failure: AiFailure) : PlaylistAiState
     }
 
     /** The second column's filter for the selected league. */
@@ -202,12 +217,25 @@ class SportsViewModel(
     private val _aiState = MutableStateFlow<AiState>(AiState.Idle)
     val aiState: StateFlow<AiState> = _aiState.asStateFlow()
 
+    private val _playlistAiState = MutableStateFlow<PlaylistAiState>(PlaylistAiState.Idle)
+    val playlistAiState: StateFlow<PlaylistAiState> = _playlistAiState.asStateFlow()
+
     /** Which channel list the detail pane shows: false = classic matcher, true = AI suggestions. */
     private val _aiListSelected = MutableStateFlow(false)
     val aiListSelected: StateFlow<Boolean> = _aiListSelected.asStateFlow()
 
     private var aiRequest = 0
     private var aiJob: kotlinx.coroutines.Job? = null
+
+    private var playlistAiRequest = 0
+    private var playlistAiJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Accepted full-playlist answers by fixture id. The analyst's own cache also keys every input,
+     * so a changed playlist/guide/prior fingerprint causes a fresh request; this map only feeds the
+     * matcher's merge and keeps the pane stable across re-selections.
+     */
+    private val aiPlaylistByFixture = HashMap<String, AiPlaylistResult>()
 
     /**
      * Completed answers, keyed by fixture id and by request (fixture + countries). Returning from
@@ -363,6 +391,10 @@ class SportsViewModel(
         clearAiRecommendation()
         aiByFixture.clear()
         aiByRequest.clear()
+        playlistAiRequest++
+        playlistAiJob?.cancel()
+        aiPlaylistByFixture.clear()
+        _playlistAiState.value = PlaylistAiState.Idle
     }
 
     fun setTab(tab: FixtureTab) {
@@ -429,6 +461,7 @@ class SportsViewModel(
         _selectedFixture.value = null
         _matches.value = MatchesState.Idle
         _aiState.value = AiState.Idle
+        _playlistAiState.value = PlaylistAiState.Idle
     }
 
     /** The aggregate, narrowed to one sport coin ([SportAllId] = everything). */
@@ -442,6 +475,7 @@ class SportsViewModel(
         _selectedFixture.value = null
         _matches.value = MatchesState.Idle
         _aiState.value = AiState.Idle
+        _playlistAiState.value = PlaylistAiState.Idle
         val league = sportsLeagueById(id) ?: return
         viewModelScope.launch {
             loadBoard(league, force = false)
@@ -461,6 +495,9 @@ class SportsViewModel(
         // While the AI functions are off, no answer is shown — the list is not on screen anyway.
         if (previousId != fixture.id) {
             _aiState.value = if (aiEnabled.value) aiByFixture[fixture.id] ?: AiState.Idle else AiState.Idle
+            _playlistAiState.value = aiPlaylistByFixture[fixture.id]
+                ?.let { PlaylistAiState.Content(it.picks.size, it.candidateCount) }
+                ?: PlaylistAiState.Idle
         }
         // In Favourites the "selected league" is the aggregate, so follow the fixture's own league
         // for the standings panel.
@@ -626,6 +663,68 @@ class SportsViewModel(
         _aiState.value = AiState.Idle
     }
 
+    /**
+     * Run the full-playlist model analysis for [fixture] — explicitly, after the user agreed to
+     * send the event, guide/EPG text and playlist channel names. Never called on render.
+     *
+     * The accepted answer is merged as one more independent evidence source; a valid `none` or an
+     * API failure leaves guide/EPG results untouched.
+     */
+    fun analyzePlaylistWithAi(fixture: Fixture) {
+        if (!aiEnabled.value) {
+            _playlistAiState.value = PlaylistAiState.Error(AiFailure.DISABLED)
+            return
+        }
+        val key = deepSeekApiKey.value.trim()
+        if (key.isEmpty()) {
+            _playlistAiState.value = PlaylistAiState.Error(AiFailure.NO_KEY)
+            return
+        }
+        playlistAiRequest++
+        val request = playlistAiRequest
+        playlistAiJob?.cancel()
+        _playlistAiState.value = PlaylistAiState.Loading
+        playlistAiJob = viewModelScope.launch {
+            val result = try {
+                aiPlaylistAnalyst.analyze(
+                    fixture = fixture,
+                    apiKey = key,
+                    market = preferredCountry.value.takeIf { it.isNotBlank() },
+                    guideVersion = guideApi.version.value,
+                    guideEvidence = guideApi.evidenceFor(fixture),
+                )
+            } catch (e: AiRequestException) {
+                if (request == playlistAiRequest) {
+                    _playlistAiState.value = PlaylistAiState.Error(e.failure)
+                }
+                return@launch
+            } catch (e: Exception) {
+                if (request == playlistAiRequest) {
+                    _playlistAiState.value = PlaylistAiState.Error(AiFailure.UNKNOWN)
+                }
+                return@launch
+            }
+            if (request != playlistAiRequest) return@launch
+            aiPlaylistByFixture[fixture.id] = result
+            // Diagnostics only: counts, timing and validity — never names, ids or stream data.
+            android.util.Log.d(
+                "SportsHub",
+                "playlist ai candidates=" + result.candidateCount +
+                    " requests=" + result.requestCount +
+                    " valid=" + result.validResponses +
+                    " invalid=" + result.invalidResponses +
+                    " inputChars=" + result.inputChars +
+                    " ms=" + result.latencyMs,
+            )
+            _playlistAiState.value = if (result.validResponses == 0 && result.invalidResponses > 0) {
+                PlaylistAiState.Error(AiFailure.UNKNOWN)
+            } else {
+                PlaylistAiState.Content(result.picks.size, result.candidateCount)
+            }
+            if (_selectedFixture.value?.id == fixture.id) reResolveSelected()
+        }
+    }
+
     /** Entities for the AI suggestions, in order — for the inline preview. */
     suspend fun entitiesForAi(suggestions: List<AiSuggestion>): List<tv.own.owntv.core.database.entity.ChannelEntity> =
         runCatching { matcher.channels(suggestions.map { it.channelId }) }.getOrDefault(emptyList())
@@ -667,18 +766,24 @@ class SportsViewModel(
     }
 
     /**
-     * The matcher's filter from the current prefs plus the TV-guide-confirmed broadcasters for the
-     * selected fixture. The guide read is a cached snapshot — never a network call — so this never
-     * blocks.
+     * The matcher's filter from the current prefs plus the independent evidence for the selected
+     * fixture: guide carriers, ranked priors (tie-break only) and any accepted full-playlist AI
+     * rows. All reads are cached — never a network call.
      */
-    private fun matchOptions(): SportMatchOptions = SportMatchOptions(
-        languages = preferredLanguages.value,
-        excludedLanguages = excludedLanguages.value,
-        limit = channelLimit.value,
-        strict = languageFilterStrict.value,
-        preferCountry = preferredCountry.value.takeIf { it.isNotBlank() },
-        confirmedBroadcasters = _selectedFixture.value?.let { guideApi.confirmedBroadcasters(it) }.orEmpty(),
-    )
+    private fun matchOptions(): SportMatchOptions {
+        val fixture = _selectedFixture.value
+        val market = preferredCountry.value.takeIf { it.isNotBlank() }
+        return SportMatchOptions(
+            languages = preferredLanguages.value,
+            excludedLanguages = excludedLanguages.value,
+            limit = channelLimit.value,
+            strict = languageFilterStrict.value,
+            preferCountry = market,
+            confirmedBroadcasters = fixture?.let { guideApi.confirmedBroadcasters(it) }.orEmpty(),
+            priorCarriers = fixture?.let { priors.carriersFor(it, market) }.orEmpty(),
+            aiChannels = fixture?.let { aiPlaylistByFixture[it.id]?.picks }.orEmpty(),
+        )
+    }
 
     /** Drop the cached channels and match the selected fixture again (per-game refresh button). */
     fun refreshMatches() {

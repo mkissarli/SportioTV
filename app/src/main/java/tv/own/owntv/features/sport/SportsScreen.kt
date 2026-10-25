@@ -139,6 +139,7 @@ fun SportsScreen(
     val aiSuggestionLimit by vm.aiSuggestionLimit.collectAsStateWithLifecycle()
     val aiCountries by vm.aiCountries.collectAsStateWithLifecycle()
     val aiState by vm.aiState.collectAsStateWithLifecycle()
+    val playlistAiState by vm.playlistAiState.collectAsStateWithLifecycle()
     val aiListSelected by vm.aiListSelected.collectAsStateWithLifecycle()
     val aiEnabled by vm.aiEnabled.collectAsStateWithLifecycle()
     var showSettings by remember { mutableStateOf(false) }
@@ -147,6 +148,7 @@ fun SportsScreen(
     var showPhone by remember { mutableStateOf(false) }
     var showAiCountries by remember { mutableStateOf(false) }
     var showAiKeyMissing by remember { mutableStateOf(false) }
+    var showPlaylistAiConsent by remember { mutableStateOf(false) }
     val remoteState by vm.remoteState.collectAsStateWithLifecycle()
 
     // The AI functions were switched off while the AI list was open: the classic list takes over.
@@ -469,10 +471,14 @@ fun SportsScreen(
                         onTogglePlayer = { leagueId, playerId -> vm.togglePlayerFollowed(leagueId, playerId) },
                         hasAiKey = aiEnabled && deepSeekApiKey.isNotBlank(),
                         aiState = aiState,
+                        playlistAiState = playlistAiState,
                         aiCountries = aiCountries,
                         aiListSelected = aiListSelected,
                         aiEnabled = aiEnabled,
                         onAiListSelected = { vm.setAiListSelected(it) },
+                        onRequestPlaylistAi = {
+                            if (deepSeekApiKey.isBlank()) showAiKeyMissing = true else showPlaylistAiConsent = true
+                        },
                         onOpenAiCountries = {
                             if (deepSeekApiKey.isBlank()) {
                                 showAiKeyMissing = true
@@ -595,6 +601,21 @@ fun SportsScreen(
                         vm.recommendWithAi(fixture, countries)
                     },
                     onDismiss = { showAiCountries = false },
+                )
+            }
+        }
+        if (showPlaylistAiConsent) {
+            val fixture = selectedFixture
+            if (fixture != null) {
+                StageConfirm(
+                    title = stringResource(R.string.sport_ai_playlist_consent_title),
+                    body = stringResource(R.string.sport_ai_playlist_consent_body),
+                    confirm = stringResource(R.string.sport_ai_playlist_consent_confirm),
+                    onConfirm = {
+                        showPlaylistAiConsent = false
+                        vm.analyzePlaylistWithAi(fixture)
+                    },
+                    onCancel = { showPlaylistAiConsent = false },
                 )
             }
         }
@@ -1063,11 +1084,13 @@ private fun FixtureDetail(
     onTogglePlayer: (String, String) -> Unit,
     hasAiKey: Boolean,
     aiState: SportsViewModel.AiState,
+    playlistAiState: SportsViewModel.PlaylistAiState,
     aiCountries: Set<AiCountry>,
     aiListSelected: Boolean,
     /** Whether the AI functions may run; off means the AI tab does not exist. */
     aiEnabled: Boolean,
     onAiListSelected: (Boolean) -> Unit,
+    onRequestPlaylistAi: () -> Unit,
     onOpenAiCountries: () -> Unit,
     onCancelAi: () -> Unit,
     onRetryAi: () -> Unit,
@@ -1268,6 +1291,18 @@ private fun FixtureDetail(
                             }
                         }
                     }
+                    if (!aiVisible && aiEnabled) {
+                        StageSurface(
+                            onClick = onRequestPlaylistAi,
+                            radius = 14.mpx,
+                            enabled = playlistAiState != SportsViewModel.PlaylistAiState.Loading,
+                        ) { focused ->
+                            Row(Modifier.padding(horizontal = 12.mpx, vertical = 7.mpx), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.mpx)) {
+                                OwnTVIcon(OwnTVIcon.SPARKLE, if (focused) accent.onAccent else StageColors.Text, Modifier.size(18.mpx))
+                                Text(stringResource(R.string.sport_ai_playlist_check), style = stageText(16, 600), color = if (focused) accent.onAccent else StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
                 }
                 // Classic matcher list vs. AI suggestions, in the same place and the same row style.
                 // The AI tab only exists while the AI functions are switched on.
@@ -1320,6 +1355,24 @@ private fun FixtureDetail(
                             style = stageText(14, 500), color = StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
+                    when (val aiCheck = playlistAiState) {
+                        SportsViewModel.PlaylistAiState.Idle -> Unit
+                        SportsViewModel.PlaylistAiState.Loading -> Text(
+                            stringResource(R.string.sport_ai_playlist_loading),
+                            style = stageText(14, 500), color = StageColors.Dim,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        is SportsViewModel.PlaylistAiState.Content -> Text(
+                            stringResource(R.string.sport_ai_playlist_done, aiCheck.added, aiCheck.checked),
+                            style = stageText(14, 500), color = StageColors.Dim,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        is SportsViewModel.PlaylistAiState.Error -> Text(
+                            aiFailureText(aiCheck.failure),
+                            style = stageText(14, 500), color = StageColors.Dim,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     when (matchesState) {
                         SportsViewModel.MatchesState.Idle, SportsViewModel.MatchesState.Loading -> {
                             Text(stringResource(R.string.sport_loading), style = stageText(17, 500), color = StageColors.Dim)
@@ -1352,7 +1405,7 @@ private fun FixtureDetail(
                                             OwnTVIcon(OwnTVIcon.PLAY, if (focused) accent.onAccent else accent.accent, Modifier.size(22.mpx))
                                             Column(Modifier.weight(1f)) {
                                                 Text(match.channelName, style = stageText(19, 600), color = if (focused) accent.onAccent else StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                match.epgTitle?.let { title ->
+                                                (match.epgTitle ?: match.aiReason)?.let { title ->
                                                     Text(title, style = stageText(14, 500), color = if (focused) accent.onAccent.copy(alpha = 0.8f) else StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                 }
                                             }

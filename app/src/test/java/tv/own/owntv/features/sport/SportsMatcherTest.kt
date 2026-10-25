@@ -827,6 +827,31 @@ class SportsMatcherTest {
         assertEquals(1, matches.single().score)
     }
 
+    @Test
+    fun anEpgRaceProgrammeDoesNotMatchThePracticeSession() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(channel(624, "UK| SKY SPORTS F1", epgKey = "f1")),
+            programmes = listOf(
+                programme("f1", title = "Formula 1: United States Grand Prix Race"),
+            ),
+        )
+        val practice = Fixture(
+            id = "f1-practice",
+            leagueId = "racing.f1",
+            dateMs = Noon,
+            state = FixtureState.UPCOMING,
+            statusLine = "15:00",
+            format = FixtureFormat.EVENT,
+            title = "United States Grand Prix — Practice 1",
+            broadcasts = emptyList(),
+            venue = "Austin",
+        )
+        val race = practice.copy(id = "f1-race", title = "United States Grand Prix — Race")
+
+        assertTrue(matcher(store).match(practice).isEmpty())
+        assertEquals(listOf("UK| SKY SPORTS F1"), matcher(store).match(race).map { it.channelName })
+    }
+
     // --- rule-4 dedup: one display entry per underlying channel -------------------------------
 
     @Test
@@ -856,6 +881,40 @@ class SportsMatcherTest {
     // --- TV-guide-confirmed broadcasters --------------------------------------------------------
 
     @Test
+    fun theChelseaTottenhamRowResolvesBothGuideCarriersToPlaylistRows() = runBlocking {
+        // The exact observed row: Chelsea v Tottenham Hotspur, Premier League, carriers Sky Sports
+        // Main Event and TNT Sports 1. The provider spells the second one "UK| TNT SPORTS 1 HD".
+        val store = FakeStore(
+            channels = listOf(
+                channel(800, "UK| TNT SPORTS 1 HD"),
+                channel(801, "NOW: Sky Sports Main Event 4K"),
+                channel(802, "UK| SKY SPORTS NEWS"),
+            ),
+            programmes = emptyList(),
+        )
+        val chelsea = fixture().copy(
+            home = SportTeam("1", "Chelsea", "CHE", null, null, "1", false, "home"),
+            away = SportTeam("2", "Tottenham Hotspur", "TOT", null, null, "0", false, "away"),
+        )
+
+        val matches = matcher(store).match(
+            chelsea,
+            SportMatchOptions(
+                languages = emptySet(),
+                confirmedBroadcasters = listOf("Sky Sports Main Event", "TNT Sports 1"),
+            ),
+        )
+
+        assertEquals(
+            listOf("NOW: Sky Sports Main Event 4K", "UK| TNT SPORTS 1 HD"),
+            matches.map { it.channelName },
+        )
+        assertTrue(matches.all { it.guideConfirmed })
+        assertTrue(matches.none { it.channelName.contains("NEWS") })
+    }
+
+
+    @Test
     fun theWebGuideCarrierIsTheWholeList() = runBlocking {
         // The guide names "Sky Sports Premier League" as the carrier; the provider's EPG says
         // nothing. The guide is the answer — no scoring tiers involved.
@@ -874,9 +933,9 @@ class SportsMatcherTest {
     }
 
     @Test
-    fun aGuideFixtureDoesNotMixInEpgGuesses() = runBlocking {
-        // The EPG names both teams on "US: ESPN+", but the guide names only Sky Sports. When the
-        // guide has an answer, that answer is the list — no second-guessing from the EPG.
+    fun aGuideCarrierAndAnIndependentEpgCarrierBothSurvive() = runBlocking {
+        // The guide names Sky Sports; an independent EPG programme names both teams on ESPN+.
+        // Both evidence sources survive the merge — the guide no longer suppresses the EPG.
         val store = FakeStore(
             channels = listOf(
                 channel(631, "UK| SKY SPORTS PREMIER LEAGUE"),
@@ -890,7 +949,12 @@ class SportsMatcherTest {
             SportMatchOptions(languages = emptySet(), confirmedBroadcasters = listOf("Sky Sports Premier League")),
         )
 
-        assertEquals(listOf("UK| SKY SPORTS PREMIER LEAGUE"), matches.map { it.channelName })
+        assertEquals(
+            listOf("UK| SKY SPORTS PREMIER LEAGUE", "US: ESPN+"),
+            matches.map { it.channelName },
+        )
+        assertTrue(matches.first().guideConfirmed)
+        assertTrue(matches.last().epgConfirmed)
     }
 
     @Test
@@ -989,6 +1053,132 @@ class SportsMatcherTest {
         )
 
         assertEquals("UK: SKY SPORTS PREMIER LEAGUE", matches.first().channelName)
+    }
+
+    // --- priors and accepted full-playlist AI evidence ----------------------------------------
+
+    @Test
+    fun aPriorAloneNeverConfirmsAChannel() = runBlocking {
+        // The prior names Sky Sports Main Event, but neither the guide, the EPG nor the channel
+        // name identifies this fixture. A prior is context, never confirmation.
+        val store = FakeStore(
+            channels = listOf(channel(700, "UK| SKY SPORTS MAIN EVENT")),
+            programmes = emptyList(),
+        )
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(
+                languages = emptySet(),
+                priorCarriers = listOf("Sky Sports Main Event"),
+            ),
+        )
+
+        assertTrue(matches.isEmpty())
+    }
+
+    @Test
+    fun anAcceptedAiSelectionMapsToItsPlaylistRow() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(
+                channel(710, "PPV 1"),
+                channel(711, "UK| SKY SPORTS MAIN EVENT"),
+            ),
+            programmes = emptyList(),
+        )
+        val aiRow = ChannelMatch(
+            channelId = 710,
+            channelName = "PPV 1",
+            logoUrl = null,
+            epgTitle = null,
+            score = 8,
+            aiConfirmed = true,
+            aiReason = "Event-specific feed",
+            sourceId = SourceId,
+        )
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(
+                languages = emptySet(),
+                priorCarriers = listOf("PPV 1", "Sky Sports Main Event"),
+                aiChannels = listOf(aiRow),
+            ),
+        )
+
+        assertEquals(listOf("PPV 1"), matches.map { it.channelName })
+        assertTrue(matches.single().aiConfirmed)
+        assertEquals("Event-specific feed", matches.single().aiReason)
+    }
+
+    @Test
+    fun aStaleAiRowFromAnotherSourceIsDropped() = runBlocking {
+        val store = FakeStore(channels = listOf(channel(712, "PPV 2")), programmes = emptyList())
+        val stale = ChannelMatch(
+            channelId = 999,
+            channelName = "PPV 2",
+            logoUrl = null,
+            epgTitle = null,
+            score = 8,
+            aiConfirmed = true,
+            sourceId = SourceId,
+        )
+
+        assertTrue(
+            matcher(store).match(
+                fixture(),
+                SportMatchOptions(languages = emptySet(), aiChannels = listOf(stale)),
+            ).isEmpty(),
+        )
+    }
+
+    @Test
+    fun aValidAiNoneAddsNothing() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(channel(720, "UK| SKY SPORTS MAIN EVENT", epgKey = "uk")),
+            programmes = listOf(programme("uk", title = "Coventry City v Newcastle United")),
+        )
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(languages = emptySet(), aiChannels = emptyList()),
+        )
+
+        assertEquals(listOf("UK| SKY SPORTS MAIN EVENT"), matches.map { it.channelName })
+        assertEquals(listOf(10), matches.map { it.score })
+    }
+
+    @Test
+    fun strongGuideEvidenceOutranksAnAiOnlyRowEvenInThePreferredCountry() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(
+                channel(730, "US: PPV EVENT 9"),
+                channel(731, "DE: SKY SPORT PREMIER LEAGUE"),
+            ),
+            programmes = emptyList(),
+        )
+        val aiRow = ChannelMatch(
+            channelId = 730,
+            channelName = "US: PPV EVENT 9",
+            logoUrl = null,
+            epgTitle = null,
+            score = 9,
+            aiConfirmed = true,
+            sourceId = SourceId,
+        )
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(
+                languages = emptySet(),
+                preferCountry = "US",
+                confirmedBroadcasters = listOf("Sky Sport Premier League"),
+                aiChannels = listOf(aiRow),
+            ),
+        )
+
+        // Guide evidence is its own class; the weak country preference cannot lift AI-only above it.
+        assertEquals(listOf("DE: SKY SPORT PREMIER LEAGUE", "US: PPV EVENT 9"), matches.map { it.channelName })
     }
 
     // --- fixtures / vocabulary ------------------------------------------------------------------

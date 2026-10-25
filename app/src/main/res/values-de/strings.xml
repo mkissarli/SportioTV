@@ -192,4 +192,10 @@
     <string name="sport_ai_functions_description">Sender-Empfehlung im Sport-Hub und die KI-Auswertung einer eingefügten Anbieter-Nachricht</string>
     <string name="sport_ai_functions_off_hint">Die KI-Funktionen sind ausgeschaltet. Aktiviere sie unter Einstellungen › App.</string>
     <string name="sport_ai_error_disabled">Die KI-Funktionen sind in den Einstellungen ausgeschaltet.</string>
+    <string name="sport_ai_playlist_check">Ganze Playlist prüfen</string>
+    <string name="sport_ai_playlist_consent_title">Ganze Playlist mit KI prüfen?</string>
+    <string name="sport_ai_playlist_consent_body">DeepSeek erhält die Daten dieses Events, den passenden TV-Guide-/EPG-Text und die Namen aller Sender aus deinen Playlists. Stream-URLs, Zugangsdaten, Token und Gerätedaten werden nie gesendet. Die Antwort ist nur ein Hinweis; abspielbar bleibt ausschliesslich ein Sender aus deiner eigenen Playlist.</string>
+    <string name="sport_ai_playlist_consent_confirm">Senden und prüfen</string>
+    <string name="sport_ai_playlist_loading">DeepSeek prüft die ganze Playlist…</string>
+    <string name="sport_ai_playlist_done">KI-Prüfung fertig (bestätigt / geprüft: %1$d / %2$d)</string>
 </resources>

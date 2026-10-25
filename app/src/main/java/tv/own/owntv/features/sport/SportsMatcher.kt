@@ -35,11 +35,20 @@ data class SportMatchOptions(
     val preferCountry: String? = null,
     /**
      * Broadcaster names confirmed by an independent TV guide (Where's The Match) for this fixture
-     * ("Sky Sports Premier League"). When present they **are** the channel list: the carriers are
-     * resolved against the playlist by name and rendered as-is, in guide order, deduplicated. The
-     * EPG matcher below is only consulted when the guide has nothing for the fixture.
+     * ("Sky Sports Premier League"). They are one evidence source, not the whole answer: guide, EPG
+     * and accepted full-playlist AI results are merged independently.
      */
     val confirmedBroadcasters: List<String> = emptyList(),
+    /**
+     * Ranked broadcaster aliases from the versioned priors dataset. Context and tie-break only —
+     * a prior never creates a channel that no guide/EPG/AI result confirmed.
+     */
+    val priorCarriers: List<String> = emptyList(),
+    /**
+     * Rows already confirmed by an accepted full-playlist model answer (ids mapped and re-verified
+     * locally). They are an additional evidence source, never a replacement for guide/EPG.
+     */
+    val aiChannels: List<ChannelMatch> = emptyList(),
 )
 
 /**
@@ -138,16 +147,12 @@ class SportsMatcher(
         match(fixture, SportMatchOptions(languages, limit = limit, minPreferred = 1, strict = false))
 
     /**
-     * The channels that carry [fixture].
+     * The channels that carry [fixture], merged from three independent evidence sources.
      *
-     * **Guide first.** When [SportMatchOptions.confirmedBroadcasters] names carriers, that list is
-     * the answer: each name is resolved against the playlist (prefix/suffix/plural tolerant) and
-     * shown in guide order with the best resolution kept — no EPG involvement, because the guide
-     * already answered the question.
-     *
-     * **EPG fallback.** Only when the guide has nothing for this fixture does the evidence matcher
-     * run: channel names and EPG programmes must name both participants (or, for events, the
-     * event's own title) and cover the kickoff.
+     * The web guide, the EPG/name matcher and an accepted full-playlist AI answer are each evaluated
+     * on their own and unioned by playlist row. A non-empty guide list never suppresses EPG matching
+     * and never prevents the model from finding additional carriers. Rows without any evidence are
+     * never displayed.
      *
      * Never throws for a malformed playlist or a cold EPG: every DAO call is `runCatching`-guarded
      * and an empty result simply means "nothing matched".
@@ -155,16 +160,55 @@ class SportsMatcher(
     suspend fun match(fixture: Fixture, options: SportMatchOptions): List<ChannelMatch> =
         withContext(Dispatchers.IO) {
             val guided = guideChannels(options.confirmedBroadcasters)
-            val resolved = if (guided.isNotEmpty()) guided else resolveSorted(fixture)
-            applyFilter(resolved, options, demotePpv = fixture.isTeamSport())
+            // Always independent: the guide is evidence, not a short-circuit.
+            val deterministic = resolveSorted(fixture)
+            // Re-verify the AI ids against the current playlist rows: a source switch between the
+            // request and this render must drop stale ids, never play an unknown channel.
+            val aiRows = if (options.aiChannels.isEmpty()) {
+                emptyList()
+            } else {
+                val ids = scanRows(sources.liveSourceIds()).mapTo(HashSet<Long>()) { it.channel.id }
+                options.aiChannels.filter { it.channelId in ids }
+            }
+            val merged = mergeEvidence(guided, deterministic, aiRows)
+            applyFilter(merged, options, demotePpv = fixture.isTeamSport())
         }
+
+    /**
+     * Unions the sources by playlist row id, keeping the strongest score and every provenance flag.
+     * Order is guide → deterministic → AI; later duplicates only enrich the earlier entry, so guide
+     * order is preserved.
+     */
+    private fun mergeEvidence(vararg sources: List<ChannelMatch>): List<ChannelMatch> {
+        val out = LinkedHashMap<Long, ChannelMatch>()
+        for (source in sources) {
+            for (match in source) {
+                val previous = out[match.channelId]
+                out[match.channelId] = if (previous == null) {
+                    match
+                } else {
+                    previous.copy(
+                        epgTitle = previous.epgTitle ?: match.epgTitle,
+                        score = maxOf(previous.score, match.score),
+                        isExact = previous.isExact || match.isExact,
+                        guideConfirmed = previous.guideConfirmed || match.guideConfirmed,
+                        epgConfirmed = previous.epgConfirmed || match.epgConfirmed,
+                        aiConfirmed = previous.aiConfirmed || match.aiConfirmed,
+                        aiReason = previous.aiReason ?: match.aiReason,
+                        sourceId = previous.sourceId ?: match.sourceId,
+                    )
+                }
+            }
+        }
+        return out.values.toList()
+    }
 
     /** Team sports have home/away sides; duels (tennis/MMA) and events (F1/golf) do not. */
     private fun Fixture.isTeamSport(): Boolean = home != null && away != null
 
     /**
-     * EPG fallback (pass 1 discovery + pass 2 scoring), strongest first, unfiltered. Runs only when
-     * the web guide named no carrier for the fixture.
+     * EPG/name evidence (pass 1 discovery + pass 2 scoring), strongest first, unfiltered. Runs for
+     * every fixture — the web guide is merged with this, never a replacement for it.
      */
     private suspend fun resolveSorted(fixture: Fixture): List<ChannelMatch> {
         val sourceIds = sources.liveSourceIds()
@@ -240,6 +284,7 @@ class SportsMatcher(
                     // Guide order is the display order; a later carrier never outranks an earlier.
                     score = (wanted.size - index) * GuideOrderStep,
                     guideConfirmed = true,
+                    sourceId = row.channel.sourceId,
                 )
             }
         }
@@ -251,15 +296,12 @@ class SportsMatcher(
      * per-event channels), then the preferred languages — strict without fallback, legacy with the
      * full post-exclude list when fewer than [SportMatchOptions.minPreferred] survive.
      *
-     * Ranking adjustments happen here, in one re-sort: guide-resolved channels ([ChannelMatch.
-     * guideConfirmed]) keep their guide order and bypass the preference filter — the guide is the
-     * answer to "who shows this?". Everything else gets the country tier — the user's pick first,
-     * then UK, US, FR, AR ([SportLanguages.countryOrder]) — and, for **team sports only**
-     * ([demotePpv]), PPV/event channels sort to the very bottom via [PpvPenalty], applied AFTER the
-     * tiers so a preferred-country PPV feed never tops a real channel that actually carries the
-     * fixture. Duels (tennis/MMA) and events (F1/golf) keep PPV feeds in normal order: those
-     * channels ("US TENNIS PPV") ARE the carriers there. The PPV demotion is a sort key only; the
-     * match's [ChannelMatch.score] keeps the evidence value.
+     * Ranking is evidence-class first (guide > fixture-specific EPG/name > accepted AI), then the
+     * evidence score, then the competition-prior order and the user's country as weak tie-breakers.
+     * Guide rows keep their own order. For **team sports only** ([demotePpv]) PPV/event channels
+     * sort to the very bottom via [PpvPenalty], applied after every bonus, so a preferred-country
+     * PPV feed never tops a real channel that carries the fixture. Duels (tennis/MMA) and events
+     * (F1/golf) keep PPV feeds in normal order: those channels ARE the carriers there.
      */
     private fun applyFilter(
         scored: List<ChannelMatch>,
@@ -270,9 +312,17 @@ class SportsMatcher(
         val order = SportLanguages.countryOrder(options.preferCountry)
         val ranked = ChannelDedup.dedupe(
             scored.map { m ->
-                val rank = SportLanguages.countryRank(m.channelName, order)
-                val bonus = if (rank >= 0) (order.size - rank) * CountryTierStep else 0
-                val sortScore = m.score + bonus - if (demotePpv && isPpvChannel(m.channelName)) PpvPenalty else 0
+                val countryRank = SportLanguages.countryRank(m.channelName, order)
+                val countryBonus = if (countryRank >= 0) (order.size - countryRank) * CountryTierStep else 0
+                val priorBonus = priorBonus(m.channelName, options.priorCarriers)
+                val evidenceTier = when {
+                    m.guideConfirmed -> GuideEvidenceTier
+                    m.epgConfirmed || m.isExact -> DeterministicEvidenceTier
+                    m.aiConfirmed -> AiEvidenceTier
+                    else -> DeterministicEvidenceTier
+                }
+                val sortScore = evidenceTier + m.score + countryBonus + priorBonus -
+                    if (demotePpv && isPpvChannel(m.channelName)) PpvPenalty else 0
                 m to sortScore
             }.sortedByDescending { it.second },
         )
@@ -288,6 +338,14 @@ class SportsMatcher(
             if (kept.size < options.minPreferred) afterExclude else kept
         }
         return (guide + filtered).take(limit)
+    }
+
+    /** Rank of an already-confirmed channel in the prior dataset; context only, never evidence. */
+    private fun priorBonus(channelName: String, priorCarriers: List<String>): Int {
+        if (priorCarriers.isEmpty()) return 0
+        val norm = SportNameMatch.normalize(channelName)
+        val index = priorCarriers.indexOfFirst { SportNameMatch.containsPhraseLoose(it, norm) }
+        return if (index >= 0) (priorCarriers.size - index) * PriorTierStep else 0
     }
 
     /**
@@ -769,10 +827,14 @@ class SportsMatcher(
             val epgSideATokens = sideATokens.filter { it.length >= EpgMinTokenLength }
             val epgSideBTokens = sideBTokens.filter { it.length >= EpgMinTokenLength }
             val epgTournamentTokens = tournamentTokens.filter { it.length >= EpgMinTokenLength }
+            val isEventOnly = fixture.home == null && fixture.away == null && fixture.duelSides() == null
             var best = 0
             var bestTitle: String? = null
             for (programme in programmes) {
                 if (!coversKickoff(programme, fixture.dateMs)) continue
+                // An event session is its own event: a practice fixture must not inherit the race
+                // programme merely because both name the same Grand Prix.
+                if (isEventOnly && !sessionsCompatible(fixture, programme)) continue
                 val titleNorm = SportNameMatch.normalize(programme.title)
                 val descriptionNorm = SportNameMatch.normalize(
                     programme.description?.take(EpgDescriptionScanChars).orEmpty(),
@@ -856,6 +918,8 @@ class SportsMatcher(
                 epgTitle = epgTitle,
                 score = score,
                 isExact = exact,
+                epgConfirmed = epgTitle != null,
+                sourceId = channel.sourceId,
             )
         } else {
             null
@@ -865,6 +929,20 @@ class SportsMatcher(
     /** The programme must actually be on at kickoff — a same-name listing at another hour is not it. */
     private fun coversKickoff(programme: EpgProgrammeEntity, dateMs: Long): Boolean =
         programme.startMs <= dateMs && programme.stopMs >= dateMs
+
+    /**
+     * Event sessions are distinct events. A practice fixture may use a programme that names no
+     * session, but never one that names another session of the same Grand Prix.
+     */
+    private fun sessionsCompatible(fixture: Fixture, programme: EpgProgrammeEntity): Boolean {
+        val fixtureSession = sessionWords(fixture.title.orEmpty() + " " + fixture.tournament.orEmpty())
+        if (fixtureSession.isEmpty()) return true
+        val programmeSession = sessionWords(programme.title + " " + programme.description.orEmpty())
+        return programmeSession.isEmpty() || programmeSession.any { it in fixtureSession }
+    }
+
+    private fun sessionWords(text: String): Set<String> =
+        SportNameMatch.normalize(text).trim().split(' ').filter { it in SessionKeywords }.toSet()
 
     /**
      * Whether a programme carries tennis context for the single-athlete recall tier: the tennis
@@ -966,11 +1044,16 @@ class SportsMatcher(
         /**
          * Score per country tier in [applyFilter]: the first country in
          * [SportLanguages.countryOrder] gets `order.size * CountryTierStep`, the next one step less,
-         * and so on. With the house order (UK, US, FR, AR) that is UK 400, US 300, FR 200, AR 100 —
-         * above any evidence signal (~25) so the country ranking decides. Guide order never
-         * competes with it: guide channels are the only entries in that branch.
+         * and so on. A weak tie-breaker now: the evidence class and the evidence score decide first,
+         * so a foreign guide/EPG confirmation is not pushed below an unconfirmed local guess.
          */
-        private const val CountryTierStep = 100
+        private const val CountryTierStep = 2
+        /** Prior order is a smaller tie-breaker than the explicit country preference. */
+        private const val PriorTierStep = 1
+        /** Evidence-class bands, high to low: guide > EPG/name > accepted AI. */
+        private const val GuideEvidenceTier = 3_000_000
+        private const val DeterministicEvidenceTier = 2_000_000
+        private const val AiEvidenceTier = 1_000_000
         /**
          * A PPV/event feed — the fixture's dedicated pay-per-view channel — is pushed to the very
          * bottom by policy (real channels that carry the fixture come first), even when it sits in
@@ -1049,6 +1132,12 @@ class SportsMatcher(
 
         /** Words that give a programme tennis context for the single-athlete recall tier. */
         private val TennisWords = setOf("tennis", "atp", "wta")
+
+        /** Session labels that distinguish one race-weekend event from another. */
+        private val SessionKeywords = setOf(
+            "race", "qualifying", "practice", "sprint", "warm", "final", "semifinal",
+            "quarterfinal", "heat",
+        )
 
         /** Substrings (on normalized text) marking a youth line; compounds included. */
         private const val YouthWord = "youth"

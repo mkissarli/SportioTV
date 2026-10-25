@@ -44,13 +44,20 @@
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	ac
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	afc
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	bk
+1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	borussia monchengladbach
+1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	brighton
+1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	brighton hove albion
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	calcio
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	cf
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	fc
+1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	gladbach
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	https://www.wheresthematch.com/live-sport-on-tv/
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	if
+1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	monchengladbach
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	sc
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	sk
+1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	tottenham
+1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	tottenham hotspur
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	unlock-premier-listing
 1	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	\0
 1	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	1080i
@@ -60,6 +67,7 @@
 1	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	2k
 2	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	4k
 2	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	720p
+1	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	@
 1	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	^(now|vip|backup|server|feed|[a-z]{2})[|:┃]+\\s*(.*)$
 1	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	aac
 1	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	ac3
@@ -90,7 +98,6 @@
 1	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	|
 1	app/src/main/java/tv/own/owntv/features/sport/SportsLeagues.kt	3
 1	app/src/main/java/tv/own/owntv/features/sport/SportsLeagues.kt	rugby-league.3
-2	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	\0
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	US
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	\\bu\\s?(17|18|19|20|21|23)\\b
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	baseball.
@@ -130,6 +137,7 @@
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	youth
 1	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	live_excluded_languages
 1	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	live_show_other
+2	app/src/main/java/tv/own/owntv/features/sport/SportsPriors.kt	\0
 1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	$versus
 1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	${home.abbreviation} $versus ${away.abbreviation}
 1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	,
@@ -147,7 +155,14 @@
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	soccer
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	tennis
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	volleyball
+1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	SportsHub
 1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	__sport_all__
+1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	inputChars=
+1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	invalid=
+1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	ms=
+1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	playlist ai candidates=
+1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	requests=
+1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	valid=
 1	app/src/main/java/tv/own/owntv/ui/components/ColorPicker.kt	#%06X
 1	app/src/main/java/tv/own/owntv/ui/components/TextInputDialog.kt	\0
 1	app/src/main/java/tv/own/owntv/ui/components/TvImeMetrics.kt	$trigger visible=${next.visible} source=${next.source} displayH=$displayHeight

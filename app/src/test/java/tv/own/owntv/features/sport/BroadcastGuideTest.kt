@@ -72,7 +72,7 @@ class BroadcastGuideTest {
     }
 
     @Test
-    fun wtmPremierGatedRowsAreSkipped() {
+    fun wtmPremierGatedRowsAreKeptAsMissingEvidence() {
         val html = """
             <table><tr>
             <td class="fixture-details"><span class="fixture"><strong>Lions v Waratahs</strong></span></td>
@@ -80,7 +80,9 @@ class BroadcastGuideTest {
             <td class="competition-name"><span>United Rugby Championship</span></td>
             <td class="channel-details"><div class="unlock-premier-listing"><a aria-label="Lions v Waratahs Log in to view"><span class="sr-only">Log in to view</span></a></div></td></tr></table>
         """
-        assertTrue(GuideParsers.wtm(html).isEmpty())
+        val entry = GuideParsers.wtm(html).single()
+        assertTrue(entry.gated)
+        assertTrue(entry.channels.isEmpty())
     }
 
     @Test
@@ -190,6 +192,33 @@ class BroadcastGuideTest {
     }
 
     @Test
+    fun guideShortSpellingsResolveFullClubNames() {
+        // The guide writes the short form; ESPN carries the full club name.
+        val tottenham = SportNameMatch.normalize("Chelsea v Tottenham Premier League")
+        assertTrue(GuideMatch.bothSidesInRow(tottenham, "Chelsea", "Tottenham Hotspur"))
+        val brighton = SportNameMatch.normalize("Brighton v Liverpool Premier League")
+        assertTrue(GuideMatch.bothSidesInRow(brighton, "Brighton & Hove Albion", "Liverpool"))
+        val gladbach = SportNameMatch.normalize("M'gladbach v Bayern München Bundesliga")
+        assertTrue(GuideMatch.bothSidesInRow(gladbach, "Borussia Mönchengladbach", "Bayern München"))
+        // The alias is fixed, not a fuzzy prefix: "Borussia" alone is not Mönchengladbach.
+        val partial = SportNameMatch.normalize("Borussia v Bayern München Bundesliga")
+        assertFalse(GuideMatch.bothSidesInRow(partial, "Borussia Mönchengladbach", "Bayern München"))
+    }
+
+    @Test
+    fun aGatedGuideRowConfirmsNoCarrier() {
+        val kickoff = GuideEntryTestScope.time(2026, 10, 31, 17, 30)
+        val gated = GuideEntry(
+            dateMs = kickoff,
+            league = "Premier League",
+            teams = "Chelsea v Tottenham Hotspur",
+            channels = emptyList(),
+            gated = true,
+        )
+        assertTrue(GuideMatch.confirmedBroadcasters(listOf(gated), teamsFixtureAt(kickoff)).isEmpty())
+    }
+
+    @Test
     fun seriesWordsAloneAreNotAnEventOverlap() {
         val row = SportNameMatch.normalize("Formula 1 Australian Grand Prix F1 2026 season")
         assertFalse(GuideMatch.eventTokensInRow(row, "Grand Prix"))
@@ -209,7 +238,7 @@ class BroadcastGuideTest {
     )
 
     @Test
-    fun everyTennisMatchOfTheTourGetsTheTourChannels() {
+    fun aTourLevelTennisRowDoesNotConfirmASpecificMatch() {
         val atpRow = GuideEntry(
             GuideEntryTestScope.time(2026, 10, 25, 12, 0),
             "ATP World Tour",
@@ -224,14 +253,14 @@ class BroadcastGuideTest {
         )
         val entries = listOf(atpRow, wtaRow)
         val players = "Alex de Minaur" to "Karen Khachanov"
-        // Every ATP match of that day runs on the tour's channel — first match, mid-day, evening.
+        // The tour row names the tour, not this match: it is prompt evidence, never confirmation.
         for (hour in listOf(12, 15, 20)) {
             val fixture = tennisFixtureAt(GuideEntryTestScope.time(2026, 10, 25, hour, 0), "tennis.atp", players.first, players.second)
-            assertEquals(
-                listOf("Sky Sports Tennis", "Sky Sports+"),
-                GuideMatch.confirmedBroadcasters(entries, fixture),
-            )
+            assertTrue(GuideMatch.confirmedBroadcasters(entries, fixture).isEmpty())
         }
+        // …but the model still receives it as one piece of independent context.
+        val fixture = tennisFixtureAt(GuideEntryTestScope.time(2026, 10, 25, 20, 0), "tennis.atp", players.first, players.second)
+        assertEquals(listOf(atpRow), GuideMatch.evidenceFor(entries, fixture))
         // A different tour's row does not serve an ATP fixture, and neither does another day.
         val nextDay = tennisFixtureAt(GuideEntryTestScope.time(2026, 10, 26, 14, 0), "tennis.atp", players.first, players.second)
         assertTrue(GuideMatch.confirmedBroadcasters(listOf(wtaRow), nextDay).isEmpty())

@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "2026-10-25.1",
+  "competitions": [
+    {
+      "competitionId": "racing.f1",
+      "aliases": ["formula 1", "formula one", "f1"],
+      "seasons": ["*"],
+      "markets": ["*"],
+      "carriers": ["Sky Sports F1", "Sky Sports Main Event"]
+    },
+    {
+      "competitionId": "soccer.eng.1",
+      "aliases": ["premier league", "epl"],
+      "seasons": ["*"],
+      "markets": ["*"],
+      "carriers": ["Sky Sports Premier League", "TNT Sports 1", "Sky Sports Main Event"]
+    },
+    {
+      "competitionId": "tennis.atp",
+      "aliases": ["atp"],
+      "seasons": ["*"],
+      "markets": ["*"],
+      "carriers": ["Sky Sports Tennis", "Sky Sports+"]
+    },
+    {
+      "competitionId": "tennis.wta",
+      "aliases": ["wta"],
+      "seasons": ["*"],
+      "markets": ["*"],
+      "carriers": ["Sky Sports Tennis", "Sky Sports+"]
+    },
+    {
+      "competitionId": "cricket.8039",
+      "aliases": ["england cricket", "county championship", "t20 blast"],
+      "seasons": ["*"],
+      "markets": ["*"],
+      "carriers": ["Sky Sports Cricket"]
+    }
+  ]
+}

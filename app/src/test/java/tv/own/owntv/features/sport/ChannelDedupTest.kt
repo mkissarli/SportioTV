@@ -88,11 +88,33 @@ class ChannelDedupTest {
         assertEquals(4, out.size)
     }
 
-    private fun match(id: Long, name: String, score: Int = 0) = ChannelMatch(
+    @Test
+    fun unrelatedProvidersAndOpaquePpvFeedsNeverMerge() {
+        val entries = listOf(
+            // Same display name, two different playlist sources: genuinely different options.
+            match(30, "UK| TNT SPORTS 1", sourceId = 1),
+            match(31, "UK| TNT SPORTS 1", sourceId = 2),
+            // Resolution variants inside one source still collapse.
+            match(32, "UK| TNT SPORTS 1 HD", sourceId = 1),
+            // Opaque event feeds are independent entries.
+            match(33, "PPV", sourceId = 1),
+            match(34, "PPV 1", sourceId = 1),
+            match(35, "Event 1", sourceId = 1),
+        )
+        val out = ChannelDedup.dedupe(entries.map { it to 0 })
+        assertEquals(
+            listOf("UK| TNT SPORTS 1 HD", "UK| TNT SPORTS 1", "PPV", "PPV 1", "Event 1"),
+            out.map { it.channelName },
+        )
+        assertEquals(listOf(1L, 2L, 1L, 1L, 1L), out.map { it.sourceId })
+    }
+
+    private fun match(id: Long, name: String, score: Int = 0, sourceId: Long? = null) = ChannelMatch(
         channelId = id,
         channelName = name,
         logoUrl = null,
         epgTitle = null,
         score = score,
+        sourceId = sourceId,
     )
 }

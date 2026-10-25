@@ -15,7 +15,17 @@ import okhttp3.Request
 import tv.own.owntv.R
 
 /** One scraped WTM listing: exact UTC kickoff, competition name, fixture text, channels. */
-data class GuideEntry(val dateMs: Long, val league: String, val teams: String, val channels: List<String>)
+data class GuideEntry(
+    val dateMs: Long,
+    val league: String,
+    val teams: String,
+    val channels: List<String>,
+    /**
+     * The row exists but its carriers are hidden behind the site's Premier/login gate. That is
+     * **missing carrier evidence**, not proof that the event is not televised.
+     */
+    val gated: Boolean = false,
+)
 
 /**
  * The day windows one guide refresh requests. Pure so the "never start in the past" rule (the site
@@ -75,6 +85,12 @@ class BroadcastGuideApi(private val client: OkHttpClient) {
     fun confirmedBroadcasters(fixture: Fixture): List<String> =
         GuideMatch.confirmedBroadcasters(entries, fixture)
 
+    /**
+     * The rows plausibly related to [fixture] (including gated and tour-level rows) for the AI
+     * prompt. Evidence only: this never confirms a carrier by itself.
+     */
+    fun evidenceFor(fixture: Fixture): List<GuideEntry> = GuideMatch.evidenceFor(entries, fixture)
+
     /** Background refresh; every page independently guarded — a bad site never breaks the rest. */
     suspend fun refresh() {
         // One refresh at a time: callers (every board load) would otherwise stack whole copies of
@@ -103,7 +119,15 @@ class BroadcastGuideApi(private val client: OkHttpClient) {
                 }
             }
             found.groupBy { Triple(it.dateMs, it.league, it.teams) }
-                .map { (key, group) -> GuideEntry(key.first, key.second, key.third, group.flatMap { it.channels }.distinct()) }
+                .map { (key, group) ->
+                    GuideEntry(
+                        dateMs = key.first,
+                        league = key.second,
+                        teams = key.third,
+                        channels = group.flatMap { it.channels }.distinct(),
+                        gated = group.all { it.gated },
+                    )
+                }
         }
         if (merged.isNotEmpty()) {
             entries = merged
@@ -172,23 +196,24 @@ object GuideMatch {
     /**
      * The channels that (probably) carry [fixture], from [snapEntries]. Never fetches.
      *
-     * Team/duel fixtures need a row naming both participants inside [ParticipantWindowMs]; when no
-     * such row exists, tennis falls back to its tour's day row ([tourChannels]). Event fixtures
-     * (F1) match on title tokens, then the same session, nearest row winning.
+     * Team/duel fixtures need a row naming both participants inside [ParticipantWindowMs]. Event
+     * fixtures (F1) match on title tokens and the same session, nearest row winning. A tour-level
+     * tennis row ("ATP Tennis ATP Lyon / ATP Almaty") is **not** confirmation for one specific
+     * match: it is prompt evidence only, so a specific fixture never inherits the whole tour's
+     * carrier list. An empty list is the honest answer.
      */
     fun confirmedBroadcasters(snapEntries: List<GuideEntry>, fixture: Fixture): List<String> {
         if (snapEntries.isEmpty()) return emptyList()
         val sides = participantsOf(fixture)
         if (sides != null) {
             val nearby = snapEntries.filter { timeMatches(it.dateMs, fixture.dateMs, ParticipantWindowMs) }
-            val teamRows = nearby.filter { bothSidesInRow(rowText(it), sides.first, sides.second) }
-            if (teamRows.isNotEmpty()) return teamRows.flatMap { it.channels }.distinct()
-            return tourChannels(snapEntries, fixture)
+            val teamRows = nearby.filter { !it.gated && bothSidesInRow(rowText(it), sides.first, sides.second) }
+            return teamRows.flatMap { it.channels }.distinct()
         }
         val eventTitle = fixture.title?.trim().takeUnless { it.isNullOrEmpty() }
             ?: fixture.tournament?.trim().orEmpty()
         if (eventTitle.isBlank()) return emptyList()
-        val nearby = snapEntries.filter { timeMatches(it.dateMs, fixture.dateMs, EventWindowMs) }
+        val nearby = snapEntries.filter { !it.gated && timeMatches(it.dateMs, fixture.dateMs, EventWindowMs) }
         val titled = nearby.filter { eventTokensInRow(rowText(it), eventTitle) }
         val session = sessionWordsIn(eventTitle)
         val usable = if (session.isEmpty()) {
@@ -206,23 +231,46 @@ object GuideMatch {
     }
 
     /**
-     * The tennis tour's day row: the guide lists "ATP Tennis ATP Lyon / ATP Almaty" once per tour
-     * per day with the channels carrying that tour. Every match of that tour on that day runs
-     * there, so the row is usable for all of them — but nothing finer can be claimed from it.
+     * Rows worth showing to the full-playlist model as context: nearby team rows (including gated
+     * ones), the tennis tour's day row, and event-title rows. Never used as confirmation.
      */
-    private fun tourChannels(entries: List<GuideEntry>, fixture: Fixture): List<String> {
+    fun evidenceFor(snapEntries: List<GuideEntry>, fixture: Fixture): List<GuideEntry> {
+        if (snapEntries.isEmpty()) return emptyList()
+        val sides = participantsOf(fixture)
+        if (sides != null) {
+            val nearby = snapEntries.filter { timeMatches(it.dateMs, fixture.dateMs, EvidenceWindowMs) }
+            val teamRows = nearby.filter { bothSidesInRow(rowText(it), sides.first, sides.second) }
+            val tours = tourRows(snapEntries, fixture)
+            return (teamRows + tours).distinctBy { Triple(it.dateMs, it.league, it.teams) }
+                .sortedBy { kotlin.math.abs(it.dateMs - fixture.dateMs) }
+        }
+        val eventTitle = fixture.title?.trim().takeUnless { it.isNullOrEmpty() }
+            ?: fixture.tournament?.trim().orEmpty()
+        if (eventTitle.isBlank()) return emptyList()
+        val session = sessionWordsIn(eventTitle)
+        return snapEntries
+            .filter { timeMatches(it.dateMs, fixture.dateMs, EvidenceWindowMs) }
+            .filter { eventTokensInRow(rowText(it), eventTitle) }
+            .filter { row ->
+                session.isEmpty() || sessionWordsIn(rowText(row)).let { it.isEmpty() || it.any { w -> w in session } }
+            }
+            .sortedBy { kotlin.math.abs(it.dateMs - fixture.dateMs) }
+    }
+
+    /**
+     * The tennis tour's day row. Kept for evidence only: one ATP/WTA row per day names the tour's
+     * channels but cannot prove that a particular match is shown there.
+     */
+    private fun tourRows(entries: List<GuideEntry>, fixture: Fixture): List<GuideEntry> {
         val tour = when {
             fixture.leagueId.endsWith(".atp") -> "atp"
             fixture.leagueId.endsWith(".wta") -> "wta"
             else -> return emptyList()
         }
-        return entries
-            .filter {
-                sameUtcDay(it.dateMs, fixture.dateMs) &&
-                    SportNameMatch.containsWord(tour, SportNameMatch.normalize(it.league))
-            }
-            .flatMap { it.channels }
-            .distinct()
+        return entries.filter {
+            sameUtcDay(it.dateMs, fixture.dateMs) &&
+                SportNameMatch.containsWord(tour, SportNameMatch.normalize(it.league))
+        }
     }
 
     private fun sameUtcDay(firstMs: Long, secondMs: Long): Boolean =
@@ -249,8 +297,12 @@ object GuideMatch {
     /**
      * Both participant names must token-overlap the row text: tokens after stripping generic club
      * affixes (fc/cf/afc/…) and generic club words (united/city/…), lowercased, diacritic-free,
-     * plural-tolerant. Only a row naming both sides is this fixture — one side alone is any other
-     * event on that day, and "United" alone identifies no club.
+     * plural-tolerant. Only a row naming both sides is this fixture.
+     *
+     * Widely used short spellings are accepted for a full club name, so "Tottenham" still means
+     * Tottenham Hotspur, "Brighton" means Brighton & Hove Albion and "M'gladbach" means Borussia
+     * Mönchengladbach. This is a fixed alias list, not a fuzzy prefix match: "Borussia" alone is
+     * not Mönchengladbach.
      */
     fun bothSidesInRow(rowNorm: String, sideA: String, sideB: String): Boolean =
         sideA.isNotBlank() && sideB.isNotBlank() &&
@@ -263,11 +315,19 @@ object GuideMatch {
         // clubs and must not decide a side on their own. All remaining tokens must hit, so a row
         // naming "Manchester United" never stands in for "Manchester City".
         val required = tokens.filterNot { it in GenericTeamWords }.ifEmpty { tokens }
-        return required.all { token ->
-            SportNameMatch.containsWord(token, rowNorm) ||
-                SportNameMatch.containsWord(SportNameMatch.singularize(token).trim(), rowNorm)
+        if (required.all { tokenHits(rowNorm, it) }) return true
+        if (ShortClubNames[SportNameMatch.normalize(side).trim()].orEmpty().none { alias ->
+                SportNameMatch.tokensForName(alias, TeamSuffixes).ifEmpty { setOf(alias) }.all { tokenHits(rowNorm, it) }
+            }
+        ) {
+            return false
         }
+        return true
     }
+
+    private fun tokenHits(rowNorm: String, token: String): Boolean =
+        SportNameMatch.containsWord(token, rowNorm) ||
+            SportNameMatch.containsWord(SportNameMatch.singularize(token).trim(), rowNorm)
 
     /**
      * Title/token overlap for fixtures without participants (F1, golf) and events. At least two
@@ -292,6 +352,16 @@ object GuideMatch {
 
     /** Session rows can sit a couple of hours off the fixture time (schedule vs broadcast start). */
     private const val EventWindowMs = 3L * 60L * 60L * 1000L
+
+    /** Prompt evidence may cover the whole matchday, not only the kickoff window. */
+    private const val EvidenceWindowMs = 12L * 60L * 60L * 1000L
+
+    /** Fixed short spellings of full club names used by TV guides; never a fuzzy prefix rule. */
+    private val ShortClubNames = mapOf(
+        "tottenham hotspur" to listOf("tottenham"),
+        "brighton hove albion" to listOf("brighton"),
+        "borussia monchengladbach" to listOf("gladbach", "monchengladbach"),
+    )
 
     /** Generic club affixes (after [SportNameMatch.tokensForName]'s length rule). */
     private val TeamSuffixes = setOf(
@@ -340,15 +410,19 @@ object GuideParsers {
             if (teams.isBlank()) continue
             val league = COMPETITION_SPAN.find(row)?.groupValues?.get(1)?.trim() ?: ""
             // Channels live in the channel-details cell — scoped so the row's other aria-labels
-            // and the `<time>`-cell "sr-only" spans never leak in; Premier-gated rows carry no
-            // real channels and are skipped.
+            // and the `<time>`-cell "sr-only" spans never leak in. Premier-gated rows carry no
+            // real channels; they are kept as gated evidence, never as carriers.
             val cell = row.substringAfter(ChannelCellOpen, "")
             if (cell.isEmpty()) continue
-            if (GatedMarkers.any { cell.contains(it, ignoreCase = true) }) continue
-            val channels = COVERAGE_ANCHOR.findAll(cell).map { decode(it.groupValues[1].trim()) }
-                .filterNot { isNotABroadcaster(it) }.toList()
-            if (channels.isEmpty()) continue
-            out += GuideEntry(dateMs, league, teams, channels.distinct())
+            val gated = GatedMarkers.any { cell.contains(it, ignoreCase = true) }
+            val channels = if (gated) {
+                emptyList()
+            } else {
+                COVERAGE_ANCHOR.findAll(cell).map { decode(it.groupValues[1].trim()) }
+                    .filterNot { isNotABroadcaster(it) }.toList().distinct()
+            }
+            if (channels.isEmpty() && !gated) continue
+            out += GuideEntry(dateMs, league, teams, channels, gated = gated)
         }
         return out
     }

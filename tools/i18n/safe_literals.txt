@@ -835,6 +835,83 @@
 2	technical	app/src/main/java/tv/own/owntv/features/sport/AiChannelMatcher.kt	test
 1	technical	app/src/main/java/tv/own/owntv/features/sport/AiChannelMatcher.kt	tv
 2	technical	app/src/main/java/tv/own/owntv/features/sport/AiChannelMatcher.kt	uhd
+4	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	\0
+2	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	(
+2	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	)
+3	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	,
+2	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	-
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	- A guide row naming the tour (e.g. ATP Tennis) is not proof for one specific match.
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	- Different sessions of the same Grand Prix are different events.
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	- If the evidence is insufficient, abstain. Empty is better than wrong.
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	- Opaque names such as PPV, PPV 1, Event 1 or Web Channel may be event-specific feeds; a
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	- Return at most
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	- Use only ids present in this request's candidate list. Never invent a channel, id or URL.
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	- none
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	;
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	Away:
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	BROADCASTER PRIOR CONTEXT (rights hint only; never proof)
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	Broadcast market:
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	C
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	Competition:
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	ESPN broadcast labels:
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	EVENT
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	Event title:
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	Format: id | exact playlist display name | territory | epg=window title | prior=match
+1	locale	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	HH:mm
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	Home:
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	Kickoff (UTC):
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	OUTPUT — JSON only
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	PLAYLIST CANDIDATES — batch
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	Season: unknown
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	Select the channels that carry THIS exact event. A channel that only specialises in the
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	Session:
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	TASK
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	Title:
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	WEB GUIDE EVIDENCE (independent source; rows may be gated and carriers hidden)
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	You identify the exact IPTV playlist channels that carry one specific sports event.
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	You may use broadcast-rights knowledge, the event context and channel metadata, but you
+2	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	[\\r\\n\\t]+
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	```
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	```json
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	channels
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	channels, best first.
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	confidence
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	decision
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	deepseek-flash
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	epg=
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	final
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	hidden (login required or not listed)
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	id
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	match
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	matching schedule/rights context is evidence, a name alone is not.
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	must never invent a channel or an id. Reply with valid JSON only.
+3	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	none
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	of
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	playlist-v1
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	practice
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	prior=
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	qualifying
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	quarterfinal
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	race
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	reason
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	select
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	semifinal
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	sport, the competition or the broadcaster is not enough.
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	sprint
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	territory=
+2	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	unspecified
+2	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	vs
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	warm
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	{"decision":"none","channels":[],"reason":"insufficient evidence"}
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	{"decision":"select","channels":[{"id":"C00012","confidence":0.91,"reason":"short reason"}]}
+3	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	|
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	| carriers:
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylist.kt	—
+4	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylistAnalyst.kt	\0
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylistAnalyst.kt	
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylistAnalyst.kt	%02x
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylistAnalyst.kt	SHA-256
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiPlaylistAnalyst.kt	|
 6	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	&
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	&#39;
@@ -912,7 +989,6 @@
 1	json	app/src/main/java/tv/own/owntv/features/sport/DeepSeekClient.kt	choices
 1	json	app/src/main/java/tv/own/owntv/features/sport/DeepSeekClient.kt	content
 1	json	app/src/main/java/tv/own/owntv/features/sport/DeepSeekClient.kt	country
-1	technical	app/src/main/java/tv/own/owntv/features/sport/DeepSeekClient.kt	deepseek-chat
 1	url	app/src/main/java/tv/own/owntv/features/sport/DeepSeekClient.kt	https://api.deepseek.com/chat/completions
 1	protocol	app/src/main/java/tv/own/owntv/features/sport/DeepSeekClient.kt	json_object
 1	json	app/src/main/java/tv/own/owntv/features/sport/DeepSeekClient.kt	max_tokens
@@ -1461,13 +1537,23 @@
 1	uri	app/src/main/java/tv/own/owntv/features/sport/SportsLeagues.kt	womens-college-basketball
 1	uri	app/src/main/java/tv/own/owntv/features/sport/SportsLeagues.kt	womens-college-volleyball
 1	uri	app/src/main/java/tv/own/owntv/features/sport/SportsLeagues.kt	wta
+4	empty	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	+
 1	protocol	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	TBD
 1	regex	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	\\s*/\\s*
 1	regex	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	\\s+
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	atp
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	final
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	heat
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	plus
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	practice
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	qualifying
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	quarterfinal
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	race
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	semifinal
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	sprint
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	tennis
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	warm
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	wta
 3	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	|
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	\0
@@ -1490,6 +1576,17 @@
 1	file-path	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	sports
 1	preference-key	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	strict
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	|
+2	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPriors.kt	\0
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPriors.kt	$norm
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPriors.kt	*
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPriors.kt	aliases
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPriors.kt	carriers
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPriors.kt	competitionId
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPriors.kt	competitions
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPriors.kt	datasetVersion
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPriors.kt	markets
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPriors.kt	schemaVersion
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPriors.kt	seasons
 5	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	#
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	${stringResource(R.string.sport_versus)}

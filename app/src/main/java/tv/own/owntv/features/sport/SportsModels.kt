@@ -142,6 +142,18 @@ data class ChannelMatch(
      * language preference must not hide "Sky Sports Main Event" for a Premier League game.
      */
     val guideConfirmed: Boolean = false,
+    /** One of the channel's EPG programmes around kickoff names this exact fixture. */
+    val epgConfirmed: Boolean = false,
+    /** The accepted full-playlist model answer selected this row (id-validated, then re-verified). */
+    val aiConfirmed: Boolean = false,
+    /** The model's one-line rationale; diagnostics only, never the reason a row is playable. */
+    val aiReason: String? = null,
+    /**
+     * The playlist source this row belongs to. Part of the dedup identity: quality variants of one
+     * provider's feed collapse, unrelated providers' feeds never merge just because they share a
+     * display name.
+     */
+    val sourceId: Long? = null,
 )
 
 /** A league's team from the ESPN teams endpoint — the phone picker's team rows. */

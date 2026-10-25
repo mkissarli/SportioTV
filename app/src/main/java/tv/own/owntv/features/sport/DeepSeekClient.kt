@@ -37,11 +37,21 @@ class DeepSeekClient(
 ) {
 
     private val appContext = context.applicationContext
+    private val baseClient = client
     private val http = client.newBuilder()
         .connectTimeout(ConnectTimeoutSeconds, TimeUnit.SECONDS)
         .readTimeout(ReadTimeoutSeconds, TimeUnit.SECONDS)
         .callTimeout(CallTimeoutSeconds, TimeUnit.SECONDS)
         .build()
+
+    /** A full-playlist request is large but still bounded: 120 s read, 180 s call. */
+    private val playlistHttp by lazy {
+        baseClient.newBuilder()
+            .connectTimeout(ConnectTimeoutSeconds, TimeUnit.SECONDS)
+            .readTimeout(PlaylistReadTimeoutSeconds, TimeUnit.SECONDS)
+            .callTimeout(PlaylistCallTimeoutSeconds, TimeUnit.SECONDS)
+            .build()
+    }
 
     private val promptTemplate: String by lazy {
         appContext.resources.openRawResource(R.raw.sports_ai_prompt).bufferedReader().use { it.readText() }
@@ -87,10 +97,26 @@ class DeepSeekClient(
     }
 
     /**
+     * One full-playlist selection request. The caller builds both prompts (the catalogue is local);
+     * this method only enforces the key, the bounded timeout and the typed failure mapping. The
+     * answer is returned raw so schema validation stays a pure, testable step.
+     */
+    suspend fun completePlaylistSelection(system: String, user: String, apiKey: String): String {
+        val key = extractKey(apiKey)
+        if (key.isEmpty()) throw AiRequestException(AiFailure.NO_KEY)
+        return ask(system, user, key, playlistHttp)
+    }
+
+    /**
      * One chat completion, returning the answer's content. Every error path becomes an
      * [AiRequestException] with a typed [AiFailure], so the caller never has to read an HTTP code.
      */
-    private suspend fun ask(system: String, user: String, key: String): String = withContext(Dispatchers.IO) {
+    private suspend fun ask(
+        system: String,
+        user: String,
+        key: String,
+        client: OkHttpClient = http,
+    ): String = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url(Endpoint)
             .header(AuthorizationHeader, AuthPrefix + key)
@@ -100,7 +126,7 @@ class DeepSeekClient(
             .build()
 
         val responseText = try {
-            http.newCall(request).execute().use { response ->
+            client.newCall(request).execute().use { response ->
                 val body = response.body.string()
                 if (!response.isSuccessful) {
                     throw AiRequestException(failureFor(response.code))
@@ -203,7 +229,8 @@ class DeepSeekClient(
 
     private companion object {
         const val Endpoint = "https://api.deepseek.com/chat/completions"
-        const val Model = "deepseek-chat"
+        /** Current documented model (2026-10): deepseek-flash, 1M-token context. */
+        const val Model = AiPlaylistPolicy.Model
         const val JsonMediaType = "application/json; charset=utf-8"
         const val AuthorizationHeader = "Authorization"
         const val AuthPrefix = "Bearer "
@@ -233,6 +260,8 @@ class DeepSeekClient(
         const val ConnectTimeoutSeconds = 15L
         const val ReadTimeoutSeconds = 60L
         const val CallTimeoutSeconds = 75L
+        const val PlaylistReadTimeoutSeconds = 120L
+        const val PlaylistCallTimeoutSeconds = 180L
     }
 }
 

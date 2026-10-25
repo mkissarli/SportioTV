@@ -14,6 +14,19 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.16
+
+### ✨ New features
+- **Full-playlist AI channel check per fixture**
+- **Versioned broadcaster priors**
+
+### 🐛 Fixes
+- **Guide, EPG and AI results now merge instead of replacing each other**
+- **ATP tour rows no longer confirm individual matches**
+- **Gated guide rows no longer count as "not televised"**
+- **Guide spellings like Tottenham and M'gladbach now match the full club name**
+- **Duplicate channel variants respect the playlist source**
+
 ## v0.2.15
 
 ### 🐛 Fixes

@@ -77,11 +77,16 @@ object ChannelDedup {
     /**
      * Keeps one display entry per identity, best resolution first, evidence score as tie-break.
      * [entries] are `(match, sortKey)` pairs in ranked order; the list order is preserved.
+     *
+     * The playlist source is part of the identity: two providers' `Sky Sports Main Event` feeds are
+     * distinct entries, while resolution variants inside one source still collapse.
      */
     fun dedupe(entries: List<Pair<ChannelMatch, Int>>): List<ChannelMatch> {
         val byIdentity = LinkedHashMap<String, Pair<ChannelMatch, Int>>()
         entries.forEach { (match, sortKey) ->
-            val identity = identityOf(match.channelName)?.let { it.first + "|" + it.second }
+            val source = match.sourceId?.toString().orEmpty()
+            val identity = identityOf(match.channelName)
+                ?.let { source + SourceSeparator + it.first + "|" + it.second }
                 ?: "id" + match.channelId
             val rank = resolutionRank(match.channelName)
             val incumbent = byIdentity[identity]
@@ -91,4 +96,6 @@ object ChannelDedup {
         }
         return byIdentity.values.map { it.first }
     }
+
+    private const val SourceSeparator = "@"
 }

@@ -955,6 +955,25 @@ class SportsMatcherTest {
 
 
     @Test
+    fun aGuideCarrierMatchesAReorderedProviderNameByWholeWords() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(channel(803, "UK: PREMIER LEAGUE SKY SPORTS HD")),
+            programmes = emptyList(),
+        )
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(
+                languages = emptySet(),
+                confirmedBroadcasters = listOf("Sky Sports Premier League"),
+            ),
+        )
+
+        assertEquals(listOf("UK: PREMIER LEAGUE SKY SPORTS HD"), matches.map { it.channelName })
+        assertTrue(matches.single().guideConfirmed)
+    }
+
+    @Test
     fun theWebGuideCarrierIsTheWholeList() = runBlocking {
         // The guide names "Sky Sports Premier League" as the carrier; the provider's EPG says
         // nothing. The guide is the answer — no scoring tiers involved.

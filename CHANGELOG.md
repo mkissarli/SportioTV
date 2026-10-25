@@ -14,6 +14,19 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.20
+
+### ✨ New features
+- **TV guide badge on guide-confirmed channels**
+- **Faster Classic and DeepSeek channel loading**
+
+### 🐛 Fixes
+- **TV guide carriers match reordered provider channel names**
+- **Classic scans a 60k playlist once instead of twice**
+- **DeepSeek no longer rescans the playlist to verify its own rows**
+- **Search runs alongside local matching instead of blocking it**
+- **Reopening a fixture reuses the last DeepSeek result**
+
 ## v0.2.19
 
 ### ✨ New features

@@ -120,6 +120,11 @@ Duplikate werden ignoriert. Eine ungültige Antwort fügt keinen Sender hinzu.
 - Extraktor: 6 h pro Fixture + Suchergebnis-Hash.
 - Phase 2: 6 h pro Fixture + Playlist-/Guide-/Such-Hash; ein HTTP-/Parse-Fehler wird nicht
   als dauerhaftes „keine Sender“ gespeichert.
+- Schnell-Cache: 30 min für das zuletzt bestätigte Fixture-Ergebnis. Beim erneuten Öffnen
+  des Tabs wird weder die 60k-Playlist neu gescannt noch die Suche wiederholt.
+- Der Playlist-Fingerprint ist ein rollierender Hash, kein Sortieren/Joinen aller 60k
+  Zeilennamen. Suche, Extraktor, Phase 1 und lokale Kandidatensuche laufen parallel; die
+  Suche blockiert den 60k-Scan nicht mehr.
 - Ein Fixture liegt in genau einem Phase-2-Request. Keine Wiederholung bei Recomposition,
   Fokuswechsel oder Rückkehr aus dem Vollbild; der Lauf hängt an Fixture, Schaltern,
   Schlüssel, Ländern, Guide-Version und ist entprellt.

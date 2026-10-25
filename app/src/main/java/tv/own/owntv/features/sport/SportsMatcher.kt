@@ -171,24 +171,39 @@ class SportsMatcher(
      */
     suspend fun match(fixture: Fixture, options: SportMatchOptions): List<ChannelMatch> =
         withContext(Dispatchers.IO) {
-            // Re-verify the AI ids against the current playlist rows: a source switch between the
-            // request and this render must drop stale ids, never play an unknown channel.
-            val aiRows = if (options.aiChannels.isEmpty()) {
-                emptyList()
-            } else {
-                val ids = scanRows(sources.liveSourceIds()).mapTo(HashSet<Long>()) { it.channel.id }
-                options.aiChannels.filter { it.channelId in ids }
-            }
+            val sourceIds = sources.liveSourceIds()
+            // Re-verify only the accepted AI ids (at most eight): a source switch between the
+            // request and this render must drop stale ids, never play an unknown channel. A full
+            // 60k-row scan here made the DeepSeek column needlessly slow.
+            val aiRows = verifyAiRows(options.aiChannels, sourceIds)
             // The DeepSeek column is AI-only: no guide carriers and no EPG/name rows leak into it.
             if (options.aiOnly) {
                 return@withContext applyFilter(aiRows, options, demotePpv = fixture.isTeamSport())
             }
-            val guided = guideChannels(options.confirmedBroadcasters)
+            if (sourceIds.isEmpty()) return@withContext emptyList()
+            // One channel scan feeds both the guide resolver and the deterministic matcher. On a
+            // 60k-channel playlist this halves the Classic path's database work.
+            val rows = scanRows(sourceIds)
+            val guided = guideChannels(options.confirmedBroadcasters, rows)
             // Always independent: the guide is evidence, not a short-circuit.
-            val deterministic = resolveSorted(fixture)
+            val deterministic = resolveSorted(fixture, rows)
             val merged = mergeEvidence(guided, deterministic, aiRows)
             applyFilter(merged, options, demotePpv = fixture.isTeamSport())
         }
+
+    /** At most a handful of accepted AI rows; `getById` is far cheaper than scanning the catalogue. */
+    private suspend fun verifyAiRows(
+        channels: List<ChannelMatch>,
+        sourceIds: List<Long>,
+    ): List<ChannelMatch> {
+        if (channels.isEmpty()) return emptyList()
+        val allowed = sourceIds.toHashSet()
+        return channels.mapNotNull { match ->
+            val row = runCatching { channelDao.getById(match.channelId) }.getOrNull()
+                ?: return@mapNotNull null
+            if (row.sourceId !in allowed || row.name != match.channelName) null else match
+        }
+    }
 
     /**
      * Unions the sources by playlist row id, keeping the strongest score and every provenance flag.
@@ -230,7 +245,10 @@ class SportsMatcher(
      * EPG/name evidence (pass 1 discovery + pass 2 scoring), strongest first, unfiltered. Runs for
      * every fixture — the web guide is merged with this, never a replacement for it.
      */
-    private suspend fun resolveSorted(fixture: Fixture): List<ChannelMatch> {
+    private suspend fun resolveSorted(
+        fixture: Fixture,
+        rows: List<ScanRow>,
+    ): List<ChannelMatch> {
         val sourceIds = sources.liveSourceIds()
         if (sourceIds.isEmpty()) return emptyList()
 
@@ -249,7 +267,16 @@ class SportsMatcher(
         // profile's channels; the guide probes stay SQL (indexed window) and their rows double as
         // the EPG evidence for scoring, so pass 2 issues no queries at all.
         val epgEvidence = HashMap<String, MutableList<EpgProgrammeEntity>>()
-        val candidates = discoverCandidates(fixture, teamSport, duelSport, sourceIds, from, to, epgEvidence)
+        val candidates = discoverCandidates(
+            fixture = fixture,
+            teamSport = teamSport,
+            duelSport = duelSport,
+            sourceIds = sourceIds,
+            rows = rows,
+            from = from,
+            to = to,
+            epgEvidence = epgEvidence,
+        )
         if (candidates.isEmpty()) return emptyList()
 
         // Pass 2 — score each candidate against the fixture.
@@ -281,21 +308,19 @@ class SportsMatcher(
      * both answer "Sky Sports F1"); playback tiers collapse later in [applyFilter]. Score encodes
      * guide order so the list reads exactly like the guide's list.
      */
-    private suspend fun guideChannels(carriers: List<String>): List<ChannelMatch> {
+    private fun guideChannels(carriers: List<String>, rows: List<ScanRow>): List<ChannelMatch> {
         val wanted = carriers.map { guidePhrase(it).trim() }
             .filter { it.length >= MinHintLength }
             .distinct()
-        if (wanted.isEmpty()) return emptyList()
-        val sourceIds = sources.liveSourceIds()
-        if (sourceIds.isEmpty()) return emptyList()
-        val rows = scanRows(sourceIds)
-        if (rows.isEmpty()) return emptyList()
+            .map { it to SportNameMatch.singularize(it) }
+        if (wanted.isEmpty() || rows.isEmpty()) return emptyList()
 
         val out = LinkedHashMap<Long, ChannelMatch>()
-        for ((index, carrier) in wanted.withIndex()) {
+        for ((index, wantedName) in wanted.withIndex()) {
+            val singular = wantedName.second
             for (row in rows) {
                 if (out.containsKey(row.channel.id)) continue
-                if (!SportNameMatch.containsPhraseLoose(carrier, row.normName)) continue
+                if (!guideNameMatches(singular, row)) continue
                 out[row.channel.id] = ChannelMatch(
                     channelId = row.channel.id,
                     channelName = row.channel.name,
@@ -309,6 +334,19 @@ class SportsMatcher(
             }
         }
         return out.values.toList()
+    }
+
+    /**
+     * The guide's broadcaster spelling may carry extra separators or reordered words relative to
+     * the provider's channel name. Exact singular phrase wins; otherwise every significant word
+     * (at least two) must appear whole. A single token never matches a longer channel name, so
+     * "ESPN" cannot silently become "ESPN2".
+     */
+    private fun guideNameMatches(singularCarrier: String, row: ScanRow): Boolean {
+        if (SportNameMatch.containsPhrase(singularCarrier, row.singularName)) return true
+        val words = singularCarrier.trim().split(' ')
+            .filter { it.length >= MinTokenLength }
+        return words.size >= 2 && words.all { SportNameMatch.containsWord(it, row.singularName) }
     }
 
     /**
@@ -440,16 +478,15 @@ class SportsMatcher(
         teamSport: Boolean,
         duelSport: Boolean,
         sourceIds: List<Long>,
+        rows: List<ScanRow>,
         from: Long,
         to: Long,
         epgEvidence: MutableMap<String, MutableList<EpgProgrammeEntity>>,
     ): LinkedHashMap<Long, ChannelEntity> {
         val out = LinkedHashMap<Long, ChannelEntity>()
 
-        // A — channel names, bounded by [NameCandidateCap], matched IN MEMORY over one cached scan
-        // of the profile's channels instead of ~30 SQL LIKE scans over the whole playlist. Every
-        // row is tested once against all queries, so a 50k-channel playlist costs one pass.
-        val rows = scanRows(sourceIds)
+        // A — channel names, bounded by [NameCandidateCap], matched IN MEMORY over the one scan
+        // shared with the guide resolver instead of ~30 SQL LIKE scans over the whole playlist.
         addNameMatches(rows, nameDiscoveryQueries(fixture, emptyList()), NameCandidateCap, out)
 
         // B — the guide. A programme title naming a team is enough to pull its channel in; the
@@ -495,7 +532,12 @@ class SportsMatcher(
     // ---- Channel-name scan (one pass over the playlist, cached) --------------------------------
 
     /** One channel of the cached name scan, pre-folded so each match is two `contains` calls. */
-    private data class ScanRow(val channel: ChannelEntity, val rawLower: String, val normName: String)
+    private data class ScanRow(
+        val channel: ChannelEntity,
+        val rawLower: String,
+        val normName: String,
+        val singularName: String,
+    )
 
     @Volatile
     private var scanCache: Pair<List<Long>, List<ScanRow>>? = null
@@ -520,6 +562,7 @@ class SportsMatcher(
                     channel = channel,
                     rawLower = channel.name.lowercase(Locale.ROOT),
                     normName = SportNameMatch.normalize(channel.name),
+                    singularName = SportNameMatch.singularize(channel.name),
                 )
             }
         if (rows.size <= ScanCacheMaxRows) {

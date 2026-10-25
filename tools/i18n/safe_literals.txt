@@ -875,6 +875,7 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatcher.kt	prix
 1	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatcher.kt	qualifying
 1	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatcher.kt	quarterfinal
+1	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatcher.kt	quick:
 1	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatcher.kt	race
 2	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatcher.kt	racing
 2	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatcher.kt	rugby
@@ -898,7 +899,7 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatcher.kt	web channel
 1	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatcher.kt	wta
 1	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatcher.kt	youth
-22	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatcher.kt	|
+20	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatcher.kt	|
 1	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatcher.kt	—
 5	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatching.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/features/sport/AiBoardMatching.kt	#

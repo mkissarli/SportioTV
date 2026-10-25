@@ -1504,7 +1504,14 @@ private fun EvidenceHeader(text: String) {
 /** Evidence tier and its source, then the audit detail; Classic rows keep their old subtitle. */
 @Composable
 private fun evidenceLine(match: ChannelMatch): String? {
-    val tier = match.evidenceTier ?: return match.epgTitle ?: match.aiReason
+    val tier = match.evidenceTier
+    if (tier == null) {
+        val guide = if (match.guideConfirmed) stringResource(R.string.sport_evidence_guide) else null
+        val detail = match.epgTitle ?: match.aiReason
+        return listOfNotNull(guide, detail?.takeIf { it.isNotBlank() })
+            .joinToString(Separator)
+            .takeIf { it.isNotBlank() }
+    }
     val tierLabel = when (tier) {
         ChannelEvidenceTier.SUPPORTED -> stringResource(R.string.sport_evidence_supported)
         ChannelEvidenceTier.LIKELY -> stringResource(R.string.sport_evidence_likely)

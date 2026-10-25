@@ -99,6 +99,12 @@ class AiBoardMatcher(
             size > MaxBoardCache
     }
 
+    /** Fast repeat-open cache; search-independent, so reopening the tab does not rescan 60k rows. */
+    private val quickBoardCache = object : LinkedHashMap<String, CachedBoard>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedBoard>?): Boolean =
+            size > MaxQuickBoardCache
+    }
+
     private val cacheLock = Any()
     private val groupCache = HashMap<Long, String?>()
 
@@ -134,35 +140,40 @@ class AiBoardMatcher(
 
         val guideByFixture = refs.associate { it.id to guide(it.fixture) }
         val cappedCountries = countries.take(AiBoardPolicy.MaxMarkets)
-        // Search is spent only for the fixture the user opened, never for the whole board.
-        val searchHits = if (refs.size == 1 && search != null) {
-            searchFor(refs.single(), apiKey)
-        } else {
-            emptyList()
-        }
-        val searchHints = if (searchHits.isNotEmpty()) {
-            extractSearchHints(refs.single(), searchHits, apiKey)
-        } else {
-            emptyList()
-        }
         val discoveryKey = discoveryKey(refs, cappedCountries)
-        val boardKey = boardKey(
+        val baseBoardKey = boardKey(
             discoveryKey = discoveryKey,
             rows = rows,
             guide = guideByFixture.values,
             market = market,
-            searchHits = searchHits,
-            searchHints = searchHints,
+            searchHits = emptyList(),
+            searchHints = emptyList(),
         )
+        val quickKey = QuickBoardPrefix + baseBoardKey
         val now = clock()
 
         synchronized(cacheLock) {
-            boardCache[boardKey]?.takeIf { now - it.atMs < AiBoardPolicy.CacheTtlMs }?.let { cached ->
+            quickBoardCache[quickKey]?.takeIf { now - it.atMs < QuickBoardCacheTtlMs }?.let { cached ->
                 return@withContext cached.result.copy(adjudicationRequests = 0, latencyMs = 0)
             }
         }
 
         val startedAt = System.currentTimeMillis()
+        // Search and local/phase-1 discovery are independent. Run them together; doing search
+        // plus extractor first added their latency to every 60k-channel scan.
+        val searchPending = if (refs.size == 1 && search != null) {
+            async {
+                val hits = searchFor(refs.single(), apiKey)
+                val hints = if (hits.isNotEmpty()) {
+                    extractSearchHints(refs.single(), hits, apiKey)
+                } else {
+                    emptyList()
+                }
+                hits to hints
+            }
+        } else {
+            null
+        }
         val boardDate = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate().toString()
         val cachedDiscovery = synchronized(cacheLock) {
             discoveryCache[discoveryKey]?.takeIf { now - it.atMs < AiBoardPolicy.CacheTtlMs }
@@ -182,6 +193,18 @@ class AiBoardMatcher(
             discoveryFailure = response.failure
             if (response.networkValid) {
                 synchronized(cacheLock) { discoveryCache[discoveryKey] = CachedDiscovery(now, response.byFixture) }
+            }
+        }
+        val (searchHits, searchHints) = searchPending?.await()
+            ?: (emptyList<DeepSeekSearchHit>() to emptyList<SearchChannelHint>())
+        val boardKey = if (searchHits.isEmpty() && searchHints.isEmpty()) {
+            baseBoardKey
+        } else {
+            hash(baseBoardKey + "\n" + searchKey(searchHits, searchHints))
+        }
+        synchronized(cacheLock) {
+            boardCache[boardKey]?.takeIf { now - it.atMs < AiBoardPolicy.CacheTtlMs }?.let { cached ->
+                return@withContext cached.result.copy(adjudicationRequests = 0, latencyMs = 0)
             }
         }
         var merged = mergePhase1(refs, rows, local, phase1)
@@ -204,7 +227,7 @@ class AiBoardMatcher(
                 searchCandidates = searchCandidateCount,
             )
         }
-        adjudicate(
+        val result = adjudicate(
             refs = refs,
             batches = batches,
             guideByFixture = guideByFixture,
@@ -218,6 +241,10 @@ class AiBoardMatcher(
             searchHits = searchHits,
             searchCandidateCount = searchCandidateCount,
         )
+        if (result.validResponses > 0) {
+            synchronized(cacheLock) { quickBoardCache[quickKey] = CachedBoard(clock(), result) }
+        }
+        result
     }
 
     private data class DiscoveryResponse(
@@ -1115,29 +1142,37 @@ class AiBoardMatcher(
         searchHits: List<DeepSeekSearchHit>,
         searchHints: List<SearchChannelHint>,
     ): String {
-        val playlist = hash(
-            rows.asSequence()
-                .map { it.row.id.toString() + "|" + it.row.name + "|" + it.epgKey.orEmpty() }
-                .sorted()
-                .joinToString("\n"),
-        )
+        // Rolling hash, not a 60k-string sort/join: the key is only a cache identity, and a DB
+        // order change or edit safely becomes a miss.
+        var playlistHash = PlaylistHashSeed
+        for (row in rows) {
+            playlistHash = playlistHash * PlaylistHashPrime + row.row.id
+            playlistHash = playlistHash * PlaylistHashPrime + row.row.name.hashCode()
+            playlistHash = playlistHash * PlaylistHashPrime + row.epgKey.hashCode()
+        }
         val guideHash = hash(
             guide.joinToString("\n") { evidence ->
                 evidence.carriers.sorted().joinToString(",") + "|" +
                     evidence.rows.joinToString(";") { it.toString() }
             },
         )
-        val searchHash = hash(
-            searchHits.joinToString("\n") { it.title + "|" + it.url + "|" + it.haystack } +
-                "\n" + searchHints.joinToString("\n") {
-                    it.name + "|" + it.country + "|" + it.sourceIndex + "|" + it.excerpt
-                },
-        )
+        val searchHash = searchKey(searchHits, searchHints)
         return hash(
-            discoveryKey + "\n" + playlist + "\n" + guideHash + "\n" + market.orEmpty() +
-                "\n" + searchHash + "\n" + AiBoardPolicy.AdjudicationPromptVersion,
+            discoveryKey + "\n" + playlistHash.toString(16) + "\n" + guideHash + "\n" +
+                market.orEmpty() + "\n" + searchHash + "\n" +
+                AiBoardPolicy.AdjudicationPromptVersion,
         )
     }
+
+    private fun searchKey(
+        searchHits: List<DeepSeekSearchHit>,
+        searchHints: List<SearchChannelHint>,
+    ): String = hash(
+        searchHits.joinToString("\n") { it.title + "|" + it.url + "|" + it.haystack } +
+            "\n" + searchHints.joinToString("\n") {
+                it.name + "|" + it.country + "|" + it.sourceIndex + "|" + it.excerpt
+            },
+    )
 
     private fun hash(text: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8))
@@ -1163,13 +1198,18 @@ class AiBoardMatcher(
         const val MinProbeLength = 4
         const val MinTokenLength = 3
         const val MaxChannelPhraseWords = 3
+        const val PlaylistHashSeed = 1_125_899_906_842_597L
+        const val PlaylistHashPrime = 1_000_000_007L
         const val EpgBeforeMs = 2L * 60L * 60L * 1000L
         const val EpgAfterMs = 4L * 60L * 60L * 1000L
         const val MaxDiscoveryCache = 8
         const val MaxBoardCache = 4
+        const val MaxQuickBoardCache = 8
         const val MaxSearchCache = 16
         const val MaxHintsCache = 8
         const val SearchCacheTtlMs = 30L * 60L * 1000L
+        const val QuickBoardCacheTtlMs = 30L * 60L * 1000L
+        const val QuickBoardPrefix = "quick:"
         const val SearchPromptVersion = "search-extractor-v1"
         const val RequestIdPrefix = "C"
         const val Space = " "

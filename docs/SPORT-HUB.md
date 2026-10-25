@@ -54,7 +54,11 @@
   gemischt und Classic-Zeilen nie in DeepSeek.
 - **Classic-Reihenfolge:** UK/NOW → US → FR → 4K/8K → alles andere, danach Evidenz und
   Sprache. `ChannelDedup` fasst 4K/8K/UHD/FHD/HD/RAW-Varianten derselben Quelle zu einer
-  Zeile zusammen (beste Auflösung gewinnt); 8K/4320p sind ergänzt.
+  Zeile zusammen (beste Auflösung gewinnt); 8K/4320p sind ergänzt. Ein Playlist-Scan
+  versorgt Guide- und EPG-Matcher gemeinsam; auf 60k-Sendern statt zwei Scans pro Fixture.
+- **Guide-Sender sind sichtbar:** eine guide-bestätigte Zeile trägt das Label **TV guide**.
+  Der Abgleich toleriert Wortstellung/Plural („Sky Sports Premier League" gegen
+  „Premier League Sky Sports HD"), aber ein einzelnes Wort wie „ESPN" wird nie zu „ESPN2".
 - **DeepSeek Match (2026-10-25):** lazy pro geöffnetem Fixture. Phase 1 nennt Broadcaster;
   die lokale Suche nutzt die komplette Playlist/EPG; eine DeepSeek-Search-Anfrage plus
   Extraktor kann neue Kanalnamen ergänzen; Phase 2 bestätigt mit `Supported`/`Likely`/

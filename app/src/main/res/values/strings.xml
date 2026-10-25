@@ -36,6 +36,7 @@
     <string name="sport_evidence_likely">Likely</string>
     <string name="sport_evidence_possible">Possible</string>
     <string name="sport_evidence_conflicting">Conflicting sources</string>
+    <string name="sport_evidence_guide">TV guide</string>
     <string name="sport_evidence_search">Search</string>
     <string name="sport_evidence_epg">EPG</string>
     <string name="sport_evidence_rights">Rights knowledge</string>

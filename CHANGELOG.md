@@ -14,6 +14,15 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.15
+
+### 🐛 Fixes
+- **The TV guide's carriers are now the channel list itself**
+- **F1 fixtures show their channels again**
+- **Every tennis match of the day shows its tour's channels**
+- **No channels from a broadcast name alone**
+- **No more channels borrowed from another match or session**
+
 ## v0.2.14
 
 ### ✨ New features

@@ -1330,22 +1330,10 @@ private fun FixtureDetail(
                             }
                         }
                     }
-                    if (!aiVisible && aiEnabled && classicAiSelected) {
-                        StageSurface(
-                            onClick = onRequestPlaylistAi,
-                            radius = 14.mpx,
-                            enabled = playlistAiState != SportsViewModel.PlaylistAiState.Loading,
-                        ) { focused ->
-                            Row(Modifier.padding(horizontal = 12.mpx, vertical = 7.mpx), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.mpx)) {
-                                OwnTVIcon(OwnTVIcon.SPARKLE, if (focused) accent.onAccent else StageColors.Text, Modifier.size(18.mpx))
-                                Text(stringResource(R.string.sport_ai_playlist_check), style = stageText(16, 600), color = if (focused) accent.onAccent else StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                    }
                 }
-                // Classic (original guide/EPG matcher), Classic + AI (the merged evidence list) and
-                // the separate AI recommendation column. The AI columns only exist while the AI
-                // functions are switched on.
+                // Classic (original guide/EPG matcher), DeepSeek Match (evidence-tiered board
+                // pipeline) and AI Suggest (the older name-to-channel recommendation). The AI
+                // columns only exist while the AI functions are switched on.
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.mpx),
@@ -1408,36 +1396,33 @@ private fun FixtureDetail(
                             style = stageText(14, 500), color = StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    if (classicAiSelected) {
-                        when (val aiCheck = playlistAiState) {
-                            SportsViewModel.PlaylistAiState.Idle -> Unit
-                            SportsViewModel.PlaylistAiState.Loading -> Text(
-                                stringResource(R.string.sport_ai_playlist_loading),
-                                style = stageText(14, 500), color = StageColors.Dim,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
-                            is SportsViewModel.PlaylistAiState.Content -> Text(
-                                stringResource(R.string.sport_ai_playlist_done, aiCheck.added, aiCheck.checked),
-                                style = stageText(14, 500), color = StageColors.Dim,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
-                            is SportsViewModel.PlaylistAiState.Error -> Text(
-                                aiFailureText(aiCheck.failure),
-                                style = stageText(14, 500), color = StageColors.Dim,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
                     when (matchesState) {
-                        SportsViewModel.MatchesState.Idle, SportsViewModel.MatchesState.Loading -> {
+                        SportsViewModel.MatchesState.Idle -> {
                             Text(stringResource(R.string.sport_loading), style = stageText(17, 500), color = StageColors.Dim)
+                        }
+                        SportsViewModel.MatchesState.Loading -> {
+                            Text(
+                                stringResource(if (classicAiSelected) R.string.sport_deepseek_checking else R.string.sport_loading),
+                                style = stageText(17, 500),
+                                color = StageColors.Dim,
+                            )
                         }
                         is SportsViewModel.MatchesState.Content -> {
                             val list = matches
                             if (list.isEmpty()) {
                                 Text(stringResource(R.string.sport_no_channel), style = stageText(17, 500), color = StageColors.Dim)
                             } else {
+                                var possibleHeader = false
+                                var conflictingHeader = false
                                 list.forEach { match ->
+                                    if (!possibleHeader && match.evidenceTier == ChannelEvidenceTier.POSSIBLE) {
+                                        possibleHeader = true
+                                        EvidenceHeader(stringResource(R.string.sport_evidence_possible))
+                                    }
+                                    if (!conflictingHeader && match.evidenceTier == ChannelEvidenceTier.CONFLICTING) {
+                                        conflictingHeader = true
+                                        EvidenceHeader(stringResource(R.string.sport_evidence_conflicting))
+                                    }
                                     StageSurface(
                                         onClick = { onPlayMatch(match, list) },
                                         radius = 14.mpx,
@@ -1460,7 +1445,7 @@ private fun FixtureDetail(
                                             OwnTVIcon(OwnTVIcon.PLAY, if (focused) accent.onAccent else accent.accent, Modifier.size(22.mpx))
                                             Column(Modifier.weight(1f)) {
                                                 Text(match.channelName, style = stageText(19, 600), color = if (focused) accent.onAccent else StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                (match.epgTitle ?: match.aiReason)?.let { title ->
+                                                evidenceLine(match)?.let { title ->
                                                     Text(title, style = stageText(14, 500), color = if (focused) accent.onAccent.copy(alpha = 0.8f) else StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                 }
                                             }
@@ -1503,6 +1488,41 @@ private fun FixtureDetail(
         }
     }
 }
+
+@Composable
+private fun EvidenceHeader(text: String) {
+    Text(
+        text,
+        style = stageText(14, 700),
+        color = StageColors.Dim,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(top = 4.mpx),
+    )
+}
+
+/** Evidence tier and its source, then the audit detail; Classic rows keep their old subtitle. */
+@Composable
+private fun evidenceLine(match: ChannelMatch): String? {
+    val tier = match.evidenceTier ?: return match.epgTitle ?: match.aiReason
+    val tierLabel = when (tier) {
+        ChannelEvidenceTier.SUPPORTED -> stringResource(R.string.sport_evidence_supported)
+        ChannelEvidenceTier.LIKELY -> stringResource(R.string.sport_evidence_likely)
+        ChannelEvidenceTier.POSSIBLE -> stringResource(R.string.sport_evidence_possible)
+        ChannelEvidenceTier.CONFLICTING -> stringResource(R.string.sport_evidence_conflicting)
+    }
+    val source = when (match.evidenceSource) {
+        ChannelEvidenceSource.SEARCH -> stringResource(R.string.sport_evidence_search)
+        ChannelEvidenceSource.EPG -> stringResource(R.string.sport_evidence_epg)
+        ChannelEvidenceSource.RIGHTS -> stringResource(R.string.sport_evidence_rights)
+        null -> null
+    }
+    val head = listOfNotNull(tierLabel, source).joinToString(Separator)
+    val detail = match.evidenceDetail ?: match.epgTitle ?: match.aiReason
+    return listOfNotNull(head, detail?.takeIf { it.isNotBlank() }).joinToString(Separator)
+}
+
+private const val Separator = " · "
 
 /** One "prefer channels from" option; [code] is a [SportLanguages.preferredCountryOptions] key, "" = none. */
 private data class CountryPreference(val code: String, @StringRes val labelRes: Int)

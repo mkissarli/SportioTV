@@ -238,6 +238,7 @@ val appModule = module {
     // switch and the master AI switch are on and a key is configured.
     single {
         val context = androidContext()
+        val aiClient = get<DeepSeekClient>()
         AiBoardMatcher(
             channelDao = get(),
             epgDao = get(),
@@ -248,7 +249,8 @@ val appModule = module {
             leagueLabel = { leagueId ->
                 sportsLeagueById(leagueId)?.let { context.getString(it.labelRes) } ?: leagueId
             },
-            ask = get<DeepSeekClient>()::completeBoardMatching,
+            ask = aiClient::completeBoardMatching,
+            search = { query, key -> aiClient.search(query, key) },
         )
     }
     // Static matcher vocabulary (team aliases/exonyms + stop-words) from res/raw/sports_matching.json.

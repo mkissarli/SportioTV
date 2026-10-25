@@ -38,6 +38,8 @@ data class BoardMatchResult(
     val invalidResponses: Int = 0,
     val inputChars: Int = 0,
     val latencyMs: Long = 0,
+    val searchHits: Int = 0,
+    val searchCandidates: Int = 0,
     val failure: AiFailure? = null,
 )
 
@@ -61,6 +63,8 @@ class AiBoardMatcher(
     private val priors: SportsPriors,
     private val leagueLabel: (String) -> String,
     private val ask: suspend (system: String, user: String, apiKey: String) -> String,
+    /** DeepSeek Search; null in unit tests and when the caller has no search client. */
+    private val search: (suspend (query: String, apiKey: String) -> List<DeepSeekSearchHit>)? = null,
     private val maxRequests: Int = AiBoardPolicy.MaxAdjudicationRequests,
     private val maxConcurrent: Int = AiBoardPolicy.MaxConcurrentRequests,
     private val maxRequestChars: Int = AiBoardPolicy.MaxRequestChars,
@@ -70,6 +74,20 @@ class AiBoardMatcher(
     private data class CachedDiscovery(val atMs: Long, val byFixture: Map<String, List<BroadcastSuggestion>>)
 
     private data class CachedBoard(val atMs: Long, val result: BoardMatchResult)
+
+    private data class CachedSearch(val atMs: Long, val hits: List<DeepSeekSearchHit>)
+
+    private data class CachedHints(val atMs: Long, val hints: List<SearchChannelHint>)
+
+    private val searchCache = object : LinkedHashMap<String, CachedSearch>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedSearch>?): Boolean =
+            size > MaxSearchCache
+    }
+
+    private val hintsCache = object : LinkedHashMap<String, CachedHints>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedHints>?): Boolean =
+            size > MaxHintsCache
+    }
 
     private val discoveryCache = object : LinkedHashMap<String, CachedDiscovery>(8, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedDiscovery>?): Boolean =
@@ -115,8 +133,27 @@ class AiBoardMatcher(
         }
 
         val guideByFixture = refs.associate { it.id to guide(it.fixture) }
-        val discoveryKey = discoveryKey(refs, countries)
-        val boardKey = boardKey(discoveryKey, rows, guideByFixture.values, market)
+        val cappedCountries = countries.take(AiBoardPolicy.MaxMarkets)
+        // Search is spent only for the fixture the user opened, never for the whole board.
+        val searchHits = if (refs.size == 1 && search != null) {
+            searchFor(refs.single(), apiKey)
+        } else {
+            emptyList()
+        }
+        val searchHints = if (searchHits.isNotEmpty()) {
+            extractSearchHints(refs.single(), searchHits, apiKey)
+        } else {
+            emptyList()
+        }
+        val discoveryKey = discoveryKey(refs, cappedCountries)
+        val boardKey = boardKey(
+            discoveryKey = discoveryKey,
+            rows = rows,
+            guide = guideByFixture.values,
+            market = market,
+            searchHits = searchHits,
+            searchHints = searchHints,
+        )
         val now = clock()
 
         synchronized(cacheLock) {
@@ -138,7 +175,7 @@ class AiBoardMatcher(
             local = discoverCandidates(refs, rows, guideByFixture)
         } else {
             // Start phase 1 immediately; local discovery below never waits for it.
-            val pending = async { requestDiscovery(refs, countries, apiKey, boardDate) }
+            val pending = async { requestDiscovery(refs, cappedCountries, apiKey, boardDate) }
             local = discoverCandidates(refs, rows, guideByFixture)
             val response = pending.await()
             phase1 = response.byFixture
@@ -147,14 +184,26 @@ class AiBoardMatcher(
                 synchronized(cacheLock) { discoveryCache[discoveryKey] = CachedDiscovery(now, response.byFixture) }
             }
         }
-        val merged = mergePhase1(refs, rows, local, phase1)
+        var merged = mergePhase1(refs, rows, local, phase1)
+        if (searchHints.isNotEmpty()) {
+            merged = mergeSearchHints(refs, rows, merged, searchHints)
+        }
+        val searchCandidateCount = merged.values.sumOf { candidates ->
+            candidates.count { FlagSearch in it.flags }
+        }
         val batches = BoardAdjudicationPlanner.plan(
             fixtures = refs,
             candidatesByFixture = merged,
             maxRequests = maxRequests,
             maxRequestChars = maxRequestChars,
         ).filter { it.candidates.isNotEmpty() }
-        if (batches.isEmpty()) return@withContext emptyResult().copy(failure = discoveryFailure)
+        if (batches.isEmpty()) {
+            return@withContext emptyResult().copy(
+                failure = discoveryFailure,
+                searchHits = searchHits.size,
+                searchCandidates = searchCandidateCount,
+            )
+        }
         adjudicate(
             refs = refs,
             batches = batches,
@@ -166,6 +215,8 @@ class AiBoardMatcher(
             boardKey = boardKey,
             sourceIds = sourceIds.toSet(),
             market = market,
+            searchHits = searchHits,
+            searchCandidateCount = searchCandidateCount,
         )
     }
 
@@ -181,6 +232,11 @@ class AiBoardMatcher(
         val channelName: String,
         val confidence: Double,
         val reason: String,
+        val evidence: ChannelEvidenceTier,
+        val source: ChannelEvidenceSource,
+        val sourceIndex: Int?,
+        val excerpt: String?,
+        val epgEvidence: BoardEpgEvidence?,
     )
 
     private data class BatchOutcome(
@@ -225,12 +281,23 @@ class AiBoardMatcher(
         boardKey: String,
         sourceIds: Set<Long>,
         market: String?,
+        searchHits: List<DeepSeekSearchHit>,
+        searchCandidateCount: Int,
     ): BoardMatchResult = coroutineScope {
         val semaphore = Semaphore(maxConcurrent.coerceAtLeast(1))
         val outcomes = batches.mapIndexed { index, batch ->
             async {
                 semaphore.withPermit {
-                    runBatch(batch, index + 1, batches.size, guideByFixture, phase1, apiKey, market)
+                    runBatch(
+                        batch = batch,
+                        batchIndex = index + 1,
+                        batchCount = batches.size,
+                        guideByFixture = guideByFixture,
+                        phase1 = phase1,
+                        apiKey = apiKey,
+                        market = market,
+                        searchHits = searchHits,
+                    )
                 }
             }
         }.awaitAll()
@@ -238,7 +305,7 @@ class AiBoardMatcher(
         val valid = outcomes.count { it.validResponse }
         val invalid = outcomes.count { !it.validResponse }
         val rawPicks = outcomes.flatMap { it.picks }
-        val hits = verify(rawPicks, sourceIds)
+        val hits = verify(rawPicks, sourceIds, searchHits)
         val failure = outcomes.firstNotNullOfOrNull { it.failure } ?: discoveryFailure
         val result = BoardMatchResult(
             hits = hits,
@@ -250,6 +317,8 @@ class AiBoardMatcher(
             invalidResponses = invalid,
             inputChars = outcomes.sumOf { it.inputChars },
             latencyMs = System.currentTimeMillis() - startedAt,
+            searchHits = searchHits.size,
+            searchCandidates = searchCandidateCount,
             failure = failure,
         )
         if (valid > 0) synchronized(cacheLock) { boardCache[boardKey] = CachedBoard(clock(), result) }
@@ -264,6 +333,7 @@ class AiBoardMatcher(
         phase1: Map<String, List<BroadcastSuggestion>>,
         apiKey: String,
         market: String?,
+        searchHits: List<DeepSeekSearchHit>,
     ): BatchOutcome {
         val byRequestId = LinkedHashMap<String, BoardCandidate>()
         batch.candidates.forEachIndexed { index, candidate ->
@@ -279,6 +349,7 @@ class AiBoardMatcher(
             guide = guideByFixture,
             phase1 = phase1,
             market = market,
+            searchResults = searchHits,
         )
         return try {
             val content = ask(BoardAdjudicationPrompt.System, prompt, apiKey)
@@ -290,12 +361,28 @@ class AiBoardMatcher(
             val picks = parsed.flatMap { (fixtureId, selection) ->
                 selection.mapNotNull { pick ->
                     val candidate = byRequestId[pick.candidateId] ?: return@mapNotNull null
+                    // A model that omits `source` but names an exactly matched EPG row still gets
+                    // EPG provenance; rights alone can never make a row supported.
+                    val source = if (
+                        pick.source == ChannelEvidenceSource.RIGHTS &&
+                        pick.evidence == ChannelEvidenceTier.SUPPORTED &&
+                        candidate.epgEvidence != null
+                    ) {
+                        ChannelEvidenceSource.EPG
+                    } else {
+                        pick.source
+                    }
                     VerifiedPick(
                         fixtureId = fixtureId,
                         channelId = candidate.row.id,
                         channelName = candidate.row.name,
                         confidence = pick.confidence,
                         reason = pick.reason,
+                        evidence = pick.evidence,
+                        source = source,
+                        sourceIndex = pick.sourceIndex,
+                        excerpt = pick.excerpt,
+                        epgEvidence = candidate.epgEvidence,
                     )
                 }
             }
@@ -310,7 +397,11 @@ class AiBoardMatcher(
     }
 
     /** Ids are re-read from the live table; a changed name or a vanished row is dropped. */
-    private suspend fun verify(picks: List<VerifiedPick>, sourceIds: Set<Long>): Map<String, List<ChannelMatch>> {
+    private suspend fun verify(
+        picks: List<VerifiedPick>,
+        sourceIds: Set<Long>,
+        searchHits: List<DeepSeekSearchHit>,
+    ): Map<String, List<ChannelMatch>> {
         if (picks.isEmpty()) return emptyMap()
         val out = LinkedHashMap<String, MutableList<ChannelMatch>>()
         for (pick in picks.sortedWith(compareByDescending<VerifiedPick> { it.confidence }.thenBy { it.channelId })) {
@@ -318,6 +409,7 @@ class AiBoardMatcher(
             if (row.name != pick.channelName || row.sourceId !in sourceIds) continue
             val bucket = out.getOrPut(pick.fixtureId) { ArrayList() }
             if (bucket.any { it.channelId == row.id }) continue
+            val evidence = validateEvidence(pick, searchHits)
             bucket += ChannelMatch(
                 channelId = row.id,
                 channelName = row.name,
@@ -326,16 +418,92 @@ class AiBoardMatcher(
                 score = 1 + (pick.confidence * 90).toInt() + ChannelDedup.resolutionRank(row.name) * 5,
                 aiConfirmed = true,
                 aiReason = pick.reason.takeIf { it.isNotBlank() },
+                evidenceTier = evidence.tier,
+                evidenceSource = evidence.source,
+                evidenceDetail = evidence.detail,
+                evidenceUrl = evidence.url,
                 sourceId = row.sourceId,
             )
         }
         return out.mapValues { (_, value) ->
             value.sortedWith(
-                compareByDescending<ChannelMatch> { it.score }
+                compareByDescending<ChannelMatch> {
+                    when (it.evidenceTier) {
+                        ChannelEvidenceTier.SUPPORTED -> 2
+                        ChannelEvidenceTier.LIKELY -> 1
+                        ChannelEvidenceTier.CONFLICTING -> 0
+                        else -> 0
+                    }
+                }
+                    .thenByDescending { it.score }
                     .thenByDescending { ChannelDedup.resolutionRank(it.channelName) }
                     .thenBy { it.channelName },
             ).take(AiBoardPolicy.MaxPicksPerFixture)
         }.filterValues { it.isNotEmpty() }
+    }
+
+    private data class ValidatedEvidence(
+        val tier: ChannelEvidenceTier,
+        val source: ChannelEvidenceSource,
+        val detail: String?,
+        val url: String?,
+    )
+
+    /**
+     * The model's tier is only a claim. Search picks are re-read against the actual result text; EPG
+     * picks need the programme the app found itself; rights knowledge can never be `supported`.
+     */
+    private fun validateEvidence(
+        pick: VerifiedPick,
+        searchHits: List<DeepSeekSearchHit>,
+    ): ValidatedEvidence {
+        var tier = pick.evidence
+        var detail = pick.reason.takeIf { it.isNotBlank() }
+        var url: String? = null
+        when (pick.source) {
+            ChannelEvidenceSource.SEARCH -> {
+                val hit = pick.sourceIndex?.let(searchHits::getOrNull)
+                val grounded = hit != null && !pick.excerpt.isNullOrBlank() &&
+                    isGroundedExcerpt(pick.excerpt, hit.haystack) &&
+                    namesChannel(pick.channelName, hit.haystack)
+                if (!grounded) {
+                    if (tier == ChannelEvidenceTier.SUPPORTED) tier = ChannelEvidenceTier.LIKELY
+                } else {
+                    detail = hit.title.ifBlank { hit.siteName }.ifBlank { detail }
+                    url = hit.url.takeIf { it.isNotBlank() }
+                }
+            }
+            ChannelEvidenceSource.EPG -> {
+                val epg = pick.epgEvidence
+                if (epg == null) {
+                    if (tier == ChannelEvidenceTier.SUPPORTED) tier = ChannelEvidenceTier.LIKELY
+                } else {
+                    detail = epg.title
+                }
+            }
+            ChannelEvidenceSource.RIGHTS -> {
+                if (tier == ChannelEvidenceTier.SUPPORTED) tier = ChannelEvidenceTier.LIKELY
+            }
+        }
+        return ValidatedEvidence(tier, pick.source, detail, url)
+    }
+
+    /**
+     * The cited result must actually name the playlist row, not just some other channel. Tags and
+     * quality words are stripped first; a shortened broadcast brand is enough only when it keeps
+     * at least two words (and the channel number when the result has one).
+     */
+    private fun namesChannel(channelName: String, haystack: String): Boolean {
+        val base = ChannelDedup.identityOf(channelName)?.second
+            ?.takeIf { it.isNotBlank() }
+            ?: SportNameMatch.normalize(channelName)
+        if (base.isBlank()) return false
+        if (isGroundedExcerpt(base, haystack)) return true
+        val words = base.split(' ').filter { it.length >= 2 }
+        for (size in minOf(MaxChannelPhraseWords, words.size) downTo 2) {
+            if (isGroundedExcerpt(words.take(size).joinToString(" "), haystack)) return true
+        }
+        return false
     }
 
     // ---- Local catalogue -----------------------------------------------------------------------
@@ -512,11 +680,11 @@ class AiBoardMatcher(
                     return@mapNotNull null
                 }
                 val epg = formatEpg(programmes, fixture)
-                val epgMatch = programmes.any { epgTextMatches(it, signal) }
+                val exactEpg = programmes.firstOrNull { epgTextMatches(it, signal) }
                 val sessionMatch = signal.ref.fixture.format == FixtureFormat.EVENT &&
                     programmes.any { sessionsCompatible(signal.session, it) }
                 val allFlags = LinkedHashSet(flags)
-                if (epgMatch) allFlags += FlagEpg
+                if (exactEpg != null) allFlags += FlagEpg
                 if (sessionMatch) allFlags += FlagSession
                 BoardCandidate(
                     row = row.row,
@@ -524,6 +692,14 @@ class AiBoardMatcher(
                     group = groupOf(row.row),
                     epg = epg,
                     flags = allFlags,
+                    epgEvidence = exactEpg?.let {
+                        BoardEpgEvidence(
+                            epgChannelId = row.epgKey.orEmpty(),
+                            title = it.title,
+                            startMs = it.startMs,
+                            stopMs = it.stopMs,
+                        )
+                    },
                 )
             }.sortedWith(
                 compareByDescending<BoardCandidate> { priority(it) }.thenBy { it.row.id },
@@ -575,6 +751,101 @@ class AiBoardMatcher(
             value.sortedWith(compareByDescending<BoardCandidate> { priority(it) }.thenBy { it.row.id })
                 .take(AiBoardPolicy.MaxCandidatesPerFixture)
         }
+    }
+
+    /**
+     * Search results add rows that phase 1 and the local EPG missed. The extractor only returns
+     * names it quoted from a result; this method then matches those names against the full
+     * catalogue. A search lead stays a lead until phase 2 confirms it.
+     */
+    private fun mergeSearchHints(
+        refs: List<BoardFixtureRef>,
+        rows: List<IndexedChannel>,
+        local: Map<String, List<BoardCandidate>>,
+        hints: List<SearchChannelHint>,
+    ): Map<String, List<BoardCandidate>> {
+        val ref = refs.singleOrNull() ?: return local
+        if (hints.isEmpty()) return local
+        val out = local.mapValuesTo(LinkedHashMap()) { (_, value) -> value.toMutableList() }
+        val phrases = hints.flatMap { listOf(it.name) + it.aliases }
+            .map { it.trim() }
+            .filter { it.length >= MinTokenLength }
+            .distinct()
+        if (phrases.isEmpty()) return local
+        for (row in rows) {
+            if (!phrases.any { matchesText(it, row) }) continue
+            val list = out.getOrPut(ref.id) { ArrayList() }
+            val existing = list.indexOfFirst { it.row.id == row.row.id }
+            if (existing >= 0) {
+                list[existing] = list[existing].copy(flags = list[existing].flags + FlagSearch)
+            } else {
+                list += BoardCandidate(
+                    row = row.row,
+                    territory = row.territory,
+                    group = null,
+                    epg = null,
+                    flags = setOf(FlagSearch),
+                )
+            }
+        }
+        return out.mapValues { (_, value) ->
+            value.sortedWith(compareByDescending<BoardCandidate> { priority(it) }.thenBy { it.row.id })
+                .take(AiBoardPolicy.MaxCandidatesPerFixture)
+        }
+    }
+
+    /** One search per opened fixture, with a short fallback only when the first query is empty. */
+    private suspend fun searchFor(ref: BoardFixtureRef, apiKey: String): List<DeepSeekSearchHit> {
+        val run = search ?: return emptyList()
+        val query = SportsSearchQueryBuilder.build(ref.fixture)
+        for (text in query.all()) {
+            val cached = synchronized(cacheLock) {
+                searchCache[text]?.takeIf { clock() - it.atMs < SearchCacheTtlMs }
+            }
+            if (cached != null && cached.hits.isNotEmpty()) return cached.hits
+            val hits = try {
+                run(text, apiKey)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                emptyList()
+            }
+            if (hits.isNotEmpty()) {
+                synchronized(cacheLock) { searchCache[text] = CachedSearch(clock(), hits) }
+                return hits
+            }
+        }
+        return emptyList()
+    }
+
+    private suspend fun extractSearchHints(
+        ref: BoardFixtureRef,
+        hits: List<DeepSeekSearchHit>,
+        apiKey: String,
+    ): List<SearchChannelHint> {
+        val key = hash(
+            ref.id + "\n" + hits.joinToString("\n") { it.title + "|" + it.url + "|" + it.haystack } +
+                "\n" + SearchPromptVersion,
+        )
+        synchronized(cacheLock) {
+            hintsCache[key]?.takeIf { clock() - it.atMs < AiBoardPolicy.CacheTtlMs }?.let {
+                return it.hints
+            }
+        }
+        val parsed = try {
+            val content = ask(
+                SportsSearchExtractorPrompt.System,
+                SportsSearchExtractorPrompt.user(ref.fixture, hits),
+                apiKey,
+            )
+            SportsSearchExtractorParser.parse(content, hits)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        } ?: return emptyList()
+        synchronized(cacheLock) { hintsCache[key] = CachedHints(clock(), parsed) }
+        return parsed
     }
 
     private fun signalsFor(
@@ -779,6 +1050,7 @@ class AiBoardMatcher(
     private fun priority(candidate: BoardCandidate): Int {
         var score = ChannelDedup.resolutionRank(candidate.row.name)
         if (FlagEpg in candidate.flags) score += 100
+        if (FlagSearch in candidate.flags) score += 80
         if (FlagPhase1 in candidate.flags) score += 60
         if (FlagParticipant in candidate.flags) score += 50
         if (FlagGuide in candidate.flags) score += 40
@@ -840,6 +1112,8 @@ class AiBoardMatcher(
         rows: List<IndexedChannel>,
         guide: Collection<BoardGuideEvidence>,
         market: String?,
+        searchHits: List<DeepSeekSearchHit>,
+        searchHints: List<SearchChannelHint>,
     ): String {
         val playlist = hash(
             rows.asSequence()
@@ -853,9 +1127,15 @@ class AiBoardMatcher(
                     evidence.rows.joinToString(";") { it.toString() }
             },
         )
+        val searchHash = hash(
+            searchHits.joinToString("\n") { it.title + "|" + it.url + "|" + it.haystack } +
+                "\n" + searchHints.joinToString("\n") {
+                    it.name + "|" + it.country + "|" + it.sourceIndex + "|" + it.excerpt
+                },
+        )
         return hash(
             discoveryKey + "\n" + playlist + "\n" + guideHash + "\n" + market.orEmpty() +
-                "\n" + AiBoardPolicy.AdjudicationPromptVersion,
+                "\n" + searchHash + "\n" + AiBoardPolicy.AdjudicationPromptVersion,
         )
     }
 
@@ -882,10 +1162,15 @@ class AiBoardMatcher(
         const val MaxEpgDescriptionChars = 80
         const val MinProbeLength = 4
         const val MinTokenLength = 3
+        const val MaxChannelPhraseWords = 3
         const val EpgBeforeMs = 2L * 60L * 60L * 1000L
         const val EpgAfterMs = 4L * 60L * 60L * 1000L
         const val MaxDiscoveryCache = 8
         const val MaxBoardCache = 4
+        const val MaxSearchCache = 16
+        const val MaxHintsCache = 8
+        const val SearchCacheTtlMs = 30L * 60L * 1000L
+        const val SearchPromptVersion = "search-extractor-v1"
         const val RequestIdPrefix = "C"
         const val Space = " "
         val TimeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT)
@@ -897,6 +1182,7 @@ class AiBoardMatcher(
         const val FlagParticipant = "PARTICIPANT_NAME_MATCH"
         const val FlagEvent = "EVENT_NAME_MATCH"
         const val FlagBroadcaster = "BROADCASTER_NAME_MATCH"
+        const val FlagSearch = "SEARCH_BROADCASTER_MATCH"
         const val FlagPhase1 = "PHASE1_BROADCASTER_MATCH"
         const val FlagEpg = "EPG_EVENT_TITLE_MATCH"
         const val FlagSession = "EVENT_SESSION_MATCH"

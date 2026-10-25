@@ -53,6 +53,15 @@ class DeepSeekClient(
             .build()
     }
 
+    /** Search/Fetch are separate endpoints with their own small timeouts. */
+    private val searchHttp by lazy {
+        baseClient.newBuilder()
+            .connectTimeout(ConnectTimeoutSeconds, TimeUnit.SECONDS)
+            .readTimeout(SearchReadTimeoutSeconds, TimeUnit.SECONDS)
+            .callTimeout(SearchCallTimeoutSeconds, TimeUnit.SECONDS)
+            .build()
+    }
+
     private val promptTemplate: String by lazy {
         appContext.resources.openRawResource(R.raw.sports_ai_prompt).bufferedReader().use { it.readText() }
     }
@@ -116,6 +125,117 @@ class DeepSeekClient(
         val key = extractKey(apiKey)
         if (key.isEmpty()) throw AiRequestException(AiFailure.NO_KEY)
         return ask(system, user, key, playlistHttp, BoardMaxTokens)
+    }
+
+    /**
+     * DeepSeek Search. This is not part of Chat Completions: the fixture query goes out alone, no
+     * playlist data is sent, and the returned text stays local as evidence. An empty result list is
+     * valid; network/API failures use the same typed mapping as chat.
+     */
+    suspend fun search(
+        query: String,
+        apiKey: String,
+        count: Int = SearchResultCount,
+        needContent: Boolean = true,
+    ): List<DeepSeekSearchHit> {
+        val key = extractKey(apiKey)
+        if (key.isEmpty()) throw AiRequestException(AiFailure.NO_KEY)
+        val cleanQuery = query.trim()
+        if (cleanQuery.isEmpty() || cleanQuery.length > SportsSearchQueryBuilder.MaxQueryChars) {
+            throw AiRequestException(AiFailure.UNKNOWN)
+        }
+        val body = JSONObject()
+            .put(SearchQueryKey, cleanQuery)
+            .put(SearchCountKey, count.coerceIn(1, SearchMaxCount))
+            .put(SearchNeedContentKey, needContent)
+            .toString()
+        val response = postJson(SearchEndpoint, body, key, searchHttp)
+        return parseSearchResults(response)
+    }
+
+    /** Fetch is optional page-content fallback; Search with `need_content` is the normal path. */
+    suspend fun fetch(url: String, apiKey: String): String? {
+        val key = extractKey(apiKey)
+        if (key.isEmpty()) throw AiRequestException(AiFailure.NO_KEY)
+        if (url.isBlank()) return null
+        val body = JSONObject().put(FetchUrlKey, url).toString()
+        val response = postJson(FetchEndpoint, body, key, searchHttp)
+        return runCatching {
+            val root = JSONObject(response)
+            val content = root.opt(FetchContentKey)
+            when (content) {
+                is String -> content.takeIf { it.isNotBlank() }
+                is JSONObject -> content.optString(FetchTextKey).takeIf { it.isNotBlank() }
+                else -> null
+            }
+        }.getOrNull()
+    }
+
+    private suspend fun postJson(
+        endpoint: String,
+        body: String,
+        key: String,
+        client: OkHttpClient,
+    ): String = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url(endpoint)
+            .header(AuthorizationHeader, AuthPrefix + key)
+            .header(ContentTypeHeader, JsonMediaType)
+            .header(AcceptHeader, JsonMediaType)
+            .post(body.toRequestBody(JsonMediaType.toMediaType()))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                val responseText = response.body.string()
+                if (!response.isSuccessful) throw AiRequestException(failureFor(response.code))
+                responseText
+            }
+        } catch (e: AiRequestException) {
+            throw e
+        } catch (e: IOException) {
+            throw AiRequestException(AiFailure.NETWORK, e)
+        }
+    }
+
+    private fun parseSearchResults(response: String): List<DeepSeekSearchHit> = runCatching {
+        val root = JSONObject(response)
+        val array = root.optJSONArray(SearchResultsKey)
+            ?: root.optJSONArray(SearchDataKey)
+            ?: root.optJSONArray(SearchWebKey)
+            ?: return emptyList()
+        buildList {
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                val url = item.stringValue(SearchUrlKey)
+                val title = item.stringValue(SearchTitleKey)
+                if (url.isBlank() && title.isBlank()) continue
+                add(
+                    DeepSeekSearchHit(
+                        title = title,
+                        url = url,
+                        siteName = item.stringValue(SearchSiteKey),
+                        date = item.stringValue(SearchDateKey),
+                        snippet = item.stringValue(SearchSnippetKey),
+                        summary = item.stringValue(SearchSummaryKey),
+                        content = item.stringValue(SearchContentKey),
+                        authority = item.optDouble(SearchAuthorityKey, Double.NaN)
+                            .takeUnless { it.isNaN() },
+                        rerankScore = item.optDouble(SearchRerankKey, Double.NaN)
+                            .takeUnless { it.isNaN() },
+                    ),
+                )
+            }
+        }
+    }.getOrDefault(emptyList())
+
+    private fun JSONObject.stringValue(key: String): String {
+        val value = opt(key) ?: return ""
+        return when (value) {
+            is String -> value
+            is JSONObject -> value.optString(SearchTextKey).ifBlank { value.toString() }
+            is JSONArray -> value.toString()
+            else -> value.toString()
+        }.trim()
     }
 
     /**
@@ -241,6 +361,8 @@ class DeepSeekClient(
 
     private companion object {
         const val Endpoint = "https://api.deepseek.com/chat/completions"
+        const val SearchEndpoint = "https://api.deepseek.com/v1/tools/search"
+        const val FetchEndpoint = "https://api.deepseek.com/v1/tools/fetch"
         /** Current documented model (2026-10): deepseek-flash, 1M-token context. */
         const val Model = AiPlaylistPolicy.Model
         const val JsonMediaType = "application/json; charset=utf-8"
@@ -275,6 +397,29 @@ class DeepSeekClient(
         const val CallTimeoutSeconds = 75L
         const val PlaylistReadTimeoutSeconds = 120L
         const val PlaylistCallTimeoutSeconds = 180L
+        const val SearchReadTimeoutSeconds = 30L
+        const val SearchCallTimeoutSeconds = 45L
+        const val SearchResultCount = 5
+        const val SearchMaxCount = 10
+        const val SearchQueryKey = "query"
+        const val SearchCountKey = "count"
+        const val SearchNeedContentKey = "need_content"
+        const val SearchResultsKey = "results"
+        const val SearchDataKey = "data"
+        const val SearchWebKey = "web"
+        const val SearchUrlKey = "url"
+        const val SearchTitleKey = "title"
+        const val SearchSiteKey = "site_name"
+        const val SearchDateKey = "date"
+        const val SearchSnippetKey = "snippet"
+        const val SearchSummaryKey = "summary"
+        const val SearchContentKey = "content"
+        const val SearchAuthorityKey = "authority"
+        const val SearchRerankKey = "rerank_score"
+        const val SearchTextKey = "text"
+        const val FetchUrlKey = "url"
+        const val FetchContentKey = "content"
+        const val FetchTextKey = "text"
     }
 }
 

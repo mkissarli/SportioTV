@@ -122,6 +122,21 @@ data class LeagueTable(
     val rows: List<StandingRow>,
 )
 
+/** What the available evidence says about a channel carrying the fixture. */
+enum class ChannelEvidenceTier {
+    SUPPORTED,
+    LIKELY,
+    POSSIBLE,
+    CONFLICTING,
+}
+
+/** The independent source behind a [ChannelMatch]'s evidence tier. */
+enum class ChannelEvidenceSource {
+    SEARCH,
+    EPG,
+    RIGHTS,
+}
+
 /** A user channel that (probably) carries [fixture], highest score first. */
 data class ChannelMatch(
     val channelId: Long,
@@ -148,6 +163,17 @@ data class ChannelMatch(
     val aiConfirmed: Boolean = false,
     /** The model's one-line rationale; diagnostics only, never the reason a row is playable. */
     val aiReason: String? = null,
+    /**
+     * Evidence tier of the DeepSeek column. Classic/guide rows leave this null. It describes the
+     * broadcast evidence only — never a promise that the row is playable in this region.
+     */
+    val evidenceTier: ChannelEvidenceTier? = null,
+    /** Search, EPG or rights knowledge behind [evidenceTier]. */
+    val evidenceSource: ChannelEvidenceSource? = null,
+    /** Short audit text: search result title or EPG programme title. Never a stream URL. */
+    val evidenceDetail: String? = null,
+    /** Source URL retained for audit; not shown as playback UI and never sent to the player. */
+    val evidenceUrl: String? = null,
     /**
      * The playlist source this row belongs to. Part of the dedup identity: quality variants of one
      * provider's feed collapse, unrelated providers' feeds never merge just because they share a

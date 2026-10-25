@@ -30,7 +30,15 @@
     <string name="sport_standings">Tabelle</string>
     <string name="sport_channels">Kanäle</string>
     <string name="sport_channels_classic">Klassisch</string>
-    <string name="sport_channels_classic_ai">Klassisch + KI</string>
+    <string name="sport_channels_classic_ai">DeepSeek Match</string>
+    <string name="sport_evidence_supported">Bestätigt</string>
+    <string name="sport_evidence_likely">Wahrscheinlich</string>
+    <string name="sport_evidence_possible">Möglich</string>
+    <string name="sport_evidence_conflicting">Quellen widersprüchlich</string>
+    <string name="sport_evidence_search">Suche</string>
+    <string name="sport_evidence_epg">EPG</string>
+    <string name="sport_evidence_rights">Rechtewissen</string>
+    <string name="sport_deepseek_checking">Live-TV-Listings werden geprüft…</string>
     <string name="sport_play">Abspielen</string>
     <string name="sport_no_channel">Kein passender Kanal in deinen Playlists</string>
     <string name="sport_follow">Folgen</string>
@@ -149,7 +157,7 @@
     <string name="live_language_all">Alle Sprachen</string>
     <string name="live_language_other">Sonstige</string>
     <string name="live_language_filtered">%1$d von %2$d</string>
-    <string name="sport_ai_tab">KI</string>
+    <string name="sport_ai_tab">KI-Vorschlag</string>
     <string name="sport_ai_button">KI-Empfehlung</string>
     <string name="sport_ai_country_title">Länder</string>
     <string name="sport_ai_country_subtitle">Wähle die Länder, deren Sender die KI suchen soll.</string>

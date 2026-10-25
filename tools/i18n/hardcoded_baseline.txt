@@ -22,8 +22,6 @@
 1	app/src/main/java/tv/own/owntv/features/settings/DnsSettingsScreen.kt	${cfg.host}$p
 1	app/src/main/java/tv/own/owntv/features/settings/DnsSettingsScreen.kt	:${cfg.port}
 2	app/src/main/java/tv/own/owntv/features/settings/DnsSettingsScreen.kt	https://
-6	app/src/main/java/tv/own/owntv/features/settings/OpenSubtitlesAccountScreen.kt	\0
-1	app/src/main/java/tv/own/owntv/features/settings/OpenSubtitlesViewModel.kt	OpenSubtitles
 1	app/src/main/java/tv/own/owntv/features/settings/OpenSubtitlesViewModel.kt	manual refresh failed: ${it.javaClass.simpleName}: ${it.message}
 1	app/src/main/java/tv/own/owntv/features/settings/OpenSubtitlesViewModel.kt	sign-in failed: ${e.javaClass.simpleName}: ${e.message}
 1	app/src/main/java/tv/own/owntv/features/settings/SettingsViewModel.kt	UnknownHostException
@@ -35,7 +33,6 @@
 1	app/src/main/java/tv/own/owntv/features/settings/VideoPlayerSettingsScreen.kt	#BDBDBD
 1	app/src/main/java/tv/own/owntv/features/settings/VideoPlayerSettingsScreen.kt	#FFEB3B
 2	app/src/main/java/tv/own/owntv/features/settings/VideoPlayerSettingsScreen.kt	#FFFFFF
-1	app/src/main/java/tv/own/owntv/features/shell/components/MediaDetailsScreen.kt	\0
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	&showdateend=
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	<td class="channel-details"
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	?showdatestart=
@@ -130,14 +127,12 @@
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	soccer
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	sport
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	sports
-1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	tennis
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	tsn
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	ufc
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	wwe
 1	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	youth
 1	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	live_excluded_languages
 1	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	live_show_other
-2	app/src/main/java/tv/own/owntv/features/sport/SportsPriors.kt	\0
 1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	$versus
 1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	${home.abbreviation} $versus ${away.abbreviation}
 1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	,
@@ -155,14 +150,8 @@
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	soccer
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	tennis
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	volleyball
-1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	SportsHub
 1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	__sport_all__
-1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	inputChars=
-1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	invalid=
-1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	ms=
 1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	playlist ai candidates=
-1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	requests=
-1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	valid=
 1	app/src/main/java/tv/own/owntv/ui/components/ColorPicker.kt	#%06X
 1	app/src/main/java/tv/own/owntv/ui/components/TextInputDialog.kt	\0
 1	app/src/main/java/tv/own/owntv/ui/components/TvImeMetrics.kt	$trigger visible=${next.visible} source=${next.source} displayH=$displayHeight

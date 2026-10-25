@@ -252,9 +252,12 @@ object AiPlaylistBatching {
 object AiPlaylistPrompt {
 
     const val System =
-        "You identify the exact IPTV playlist channels that carry one specific sports event. " +
-            "You may use broadcast-rights knowledge, the event context and channel metadata, but you " +
-            "must never invent a channel or an id. Reply with valid JSON only."
+        "You are a JSON-only sports channel adjudication API. Your entire answer is exactly one " +
+            "JSON object, starting with { and ending with }. Never write prose, markdown, code " +
+            "fences, headings, tables, questions or explanations. You identify the exact IPTV " +
+            "playlist channels that carry one specific sports event. You may use broadcast-rights " +
+            "knowledge, the event context and channel metadata, but you must never invent a channel " +
+            "or an id."
 
     fun user(
         fixture: Fixture,
@@ -266,6 +269,8 @@ object AiPlaylistPrompt {
         batchIndex: Int,
         batchCount: Int,
     ): String = buildString {
+        appendLine("Return ONLY the JSON object described at the end. No other text.")
+        appendLine()
         appendLine("EVENT")
         appendLine("Title: " + eventName(fixture))
         fixture.home?.let { appendLine("Home: " + it.name + " (" + it.abbreviation + ")") }
@@ -325,6 +330,8 @@ object AiPlaylistPrompt {
             """{"decision":"select","channels":[{"id":"C00012","confidence":0.91,"reason":"short reason"}]}""",
         )
         appendLine("""{"decision":"none","channels":[],"reason":"insufficient evidence"}""")
+        appendLine()
+        appendLine("Return the JSON object now. First character {, last }.")
     }
 
     /** A readable event name; team names are proper nouns and are never translated. */

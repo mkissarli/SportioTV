@@ -14,6 +14,19 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.19
+
+### ✨ New features
+- **DeepSeek Match channel column with live web search**
+- **Search can add channels the local guide missed**
+- **Evidence tiers: Supported, Likely, Possible and Conflicting**
+- **Lazy DeepSeek matching for the opened fixture**
+
+### 🐛 Fixes
+- **Classic keeps its original guide and prior evidence**
+- **Classic channel order is UK/NOW → US → FR → 4K/8K**
+- **Rights knowledge alone can no longer be marked Supported**
+
 ## v0.2.18
 
 ### ✨ New features

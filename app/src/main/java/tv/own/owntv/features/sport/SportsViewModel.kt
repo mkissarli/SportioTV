@@ -4,8 +4,6 @@ package tv.own.owntv.features.sport
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import java.time.LocalDate
-import java.time.ZoneId
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
@@ -424,9 +422,9 @@ class SportsViewModel(
                 clearAiCache()
             }
         }
-        // Board-level AI matching: once the visible day's fixtures are loaded, run the two-phase
-        // pipeline in the background. A debounce absorbs the per-league board fan-out; the matcher
-        // itself caches discovery and adjudication, so focus changes and screen returns cost nothing.
+        // DeepSeek matching is lazy: one search + one confirmation for the fixture the user opened
+        // on the DeepSeek tab. The board itself is never sent through the paid phase-2 path, and the
+        // matcher caches discovery, search and confirmation for that fixture.
         viewModelScope.launch {
             val flags = combine(
                 combine(aiEnabled, aiSportsMatching, deepSeekApiKey) { enabled, matching, key ->
@@ -439,10 +437,14 @@ class SportsViewModel(
             ) { a, b, generation ->
                 BoardAiInput(a.first, a.second, b.first, b.second, b.third, generation)
             }
-            combine(boards, flags) { current, input -> current to input }
+            combine(_selectedFixture, _classicAiSelected, flags) { fixture, deepSeek, input ->
+                Triple(fixture, deepSeek, input)
+            }
                 .debounce(BoardAiDebounceMs)
                 .distinctUntilChanged()
-                .collectLatest { (current, input) -> runBoardAi(current, input) }
+                .collectLatest { (fixture, deepSeek, input) ->
+                    if (fixture != null && deepSeek) runFixtureAi(fixture, input)
+                }
         }
     }
 
@@ -658,7 +660,7 @@ class SportsViewModel(
         _aiListSelected.value = selected && aiEnabled.value
     }
 
-    /** Toggle the classic column between the original matcher and its guide/AI-enriched variant. */
+    /** Switch between the Classic matcher and the lazy DeepSeek Match column. */
     fun setClassicAiSelected(selected: Boolean) {
         val next = selected && aiEnabled.value
         if (_classicAiSelected.value == next) return
@@ -855,27 +857,26 @@ class SportsViewModel(
             limit = channelLimit.value,
             strict = languageFilterStrict.value,
             preferCountry = market,
+            // Classic keeps the original guide/EPG evidence. DeepSeek is only the accepted,
+            // evidence-tiered AI rows and never merges Classic output into its column.
             confirmedBroadcasters = if (includeAi) {
-                fixture?.let { guideApi.confirmedBroadcasters(it) }.orEmpty()
-            } else {
                 emptyList()
+            } else {
+                fixture?.let { guideApi.confirmedBroadcasters(it) }.orEmpty()
             },
             priorCarriers = if (includeAi) {
-                fixture?.let { priors.carriersFor(it, market) }.orEmpty()
-            } else {
                 emptyList()
+            } else {
+                fixture?.let { priors.carriersFor(it, market) }.orEmpty()
             },
             aiChannels = if (includeAi) {
-                buildList {
-                    fixture?.let { f ->
-                        addAll(aiBoardByFixture[f.id].orEmpty())
-                        addAll(aiPlaylistByFixture[f.id]?.picks.orEmpty())
-                    }
-                }
+                fixture?.let { aiBoardByFixture[it.id].orEmpty() }.orEmpty()
             } else {
                 emptyList()
             },
-            classicPrefixOrder = true,
+            aiOnly = includeAi,
+            // Classic keeps its UK/US/FR/4K bands; DeepSeek sorts by evidence tier first.
+            classicPrefixOrder = !includeAi,
         )
     }
 
@@ -996,57 +997,34 @@ class SportsViewModel(
     fun stopRemoteListener() = companion.stop()
 
     /**
-     * The day's fixtures across every loaded board. Day boundaries use the device timezone — the
-     * same clock the hub's date bands use — and live games are kept even when they started before
-     * midnight. The cap protects the request, not the visible hub list.
+     * One opened fixture on the DeepSeek tab. The key/switch gate is the last door before a paid
+     * call; search, extractor and confirmation are cached inside the matcher.
      */
-    private fun todayFixtures(boards: Map<String, BoardState>): List<Fixture> {
-        val zone = ZoneId.systemDefault()
-        val day = LocalDate.now(zone)
-        val start = day.atStartOfDay(zone).toInstant().toEpochMilli()
-        val end = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        return boards.values.filterIsInstance<BoardState.Content>()
-            .flatMap { it.board.fixtures }
-            .filter { fixture ->
-                (fixture.dateMs in start until end) ||
-                    (fixture.state == FixtureState.LIVE && fixture.dateMs < end)
-            }
-            .distinctBy { it.leagueId + FixtureKeySeparator + it.id }
-            .sortedWith(compareBy({ it.dateMs }, { it.id }))
-    }
-
-    /**
-     * The background board run. The key is the last gate: with AI off, matching off or no key, no
-     * request leaves the device and the deterministic matcher stays exactly as it was.
-     */
-    private suspend fun runBoardAi(boards: Map<String, BoardState>, input: BoardAiInput) {
+    private suspend fun runFixtureAi(fixture: Fixture, input: BoardAiInput) {
         val token = ++aiBoardToken
         if (!input.enabled || input.apiKey.isBlank()) {
-            val hadHits = aiBoardByFixture.isNotEmpty()
-            aiBoardByFixture.clear()
-            _aiBoardHits.value = emptyMap()
-            if (hadHits) reResolveSelected()
+            val had = aiBoardByFixture.remove(fixture.id) != null
+            if (had) {
+                val next = _aiBoardHits.value.toMutableMap()
+                next.remove(fixture.id)
+                _aiBoardHits.value = next
+                if (_selectedFixture.value?.id == fixture.id) reResolveSelected()
+            }
             return
         }
-        // The per-league fan-out adds and fills boards over a few seconds. Wait for it, so a partial
-        // board neither pays for a discovery request nor renders half the day.
-        if (boards.values.any { it is BoardState.Loading }) return
-        val fixtures = todayFixtures(boards)
-        if (fixtures.isEmpty()) {
-            aiBoardByFixture.clear()
-            _aiBoardHits.value = emptyMap()
-            return
+        if (_selectedFixture.value?.id == fixture.id && _classicAiSelected.value) {
+            _matches.value = MatchesState.Loading
         }
         val result = try {
             aiBoardMatcher.match(
-                fixtures = fixtures,
+                fixtures = listOf(fixture),
                 countries = (input.countries + listOfNotNull(input.market)).distinct(),
                 market = input.market,
                 apiKey = input.apiKey,
-                guide = { fixture ->
+                guide = { requested ->
                     BoardGuideEvidence(
-                        carriers = guideApi.confirmedBroadcasters(fixture),
-                        rows = guideApi.evidenceFor(fixture),
+                        carriers = guideApi.confirmedBroadcasters(requested),
+                        rows = guideApi.evidenceFor(requested),
                     )
                 },
             )
@@ -1054,26 +1032,34 @@ class SportsViewModel(
             throw e
         } catch (e: Exception) {
             null
-        } ?: return
+        } ?: run {
+            if (_selectedFixture.value?.id == fixture.id) reResolveSelected()
+            return
+        }
         if (token != aiBoardToken) return
         // A transient failure is not proof the previous accepted rows vanished; keep them until a
-        // valid run replaces them. A valid `none` (validResponses > 0) still clears the board.
+        // valid run replaces them. A valid `none` (validResponses > 0) still clears this fixture.
         val keepPrevious = result.validResponses == 0 &&
             result.failure != null &&
             result.hits.isEmpty() &&
-            aiBoardByFixture.isNotEmpty()
+            aiBoardByFixture[fixture.id].orEmpty().isNotEmpty()
         if (!keepPrevious) {
-            aiBoardByFixture.clear()
+            aiBoardByFixture.remove(fixture.id)
             aiBoardByFixture.putAll(result.hits)
-            _aiBoardHits.value = result.hits.mapValues { it.value.size }
+            val next = _aiBoardHits.value.toMutableMap()
+            next.remove(fixture.id)
+            result.hits.forEach { (id, matches) -> next[id] = matches.size }
+            _aiBoardHits.value = next
         }
         // Diagnostics only: counts, timing and validity — never channel names or ids.
         runCatching {
             android.util.Log.d(
                 "SportsHub",
-                "board ai fixtures=" + result.fixtureCount +
+                "fixture ai id=" + fixture.id +
                     " suggestions=" + result.discoverySuggestions +
                     " candidates=" + result.candidateCount +
+                    " searchHits=" + result.searchHits +
+                    " searchCandidates=" + result.searchCandidates +
                     " requests=" + result.adjudicationRequests +
                     " valid=" + result.validResponses +
                     " invalid=" + result.invalidResponses +
@@ -1082,7 +1068,7 @@ class SportsViewModel(
                     " failure=" + result.failure,
             )
         }
-        if (_selectedFixture.value != null) reResolveSelected()
+        if (_selectedFixture.value?.id == fixture.id) reResolveSelected()
     }
 
     private suspend fun loadBoard(league: SportLeague, force: Boolean) {
@@ -1146,8 +1132,7 @@ class SportsViewModel(
         /** Separator inside [SportsPrefs.teamKey] ("<leagueId>|<abbrev>"). */
         private const val TeamKeySep = '|'
 
-        /** Board AI: fixture identity separator and re-run debounce. */
-        private const val FixtureKeySeparator = "#"
+        /** DeepSeek matching re-run debounce. */
         private const val BoardAiDebounceMs = 1_000L
 
         /** AI cache key separators (fixture id + country codes); technical, never displayed. */

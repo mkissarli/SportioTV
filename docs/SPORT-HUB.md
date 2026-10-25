@@ -48,23 +48,25 @@
   (`ShellViewModel` initial `MainSection.SPORT`), sofern die Sektion sichtbar ist; die
   Startup-Modi Last Channel/Favorites/Specific Channel behalten Vorrang.
 - **Drei Kanalspalten (2026-10-25):** **Classic** ist der ursprüngliche Guide-/EPG-Matcher
-  ohne Guide-Carrier, Priors oder KI-Evidenz; **Classic + AI** ist die bisherige gemergte
-  Liste; **AI** bleibt die separate DeepSeek-Empfehlung. Die KI-Spalten existieren nur bei
-  eingeschalteten KI-Funktionen.
-- **Classic-Reihenfolge:** UK/NOW → US → FR oder 4K/8K → alles andere, danach Evidenz und
+  mit Guide-Carriern und Priors; **DeepSeek Match** ist der evidenzgeprüfte, AI-only
+  Abgleich; **AI Suggest** bleibt die separate DeepSeek-Empfehlung. Die KI-Spalten
+  existieren nur bei eingeschalteten KI-Funktionen. DeepSeek-Zeilen werden nie in Classic
+  gemischt und Classic-Zeilen nie in DeepSeek.
+- **Classic-Reihenfolge:** UK/NOW → US → FR → 4K/8K → alles andere, danach Evidenz und
   Sprache. `ChannelDedup` fasst 4K/8K/UHD/FHD/HD/RAW-Varianten derselben Quelle zu einer
   Zeile zusammen (beste Auflösung gewinnt); 8K/4320p sind ergänzt.
-- **Automatischer Board-KI-Abgleich (2026-10-25):** ein Discovery-Request für den ganzen
-  Tag, parallele lokale Kandidatensuche über die komplette Playlist/EPG, dann wenige
-  gebündelte Adjudication-Requests. Schalter **KI-Senderabgleich für Sport** (Default an),
-  Treffer erscheinen asynchron als Zähler auf der Fixture-Karte und als zusätzliche Evidenz
-  in der Kanalliste. Details: `AI-SPORTS-MATCHING.md`.
+- **DeepSeek Match (2026-10-25):** lazy pro geöffnetem Fixture. Phase 1 nennt Broadcaster;
+  die lokale Suche nutzt die komplette Playlist/EPG; eine DeepSeek-Search-Anfrage plus
+  Extraktor kann neue Kanalnamen ergänzen; Phase 2 bestätigt mit `Supported`/`Likely`/
+  `Possible`/`Conflicting`. Die App prüft Such-Excerpt und EPG-Programm selbst;
+  Rechtewissen allein wird nie `Supported`. Schalter **KI-Senderabgleich für Sport**
+  (Default an). Details: `AI-SPORTS-MATCHING.md`.
 - KI-Empfehlung: DeepSeek nennt Sender je gewähltem Land, `AiChannelMatcher`
   prüft sie gegen die eigenen Live-Playlists. Der Kanäle-Bereich hat oben die Tabs
-  **Classic | AI**; im AI-Tab stehen die Treffer als normale vertikale Liste, nach
-  Land gruppiert und mit hartem Ländertag-Filter plus Qualitäts-/Dubletten-Ranking.
-  Ein Fixture+Länder-Cache verhindert bezahlte Wiederholungen. API-Key (direkt oder
-  per QR/Handy über `CompanionMode.AI_KEY`) und
+  **Classic | DeepSeek Match | AI Suggest**; im AI-Suggest-Tab stehen die Treffer als
+  normale vertikale Liste, nach Land gruppiert und mit hartem Ländertag-Filter plus
+  Qualitäts-/Dubletten-Ranking. Ein Fixture+Länder-Cache verhindert bezahlte
+  Wiederholungen. API-Key (direkt oder per QR/Handy über `CompanionMode.AI_KEY`) und
   Vorschlagszahl (Default 20) stehen im KI-Tab. Details: `SPORT-AI.md`.
 
 ## Matching-Modell (Lume-Modell, Beide-Teams-Pflicht)

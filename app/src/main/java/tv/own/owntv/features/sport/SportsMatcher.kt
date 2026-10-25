@@ -50,9 +50,15 @@ data class SportMatchOptions(
      */
     val aiChannels: List<ChannelMatch> = emptyList(),
     /**
-     * Classic-mode presentation order: UK/NOW first, then US, then FR or 4K/8K, then everything
-     * else. Only the Sports Hub's classic columns set this; the default keeps the existing
-     * evidence-first order.
+     * When true, the result is only the verified [aiChannels] rows. The guide and EPG/name matcher
+     * still exist for the separate Classic column, but their rows are not merged into this list.
+     * Classic + AI used to merge them; the DeepSeek column is AI-only.
+     */
+    val aiOnly: Boolean = false,
+    /**
+     * Classic-mode presentation order: UK/NOW first, then US, then FR, then 4K/8K, then
+     * everything else. Only the Sports Hub's classic column sets this; the default keeps the
+     * existing evidence-first order.
      */
     val classicPrefixOrder: Boolean = false,
 )
@@ -165,9 +171,6 @@ class SportsMatcher(
      */
     suspend fun match(fixture: Fixture, options: SportMatchOptions): List<ChannelMatch> =
         withContext(Dispatchers.IO) {
-            val guided = guideChannels(options.confirmedBroadcasters)
-            // Always independent: the guide is evidence, not a short-circuit.
-            val deterministic = resolveSorted(fixture)
             // Re-verify the AI ids against the current playlist rows: a source switch between the
             // request and this render must drop stale ids, never play an unknown channel.
             val aiRows = if (options.aiChannels.isEmpty()) {
@@ -176,6 +179,13 @@ class SportsMatcher(
                 val ids = scanRows(sources.liveSourceIds()).mapTo(HashSet<Long>()) { it.channel.id }
                 options.aiChannels.filter { it.channelId in ids }
             }
+            // The DeepSeek column is AI-only: no guide carriers and no EPG/name rows leak into it.
+            if (options.aiOnly) {
+                return@withContext applyFilter(aiRows, options, demotePpv = fixture.isTeamSport())
+            }
+            val guided = guideChannels(options.confirmedBroadcasters)
+            // Always independent: the guide is evidence, not a short-circuit.
+            val deterministic = resolveSorted(fixture)
             val merged = mergeEvidence(guided, deterministic, aiRows)
             applyFilter(merged, options, demotePpv = fixture.isTeamSport())
         }
@@ -201,6 +211,10 @@ class SportsMatcher(
                         epgConfirmed = previous.epgConfirmed || match.epgConfirmed,
                         aiConfirmed = previous.aiConfirmed || match.aiConfirmed,
                         aiReason = previous.aiReason ?: match.aiReason,
+                        evidenceTier = previous.evidenceTier ?: match.evidenceTier,
+                        evidenceSource = previous.evidenceSource ?: match.evidenceSource,
+                        evidenceDetail = previous.evidenceDetail ?: match.evidenceDetail,
+                        evidenceUrl = previous.evidenceUrl ?: match.evidenceUrl,
                         sourceId = previous.sourceId ?: match.sourceId,
                     )
                 }
@@ -327,8 +341,14 @@ class SportsMatcher(
                     m.aiConfirmed -> AiEvidenceTier
                     else -> DeterministicEvidenceTier
                 }
+                val deepSeekBonus = when (m.evidenceTier) {
+                    ChannelEvidenceTier.SUPPORTED -> EvidenceSupportedBonus
+                    ChannelEvidenceTier.LIKELY -> EvidenceLikelyBonus
+                    ChannelEvidenceTier.CONFLICTING -> EvidenceConflictingPenalty
+                    else -> 0
+                }
                 val sortScore = (if (options.classicPrefixOrder) classicPrefixTier(m.channelName) else 0) +
-                    evidenceTier + m.score + countryBonus + priorBonus -
+                    evidenceTier + deepSeekBonus + m.score + countryBonus + priorBonus -
                     if (demotePpv && isPpvChannel(m.channelName)) PpvPenalty else 0
                 m to sortScore
             }.sortedByDescending { it.second },
@@ -356,14 +376,16 @@ class SportsMatcher(
     }
 
     /**
-     * Classic column order: UK/NOW → US → FR or 4K/8K → everything else. The band is deliberately
-     * large so a prefix wins over evidence class, while evidence still orders rows inside a band.
+     * Classic column order: UK/NOW → US → FR → 4K/8K → everything else. 4K/8K is a resolution
+     * first (variants collapse), but in the channel name it also acts as an ordering prefix like
+     * UK/NOW. The band is deliberately large so a prefix wins over evidence class, while evidence
+     * still orders rows inside a band.
      */
     private fun classicPrefixTier(channelName: String): Int = when {
         SportLanguages.isFromCountry(channelName, UkCountryCode) -> ClassicUkTier
         SportLanguages.isFromCountry(channelName, UsCountryCode) -> ClassicUsTier
-        SportLanguages.isFromCountry(channelName, FranceCountryCode) ||
-            ChannelDedup.resolutionRank(channelName) >= UltraHdRank -> ClassicFrOr4kTier
+        SportLanguages.isFromCountry(channelName, FranceCountryCode) -> ClassicFrTier
+        ChannelDedup.resolutionRank(channelName) >= UltraHdRank -> Classic4kTier
         else -> ClassicOtherTier
     }
 
@@ -1073,6 +1095,9 @@ class SportsMatcher(
         private const val GuideEvidenceTier = 3_000_000
         private const val DeterministicEvidenceTier = 2_000_000
         private const val AiEvidenceTier = 1_000_000
+        private const val EvidenceSupportedBonus = 40_000
+        private const val EvidenceLikelyBonus = 20_000
+        private const val EvidenceConflictingPenalty = -40_000
         /**
          * A PPV/event feed — the fixture's dedicated pay-per-view channel — is pushed to the very
          * bottom by policy (real channels that carry the fixture come first), even when it sits in
@@ -1151,7 +1176,8 @@ class SportsMatcher(
         /** Classic prefix bands, high to low: UK/NOW, US, FR or 4K/8K, everything else. */
         private const val ClassicUkTier = 40_000_000
         private const val ClassicUsTier = 30_000_000
-        private const val ClassicFrOr4kTier = 20_000_000
+        private const val ClassicFrTier = 20_000_000
+        private const val Classic4kTier = 15_000_000
         private const val ClassicOtherTier = 10_000_000
         /** `ChannelDedup.resolutionRank` for 4K/UHD/8K; FHD stays in the normal evidence order. */
         private const val UltraHdRank = 4

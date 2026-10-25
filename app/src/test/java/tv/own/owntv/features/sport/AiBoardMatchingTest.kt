@@ -305,10 +305,158 @@ class AiBoardMatchingTest {
         assertTrue(result.hits.isEmpty())
     }
 
+    // --- search-derived candidates and evidence validation ---------------------------------------
+
+    @Test
+    fun searchAddsAPlaylistRowThatPhase1AndEpgMissed() = runBlocking {
+        val store = FakeBoardStore(listOf(channel(1, "HR: SPORT KLUB 5 HD")))
+        var searchQueries = 0
+        var phase2Prompt = ""
+        val matcher = matcher(
+            store = store,
+            search = { _, _ ->
+                searchQueries++
+                listOf(
+                    DeepSeekSearchHit(
+                        title = "Sport Klub 5 live TV",
+                        url = "https://example.invalid/tennis",
+                        siteName = "example.invalid",
+                        date = "2026-10-24",
+                        snippet = "Sport Klub 5 carries the match",
+                        summary = "",
+                        content = "",
+                    ),
+                )
+            },
+        ) { _, user, _ ->
+            when {
+                user.contains("Extract broadcaster/channel names") ->
+                    """{"schemaVersion":1,"channels":[{"name":"Sport Klub 5","aliases":[],"country":"HR","sourceIndex":0,"excerpt":"Sport Klub 5"}]}"""
+                user.contains("BOARD BROADCAST DISCOVERY") ->
+                    """{"schemaVersion":1,"fixtures":[{"fixtureId":"tennis.atp#tennis","suggestions":[]}]}"""
+                user.contains("ADJUDICATION") -> {
+                    phase2Prompt = user
+                    val id = candidateIds(user).entries.firstOrNull { it.value.contains("SPORT KLUB 5") }?.key
+                    if (id == null) {
+                        none()
+                    } else {
+                        """
+                        {"schemaVersion":1,"fixtures":[{"fixtureId":"tennis.atp#tennis","channels":[
+                          {"candidateId":"$id","evidence":"supported","source":"search","sourceIndex":0,
+                           "excerpt":"Sport Klub 5 carries the match","confidence":0.95,"reason":"listing"}
+                        ]}]}
+                        """.trimIndent()
+                    }
+                }
+                else -> none()
+            }
+        }
+
+        val result = matcher.match(listOf(tennisFixture()), listOf("HR"), null, "test-key")
+
+        assertEquals(1, searchQueries)
+        assertTrue("the extracted name must reach phase 2", phase2Prompt.contains("SPORT KLUB 5"))
+        assertTrue(phase2Prompt.contains("LIVE SEARCH RESULTS"))
+        val hit = result.hits["tennis.atp#tennis"].orEmpty().single()
+        assertEquals("HR: SPORT KLUB 5 HD", hit.channelName)
+        assertEquals(ChannelEvidenceTier.SUPPORTED, hit.evidenceTier)
+        assertEquals(ChannelEvidenceSource.SEARCH, hit.evidenceSource)
+        assertEquals("https://example.invalid/tennis", hit.evidenceUrl)
+    }
+
+    @Test
+    fun aFabricatedSearchExcerptCannotStaySupported() = runBlocking {
+        val store = FakeBoardStore(listOf(channel(1, "HR: SPORT KLUB 5 HD")))
+        val matcher = matcher(
+            store = store,
+            search = { _, _ ->
+                listOf(
+                    DeepSeekSearchHit(
+                        title = "Sport Klub 5 live TV",
+                        url = "https://example.invalid/tennis",
+                        siteName = "example.invalid",
+                        date = "2026-10-24",
+                        snippet = "Sport Klub 5 carries the match",
+                        summary = "",
+                        content = "",
+                    ),
+                )
+            },
+        ) { _, user, _ ->
+            when {
+                user.contains("Extract broadcaster/channel names") ->
+                    """{"schemaVersion":1,"channels":[{"name":"Sport Klub 5","sourceIndex":0,"excerpt":"Sport Klub 5"}]}"""
+                user.contains("BOARD BROADCAST DISCOVERY") ->
+                    """{"schemaVersion":1,"fixtures":[{"fixtureId":"tennis.atp#tennis","suggestions":[]}]}"""
+                user.contains("ADJUDICATION") -> {
+                    val id = candidateIds(user).entries.firstOrNull { it.value.contains("SPORT KLUB 5") }?.key
+                    if (id == null) none() else evidenceSelection("tennis.atp#tennis", id, "supported", "search", "Invented quote")
+                }
+                else -> none()
+            }
+        }
+
+        val hit = matcher.match(listOf(tennisFixture()), listOf("HR"), null, "test-key")
+            .hits["tennis.atp#tennis"].orEmpty().single()
+
+        assertEquals(ChannelEvidenceTier.LIKELY, hit.evidenceTier)
+    }
+
+    @Test
+    fun rightsKnowledgeAloneCannotBeSupported() = runBlocking {
+        val store = FakeBoardStore(listOf(channel(1, "UK: TNT SPORTS 1 HD")))
+        val matcher = matcher(store) { _, user, _ ->
+            when {
+                user.contains("BOARD BROADCAST DISCOVERY") -> """
+                    {"schemaVersion":1,"fixtures":[{"fixtureId":"soccer.eng.1#fb","suggestions":[
+                      {"country":"GB","broadcaster":"TNT Sports","channelAliases":["TNT Sports 1"],"reason":"rights"}
+                    ]}]}
+                """.trimIndent()
+                user.contains("ADJUDICATION") -> {
+                    val id = candidateIds(user).entries.firstOrNull { it.value.contains("TNT SPORTS 1") }?.key
+                    if (id == null) none() else evidenceSelection("soccer.eng.1#fb", id, "supported", "rights", null)
+                }
+                else -> none()
+            }
+        }
+
+        val hit = matcher.match(listOf(footballFixture()), listOf("GB"), "GB", "test-key")
+            .hits["soccer.eng.1#fb"].orEmpty().single()
+
+        assertEquals(ChannelEvidenceTier.LIKELY, hit.evidenceTier)
+        assertEquals(ChannelEvidenceSource.RIGHTS, hit.evidenceSource)
+    }
+
+    @Test
+    fun anExactEpgProgrammeCanBeSupported() = runBlocking {
+        val store = FakeBoardStore(
+            channels = listOf(channel(1, "UK: TNT SPORTS 1 HD", epgKey = "tnt")),
+            programmes = listOf(programme("tnt", "Chelsea v Tottenham Hotspur")),
+        )
+        val matcher = matcher(store) { _, user, _ ->
+            when {
+                user.contains("BOARD BROADCAST DISCOVERY") ->
+                    """{"schemaVersion":1,"fixtures":[{"fixtureId":"soccer.eng.1#fb","suggestions":[]}]}"""
+                user.contains("ADJUDICATION") -> {
+                    val id = candidateIds(user).entries.firstOrNull { it.value.contains("TNT SPORTS 1") }?.key
+                    if (id == null) none() else evidenceSelection("soccer.eng.1#fb", id, "supported", "epg", null)
+                }
+                else -> none()
+            }
+        }
+
+        val hit = matcher.match(listOf(footballFixture()), listOf("GB"), "GB", "test-key")
+            .hits["soccer.eng.1#fb"].orEmpty().single()
+
+        assertEquals(ChannelEvidenceTier.SUPPORTED, hit.evidenceTier)
+        assertEquals(ChannelEvidenceSource.EPG, hit.evidenceSource)
+    }
+
     // --- helpers ----------------------------------------------------------------------------------
 
     private fun matcher(
         store: FakeBoardStore,
+        search: (suspend (String, String) -> List<DeepSeekSearchHit>)? = null,
         ask: suspend (String, String, String) -> String,
     ) = AiBoardMatcher(
         channelDao = store.channelDao,
@@ -319,8 +467,21 @@ class AiBoardMatchingTest {
         priors = SportsPriors.EMPTY,
         leagueLabel = { it },
         ask = ask,
+        search = search,
         clock = { Noon },
     )
+
+    private fun evidenceSelection(
+        fixtureId: String,
+        id: String,
+        evidence: String,
+        source: String,
+        excerpt: String?,
+    ): String {
+        val excerptJson = excerpt?.let { ",\"excerpt\":\"$it\"" }.orEmpty()
+        val indexJson = if (source == "search") ",\"sourceIndex\":0" else ""
+        return """{"schemaVersion":1,"fixtures":[{"fixtureId":"$fixtureId","channels":[{"candidateId":"$id","evidence":"$evidence","source":"$source"$indexJson$excerptJson,"confidence":0.95,"reason":"test"}]}]}"""
+    }
 
     private fun candidateIds(prompt: String): Map<String, String> =
         prompt.lineSequence()

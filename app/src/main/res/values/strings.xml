@@ -31,7 +31,15 @@
     <string name="sport_standings">Standings</string>
     <string name="sport_channels">Channels</string>
     <string name="sport_channels_classic">Classic</string>
-    <string name="sport_channels_classic_ai">Classic + AI</string>
+    <string name="sport_channels_classic_ai">DeepSeek Match</string>
+    <string name="sport_evidence_supported">Supported</string>
+    <string name="sport_evidence_likely">Likely</string>
+    <string name="sport_evidence_possible">Possible</string>
+    <string name="sport_evidence_conflicting">Conflicting sources</string>
+    <string name="sport_evidence_search">Search</string>
+    <string name="sport_evidence_epg">EPG</string>
+    <string name="sport_evidence_rights">Rights knowledge</string>
+    <string name="sport_deepseek_checking">Checking live TV listings…</string>
     <string name="sport_play">Play</string>
     <string name="sport_no_channel">No matching channel in your playlists</string>
     <string name="sport_follow">Follow</string>
@@ -150,7 +158,7 @@
     <string name="live_language_all">All languages</string>
     <string name="live_language_other">Other</string>
     <string name="live_language_filtered">%1$d of %2$d</string>
-    <string name="sport_ai_tab">AI</string>
+    <string name="sport_ai_tab">AI Suggest</string>
     <string name="sport_ai_button">AI recommendation</string>
     <string name="sport_ai_country_title">Countries</string>
     <string name="sport_ai_country_subtitle">Choose the countries whose broadcasters the AI should look up.</string>

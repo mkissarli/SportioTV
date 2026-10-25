@@ -14,6 +14,15 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.21
+
+### 🐛 Fixes
+- **Classic channel loading no longer waits for 48 sequential EPG scans**
+- **Classic uses the channel FTS table before scanning 60k rows**
+- **DeepSeek reuses its 60k channel index for two minutes**
+- **DeepSeek extracts search channel names locally instead of calling the model**
+- **Short AI requests use short timeouts instead of the full-playlist timeout**
+
 ## v0.2.20
 
 ### ✨ New features

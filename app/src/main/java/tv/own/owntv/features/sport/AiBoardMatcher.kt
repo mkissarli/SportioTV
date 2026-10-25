@@ -1,5 +1,6 @@
 package tv.own.owntv.features.sport
 
+import java.lang.ref.WeakReference
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.LocalDate
@@ -79,6 +80,17 @@ class AiBoardMatcher(
 
     private data class CachedHints(val atMs: Long, val hints: List<SearchChannelHint>)
 
+    private data class CachedIndex(
+        val atMs: Long,
+        val sourceIds: List<Long>,
+        val rows: List<IndexedChannel>,
+    )
+
+    private data class IndexedLoad(val rows: List<IndexedChannel>, val failed: Boolean)
+
+    /** Weak so a large 60k catalogue can be reclaimed under memory pressure. */
+    private var indexCache: WeakReference<CachedIndex>? = null
+
     private val searchCache = object : LinkedHashMap<String, CachedSearch>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedSearch>?): Boolean =
             size > MaxSearchCache
@@ -130,11 +142,11 @@ class AiBoardMatcher(
 
         val sourceIds = sources.liveSourceIds()
         if (sourceIds.isEmpty()) return@withContext emptyResult()
-        val loadedRows = runCatching { channelDao.allForSources(sourceIds, MaxCatalogueRows) }
-        val rows = loadedRows.getOrDefault(emptyList()).mapNotNull(::indexed)
+        val indexedLoad = loadIndex(sourceIds)
+        val rows = indexedLoad.rows
         if (rows.isEmpty()) {
             return@withContext emptyResult().copy(
-                failure = if (loadedRows.isFailure) AiFailure.UNKNOWN else null,
+                failure = if (indexedLoad.failed) AiFailure.UNKNOWN else null,
             )
         }
 
@@ -164,10 +176,14 @@ class AiBoardMatcher(
         val searchPending = if (refs.size == 1 && search != null) {
             async {
                 val hits = searchFor(refs.single(), apiKey)
-                val hints = if (hits.isNotEmpty()) {
-                    extractSearchHints(refs.single(), hits, apiKey)
-                } else {
+                val hints = if (hits.isEmpty()) {
                     emptyList()
+                } else {
+                    // The common path is local: match channel names directly in the result text.
+                    // The LLM extractor only runs when that finds nothing, so the extra round trip
+                    // is no longer on the normal critical path.
+                    extractSearchHintsDeterministic(refs.single(), rows, hits)
+                        .ifEmpty { extractSearchHints(refs.single(), hits, apiKey) }
                 }
                 hits to hints
             }
@@ -845,6 +861,60 @@ class AiBoardMatcher(
         return emptyList()
     }
 
+    /**
+     * Local extraction: a search result only contributes when it names both a fixture token and
+     * an actual playlist channel. This is the fast path and needs no model round trip.
+     */
+    private fun extractSearchHintsDeterministic(
+        ref: BoardFixtureRef,
+        rows: List<IndexedChannel>,
+        hits: List<DeepSeekSearchHit>,
+    ): List<SearchChannelHint> {
+        val fixtureTokens = fixtureTokens(ref.fixture)
+        if (fixtureTokens.isEmpty()) return emptyList()
+        val out = LinkedHashMap<Long, SearchChannelHint>()
+        for ((index, hit) in hits.withIndex()) {
+            val normalized = SportNameMatch.normalize(hit.haystack)
+            if (fixtureTokens.none { SportNameMatch.containsWord(it, normalized) }) continue
+            for (row in rows) {
+                if (row.generic) continue
+                if (!namesChannel(row.row.name, hit.haystack)) continue
+                val excerpt = ChannelDedup.identityOf(row.row.name)?.second?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: row.row.name
+                out.putIfAbsent(
+                    row.row.id,
+                    SearchChannelHint(
+                        name = row.row.name,
+                        aliases = emptyList(),
+                        country = row.territory.orEmpty(),
+                        sourceIndex = index,
+                        excerpt = excerpt,
+                    ),
+                )
+                if (out.size >= MaxDeterministicSearchHints) break
+            }
+            if (out.size >= MaxDeterministicSearchHints) break
+        }
+        return out.values.toList()
+    }
+
+    private fun fixtureTokens(fixture: Fixture): Set<String> {
+        val texts = LinkedHashSet<String>()
+        for (team in listOfNotNull(fixture.home, fixture.away)) {
+            texts += team.name
+            texts += team.abbreviation
+            texts += vocab.aliasesFor(listOf(team.name, team.abbreviation))
+        }
+        fixture.entries.take(2).forEach { texts += it.name }
+        fixture.title?.let(texts::add)
+        fixture.tournament?.let(texts::add)
+        texts += fixture.leagueId.replace('.', ' ')
+        return texts.flatMap { SportNameMatch.tokensForName(it, vocab.teamStopwords) }
+            .filter { it.length >= MinTokenLength }
+            .toSet()
+    }
+
     private suspend fun extractSearchHints(
         ref: BoardFixtureRef,
         hits: List<DeepSeekSearchHit>,
@@ -1090,6 +1160,21 @@ class AiBoardMatcher(
         return score
     }
 
+    private suspend fun loadIndex(sourceIds: List<Long>): IndexedLoad {
+        val now = clock()
+        indexCache?.get()?.let { cached ->
+            if (cached.sourceIds == sourceIds && now - cached.atMs < IndexCacheTtlMs) {
+                return IndexedLoad(cached.rows, failed = false)
+            }
+        }
+        val loaded = runCatching { channelDao.allForSources(sourceIds, MaxCatalogueRows) }
+        val rows = loaded.getOrDefault(emptyList()).mapNotNull(::indexed)
+        if (rows.isNotEmpty()) {
+            indexCache = WeakReference(CachedIndex(now, sourceIds, rows))
+        }
+        return IndexedLoad(rows, failed = loaded.isFailure)
+    }
+
     private fun sportOf(leagueId: String): String =
         sportsLeagueById(leagueId)?.espnSport ?: leagueId.substringBefore('.')
 
@@ -1198,6 +1283,7 @@ class AiBoardMatcher(
         const val MinProbeLength = 4
         const val MinTokenLength = 3
         const val MaxChannelPhraseWords = 3
+        const val MaxDeterministicSearchHints = 20
         const val PlaylistHashSeed = 1_125_899_906_842_597L
         const val PlaylistHashPrime = 1_000_000_007L
         const val EpgBeforeMs = 2L * 60L * 60L * 1000L
@@ -1210,6 +1296,7 @@ class AiBoardMatcher(
         const val SearchCacheTtlMs = 30L * 60L * 1000L
         const val QuickBoardCacheTtlMs = 30L * 60L * 1000L
         const val QuickBoardPrefix = "quick:"
+        const val IndexCacheTtlMs = 2L * 60L * 1000L
         const val SearchPromptVersion = "search-extractor-v1"
         const val RequestIdPrefix = "C"
         const val Space = " "

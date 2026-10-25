@@ -26,11 +26,11 @@ Classic-Zeilen werden nie in DeepSeek gemischt.
    Phase-1-Aliasen, EPG-Programmen, Web-Guide, Broadcaster-Priors und Gruppenkontext.
    Opaque Namen (`PPV`, `Event 1`) bleiben nur mit EPG-, Gruppen- oder anderem Kontext.
 4. **Suche:** eine DeepSeek-Search-Anfrage pro geöffnetem Fixture, mit einer kurzen
-   Fallback-Query nur bei leerem Ergebnis. Danach extrahiert ein kleiner JSON-Call
-   Broadcaster-Namen **aus den Suchergebnissen**. Jeder Name muss mit `sourceIndex` und
-   einem wörtlichen `excerpt` belegt sein; erfundene Namen fallen raus. Die Namen werden
+   Fallback-Query nur bei leerem Ergebnis. Danach werden Broadcaster-Namen **lokal** aus
+   den Suchergebnissen extrahiert: ein Treffer zählt nur, wenn er einen Fixture-Token und
+   einen echten Playlist-Kanal nennt. Das spart den normalen Extraktor-Chatcall. Nur wenn
+   lokal nichts gefunden wird, läuft der alte JSON-Extraktor als Fallback. Die Namen werden
    gegen den vollständigen Playlist-Index gematcht und als `SEARCH`-Kandidaten ergänzt.
-   Damit kann Suche eine Zeile finden, die Phase 1 und EPG verpasst haben.
 5. **Phase 2 — Adjudication:** ein Request mit dem Fixture, den Kandidaten (temporäre ID,
    Anzeigename, Territorium, Gruppe, EPG-Fenster, Flags) und den Suchergebnissen. Das
    Modell wählt Kandidaten-IDs und liefert Evidenz-Typ, Quelle, `sourceIndex`/`excerpt`
@@ -125,6 +125,17 @@ Duplikate werden ignoriert. Eine ungültige Antwort fügt keinen Sender hinzu.
 - Der Playlist-Fingerprint ist ein rollierender Hash, kein Sortieren/Joinen aller 60k
   Zeilennamen. Suche, Extraktor, Phase 1 und lokale Kandidatensuche laufen parallel; die
   Suche blockiert den 60k-Scan nicht mehr.
+- Die Suche hat kein künstliches 15-s-Budget; sie läuft, bis der HTTP-Timeout greift.
+- Klassische EPG-Probes laufen zuerst als 2–6 markante Teilnehmer-/Titel-Probes gegen
+  Titel+Beschreibung (parallel, Limit 40). Nur wenn nichts trifft, folgt ein breiterer
+  Fallback mit 6 Titel- und 2 Beschreibungs-Probes. 48 sequenzielle LIKE-Scans waren der
+  14-s-Pfad.
+- Der 60k-DeepSeek-Index wird für 2 Minuten in einer `WeakReference` gehalten. Ein neues
+  Fixture im selben Zeitraum überspringt den Datenbank-Load; Speicherdruck kann ihn
+  jederzeit freigeben.
+- Classic nutzt zuerst die vorhandene Kanal-FTS (`searchListDetailedFts`) als schmalen
+  Vorfilter. Nur wenn sie leer oder nicht verfügbar ist, fällt es auf den vollständigen
+  60k-Scan zurück. Der deterministische Scorer und die Both-Teams-Regel bleiben unverändert.
 - Ein Fixture liegt in genau einem Phase-2-Request. Keine Wiederholung bei Recomposition,
   Fokuswechsel oder Rückkehr aus dem Vollbild; der Lauf hängt an Fixture, Schaltern,
   Schlüssel, Ländern, Guide-Version und ist entprellt.

@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.own.owntv.core.database.dao.ChannelDao
+import tv.own.owntv.core.database.dao.ChannelSearchResult
 import tv.own.owntv.core.database.dao.EpgDao
 import tv.own.owntv.core.database.entity.ChannelEntity
 import tv.own.owntv.core.database.entity.EpgProgrammeEntity
@@ -1366,6 +1367,15 @@ private class FakeStore(
                 channels.filter { channel -> channel.epgChannelId?.trim()?.lowercase() in keys }
             }
             "getById" -> channels.firstOrNull { it.id == args!![0] as Long }
+            "searchListDetailedFts" -> {
+                val query = args!![0] as String
+                val terms = Regex("\"([^\"]+)\"").findAll(query)
+                    .map { it.groupValues[1].lowercase() }
+                    .toList()
+                channels.filter { channel ->
+                    terms.any { channel.name.lowercase().contains(it) }
+                }.map { ChannelSearchResult(it, "") }
+            }
             "allForSources" -> channels
             else -> null
         }

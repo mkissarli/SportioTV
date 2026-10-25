@@ -56,6 +56,8 @@
   Sprache. `ChannelDedup` fasst 4K/8K/UHD/FHD/HD/RAW-Varianten derselben Quelle zu einer
   Zeile zusammen (beste Auflösung gewinnt); 8K/4320p sind ergänzt. Ein Playlist-Scan
   versorgt Guide- und EPG-Matcher gemeinsam; auf 60k-Sendern statt zwei Scans pro Fixture.
+  Guide-Probes sind gekappt und laufen parallel; 48 sequenzielle EPG-`LIKE`-Scans waren der
+  lange Classic-Pfad.
 - **Guide-Sender sind sichtbar:** eine guide-bestätigte Zeile trägt das Label **TV guide**.
   Der Abgleich toleriert Wortstellung/Plural („Sky Sports Premier League" gegen
   „Premier League Sky Sports HD"), aber ein einzelnes Wort wie „ESPN" wird nie zu „ESPN2".

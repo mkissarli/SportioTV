@@ -2,6 +2,11 @@ package tv.own.owntv.features.sport
 
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import tv.own.owntv.core.database.dao.ChannelDao
 import tv.own.owntv.core.database.dao.EpgDao
@@ -181,9 +186,9 @@ class SportsMatcher(
                 return@withContext applyFilter(aiRows, options, demotePpv = fixture.isTeamSport())
             }
             if (sourceIds.isEmpty()) return@withContext emptyList()
-            // One channel scan feeds both the guide resolver and the deterministic matcher. On a
-            // 60k-channel playlist this halves the Classic path's database work.
-            val rows = scanRows(sourceIds)
+            // FTS first: one narrow SQL query can replace materialising 60k full ChannelEntity
+            // rows. If the FTS table is empty/unavailable, scanRows is the safe fallback.
+            val rows = candidateRows(sourceIds, fixture, options.confirmedBroadcasters)
             val guided = guideChannels(options.confirmedBroadcasters, rows)
             // Always independent: the guide is evidence, not a short-circuit.
             val deterministic = resolveSorted(fixture, rows)
@@ -511,15 +516,17 @@ class SportsMatcher(
                     }
                 }
             }
-            // Broad probes (phrases, single words, abbreviations) stay title-only: a single word
-            // like "Newcastle" is far too common in guide *bodies*.
-            for (token in epgDiscoveryTokens(fixture)) {
-                runCatching { epgDao.searchTitles(token, from, to, EpgMatchLimit) }.getOrNull()?.let(::add)
-            }
-            // Full club names additionally search the description — where a generic-titled foreign
-            // feed ("Fußball: England, Premier League") actually names the teams.
-            for (phrase in epgDescriptionPhrases(fixture)) {
-                runCatching { epgDao.searchGuide(phrase, from, to, EpgMatchLimit) }.getOrNull()?.let(::add)
+            // Fast path: a handful of distinctive participant/title tokens against title+description.
+            // This is 2-6 queries instead of 16-48; the deterministic scorer still requires both
+            // sides, so a broad superset is safe. Broad probes are only a fallback when none hit.
+            val coreProbes = epgCoreProbes(fixture)
+            val coreResults = probeGuide(coreProbes, from, to)
+            coreResults.forEach(::add)
+            if (epgKeys.isEmpty()) {
+                val titleProbes = epgDiscoveryTokens(fixture).take(EpgFallbackTitleCap)
+                val descriptionProbes = epgDescriptionPhrases(fixture).take(EpgFallbackDescriptionCap)
+                val fallbackResults = probeTitleAndDescription(titleProbes, descriptionProbes, from, to)
+                fallbackResults.forEach(::add)
             }
             if (epgKeys.isNotEmpty()) {
                 runCatching { channelDao.byEpgKeys(sourceIds, epgKeys.take(EpgKeyCap).toList()) }
@@ -544,6 +551,47 @@ class SportsMatcher(
     private var scanCacheAtMs = 0L
 
     /**
+     * Narrow FTS candidate query. The channel-name FTS table lets SQLite reduce 60k names to the
+     * few hundred that can matter for this fixture; an empty/unavailable FTS table falls back to
+     * the full scan, so the deterministic result cannot silently disappear.
+     */
+    private suspend fun candidateRows(
+        sourceIds: List<Long>,
+        fixture: Fixture,
+        carriers: List<String>,
+    ): List<ScanRow> {
+        val terms = ftsTerms(fixture, carriers)
+        if (terms.isEmpty()) return scanRows(sourceIds)
+        val query = terms.joinToString(" OR ") { "\"" + it.replace("\"", "\"\"") + "\"" }
+        val found = runCatching {
+            channelDao.searchListDetailedFts(query, sourceIds, FtsCandidateLimit)
+        }.getOrNull()
+        if (found.isNullOrEmpty()) return scanRows(sourceIds)
+        return found.map { toScanRow(it.channel) }.distinctBy { it.channel.id }
+    }
+
+    private fun ftsTerms(fixture: Fixture, carriers: List<String>): List<String> {
+        val texts = LinkedHashSet<String>()
+        for (team in listOfNotNull(fixture.home, fixture.away)) {
+            texts += team.name
+            texts += team.abbreviation
+            texts += vocab.aliasesFor(listOf(team.name, team.abbreviation))
+        }
+        fixture.duelSides()?.let { sides ->
+            for (side in listOf(sides.first, sides.second)) texts += side
+        }
+        fixture.broadcasts.forEach(texts::add)
+        fixture.channelHints.forEach(texts::add)
+        fixture.tournament?.let(texts::add)
+        fixture.title?.let(texts::add)
+        carriers.forEach(texts::add)
+        return texts.flatMap { SportNameMatch.tokensForName(it, vocab.teamStopwords) }
+            .filter { it.length >= MinTokenLength }
+            .distinct()
+            .take(FtsTermCap)
+    }
+
+    /**
      * All of the profile's channels, folded once, cached per source set for [ScanCacheTtlMs]. A
      * playlist sync takes effect at the next fixture after the TTL; a 50k-channel playlist costs
      * one query (~a few hundred ms) instead of one SQL LIKE scan per name probe. Huge playlists are
@@ -557,14 +605,7 @@ class SportsMatcher(
         }
         val rows = runCatching { channelDao.allForSources(sourceIds, ScanRowLimit) }
             .getOrDefault(emptyList())
-            .map { channel ->
-                ScanRow(
-                    channel = channel,
-                    rawLower = channel.name.lowercase(Locale.ROOT),
-                    normName = SportNameMatch.normalize(channel.name),
-                    singularName = SportNameMatch.singularize(channel.name),
-                )
-            }
+            .map(::toScanRow)
         if (rows.size <= ScanCacheMaxRows) {
             scanCache = sourceIds to rows
             scanCacheAtMs = now
@@ -573,6 +614,13 @@ class SportsMatcher(
         }
         return rows
     }
+
+    private fun toScanRow(channel: ChannelEntity): ScanRow = ScanRow(
+        channel = channel,
+        rawLower = channel.name.lowercase(Locale.ROOT),
+        normName = SportNameMatch.normalize(channel.name),
+        singularName = SportNameMatch.singularize(channel.name),
+    )
 
     /**
      * Raw `LIKE` probes for the channel-name search: for both teams, the display name, the
@@ -678,6 +726,69 @@ class SportsMatcher(
      * Capped by [EpgTokenCap]. See [epgDescriptionPhrases] for the narrower, multi-word probe that
      * also reads descriptions.
      */
+    /** The few tokens that actually identify this fixture in an EPG title or description. */
+    private fun epgCoreProbes(fixture: Fixture): List<String> {
+        val out = LinkedHashSet<String>()
+        fun addTeam(texts: List<String>) {
+            texts.flatMap { SportNameMatch.tokensForName(it, vocab.teamStopwords) }
+                .filter { it.length >= EpgMinTokenLength }
+                .sortedByDescending { it.length }
+                .take(CoreProbesPerSide)
+                .forEach(out::add)
+        }
+        for (team in listOfNotNull(fixture.home, fixture.away)) {
+            addTeam(listOf(team.name, team.abbreviation) + vocab.aliasesFor(listOf(team.name, team.abbreviation)))
+        }
+        fixture.duelSides()?.let { sides ->
+            addTeam(sides.first)
+            addTeam(sides.second)
+        }
+        if (fixture.home == null && fixture.away == null) {
+            fixture.title?.takeIf { it.length >= MinHintLength }?.let(out::add)
+            fixture.tournament?.takeIf { it.length >= MinHintLength }?.let(out::add)
+        }
+        return out.take(CoreProbeCap)
+    }
+
+    private suspend fun probeGuide(probes: List<String>, from: Long, to: Long): List<List<EpgProgrammeEntity>> =
+        coroutineScope {
+            val semaphore = Semaphore(EpgProbeConcurrency)
+            probes.map { probe ->
+                async {
+                    semaphore.withPermit {
+                        runCatching { epgDao.searchGuide(probe, from, to, EpgMatchLimit) }
+                            .getOrDefault(emptyList())
+                    }
+                }
+            }.awaitAll()
+        }
+
+    private suspend fun probeTitleAndDescription(
+        titleProbes: List<String>,
+        descriptionProbes: List<String>,
+        from: Long,
+        to: Long,
+    ): List<List<EpgProgrammeEntity>> = coroutineScope {
+        val semaphore = Semaphore(EpgProbeConcurrency)
+        val titleJobs = titleProbes.map { token ->
+            async {
+                semaphore.withPermit {
+                    runCatching { epgDao.searchTitles(token, from, to, EpgMatchLimit) }
+                        .getOrDefault(emptyList())
+                }
+            }
+        }
+        val descriptionJobs = descriptionProbes.map { phrase ->
+            async {
+                semaphore.withPermit {
+                    runCatching { epgDao.searchGuide(phrase, from, to, EpgMatchLimit) }
+                        .getOrDefault(emptyList())
+                }
+            }
+        }
+        (titleJobs + descriptionJobs).awaitAll()
+    }
+
     private fun epgDiscoveryTokens(fixture: Fixture): List<String> {
         val tokens = LinkedHashSet<String>()
         tokens += teamNameQueries(fixture.home)
@@ -726,7 +837,7 @@ class SportsMatcher(
         if (fixture.home == null && fixture.away == null) {
             fixture.title?.trim()?.takeIf { it.length >= MinTokenLength && it.contains(' ') }?.let(phrases::add)
         }
-        return phrases.take(EpgTokenCap)
+        return phrases.take(EpgDescriptionCap)
     }
 
     /** Scoring tokens for one team: its names, abbreviation and aliases, normalized and folded. */
@@ -1164,7 +1275,17 @@ class SportsMatcher(
         /** Per-token cap for a guide-title probe. */
         private const val EpgMatchLimit = 40
         /** How many tokens are probed against the guide. */
-        private const val EpgTokenCap = 24
+        private const val EpgTokenCap = 12
+        /** Full-name description probes; narrower because prose is expensive and noisy. */
+        private const val EpgDescriptionCap = 4
+        /** Bounded parallel guide probes; SQLite reads them concurrently. */
+        private const val EpgProbeConcurrency = 4
+        /** Distinctive tokens per participant in the fast EPG path. */
+        private const val CoreProbesPerSide = 2
+        private const val CoreProbeCap = 6
+        /** Broad fallback only when the distinctive probes found nothing. */
+        private const val EpgFallbackTitleCap = 6
+        private const val EpgFallbackDescriptionCap = 2
         /** How many guide channels at most resolve to candidates (bounds the scoring set). */
         private const val EpgKeyCap = 400
         /** How many guide rows are kept per channel as scoring evidence. */
@@ -1177,6 +1298,10 @@ class SportsMatcher(
         private const val MinTokenLength = 3
         /** Shortest token allowed against guide prose; below this an abbreviation is too ambiguous. */
         private const val EpgMinTokenLength = 4
+        /** How many channels the FTS prefilter may return before scoring. */
+        private const val FtsCandidateLimit = 5_000
+        /** How many distinct tokens the FTS query may contain. */
+        private const val FtsTermCap = 24
         /** How many channels the cached name scan reads — above any real playlist's size. */
         private const val ScanRowLimit = 100_000
         /** How long the cached name scan survives; a resync shows up at the next fixture after it. */

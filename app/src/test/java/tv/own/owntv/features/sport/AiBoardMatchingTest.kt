@@ -311,6 +311,7 @@ class AiBoardMatchingTest {
     fun searchAddsAPlaylistRowThatPhase1AndEpgMissed() = runBlocking {
         val store = FakeBoardStore(listOf(channel(1, "HR: SPORT KLUB 5 HD")))
         var searchQueries = 0
+        var extractorCalls = 0
         var phase2Prompt = ""
         val matcher = matcher(
             store = store,
@@ -322,7 +323,7 @@ class AiBoardMatchingTest {
                         url = "https://example.invalid/tennis",
                         siteName = "example.invalid",
                         date = "2026-10-24",
-                        snippet = "Sport Klub 5 carries the match",
+                        snippet = "Sport Klub 5 carries Carlos Alcaraz vs Jannik Sinner",
                         summary = "",
                         content = "",
                     ),
@@ -330,8 +331,10 @@ class AiBoardMatchingTest {
             },
         ) { _, user, _ ->
             when {
-                user.contains("Extract broadcaster/channel names") ->
+                user.contains("Extract broadcaster/channel names") -> {
+                    extractorCalls++
                     """{"schemaVersion":1,"channels":[{"name":"Sport Klub 5","aliases":[],"country":"HR","sourceIndex":0,"excerpt":"Sport Klub 5"}]}"""
+                }
                 user.contains("BOARD BROADCAST DISCOVERY") ->
                     """{"schemaVersion":1,"fixtures":[{"fixtureId":"tennis.atp#tennis","suggestions":[]}]}"""
                 user.contains("ADJUDICATION") -> {
@@ -343,7 +346,7 @@ class AiBoardMatchingTest {
                         """
                         {"schemaVersion":1,"fixtures":[{"fixtureId":"tennis.atp#tennis","channels":[
                           {"candidateId":"$id","evidence":"supported","source":"search","sourceIndex":0,
-                           "excerpt":"Sport Klub 5 carries the match","confidence":0.95,"reason":"listing"}
+                           "excerpt":"Sport Klub 5 carries Carlos Alcaraz","confidence":0.95,"reason":"listing"}
                         ]}]}
                         """.trimIndent()
                     }
@@ -355,6 +358,7 @@ class AiBoardMatchingTest {
         val result = matcher.match(listOf(tennisFixture()), listOf("HR"), null, "test-key")
 
         assertEquals(1, searchQueries)
+        assertEquals("local extraction must avoid the extra LLM round trip", 0, extractorCalls)
         assertTrue("the extracted name must reach phase 2", phase2Prompt.contains("SPORT KLUB 5"))
         assertTrue(phase2Prompt.contains("LIVE SEARCH RESULTS"))
         val hit = result.hits["tennis.atp#tennis"].orEmpty().single()

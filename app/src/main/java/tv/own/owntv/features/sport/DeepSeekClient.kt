@@ -62,6 +62,15 @@ class DeepSeekClient(
             .build()
     }
 
+    /** Phase 1/extractor/phase 2 are small requests; do not inherit the full-playlist timeout. */
+    private val boardHttp by lazy {
+        baseClient.newBuilder()
+            .connectTimeout(ConnectTimeoutSeconds, TimeUnit.SECONDS)
+            .readTimeout(BoardReadTimeoutSeconds, TimeUnit.SECONDS)
+            .callTimeout(BoardCallTimeoutSeconds, TimeUnit.SECONDS)
+            .build()
+    }
+
     private val promptTemplate: String by lazy {
         appContext.resources.openRawResource(R.raw.sports_ai_prompt).bufferedReader().use { it.readText() }
     }
@@ -124,7 +133,7 @@ class DeepSeekClient(
     suspend fun completeBoardMatching(system: String, user: String, apiKey: String): String {
         val key = extractKey(apiKey)
         if (key.isEmpty()) throw AiRequestException(AiFailure.NO_KEY)
-        return ask(system, user, key, playlistHttp, BoardMaxTokens)
+        return ask(system, user, key, boardHttp, BoardMaxTokens)
     }
 
     /**
@@ -397,8 +406,10 @@ class DeepSeekClient(
         const val CallTimeoutSeconds = 75L
         const val PlaylistReadTimeoutSeconds = 120L
         const val PlaylistCallTimeoutSeconds = 180L
-        const val SearchReadTimeoutSeconds = 30L
-        const val SearchCallTimeoutSeconds = 45L
+        const val BoardReadTimeoutSeconds = 60L
+        const val BoardCallTimeoutSeconds = 75L
+        const val SearchReadTimeoutSeconds = 20L
+        const val SearchCallTimeoutSeconds = 30L
         const val SearchResultCount = 5
         const val SearchMaxCount = 10
         const val SearchQueryKey = "query"

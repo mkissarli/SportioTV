@@ -19,8 +19,9 @@ import tv.own.owntv.R
  * marks it `post` while the race weekend is still ahead, so the ESPN path can never show "this
  * weekend's Grand Prix" as live/upcoming. Jolpica carries the authoritative calendar with
  * practice/qualifying/sprint/race times, so the F1 league's board is built from it instead.
- * Every session becomes an EVENT fixture; the channel matching is unchanged (the league's
- * "Sky Sports Main Event" hint).
+ * Every session becomes an EVENT fixture; channel matching comes from the web guide (Where's
+ * The Match, which lists F1 by its event name) and the event title against the EPG — no
+ * hard-coded channel hint.
  */
 class F1ScheduleApi(private val client: OkHttpClient, context: Context) {
 
@@ -28,7 +29,6 @@ class F1ScheduleApi(private val client: OkHttpClient, context: Context) {
 
     suspend fun scoreboard(): EspnApi.Scoreboard = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        val hint = appContext.getString(R.string.sport_channel_sky_main_event)
         val leagueName = appContext.getString(R.string.sport_league_racing_f1)
         val rounds = runCatching { fetchCalendar() }.getOrDefault(emptyList())
         val detailed = rounds.map { round ->
@@ -38,7 +38,7 @@ class F1ScheduleApi(private val client: OkHttpClient, context: Context) {
                 round
             }
         }
-        EspnApi.Scoreboard(leagueName, F1Schedule.fixtures(detailed, now, hint))
+        EspnApi.Scoreboard(leagueName, F1Schedule.fixtures(detailed, now))
     }
 
     private fun fetchCalendar(): List<F1Schedule.Round> {
@@ -136,7 +136,7 @@ object F1Schedule {
         round.raceStartMs in (nowMs - DetailBeforeMs)..(nowMs + DetailAfterMs)
 
     /** EVENT fixtures per session: the race keeps the plain name, sessions get their label. */
-    fun fixtures(rounds: List<Round>, nowMs: Long, hint: String): List<Fixture> =
+    fun fixtures(rounds: List<Round>, nowMs: Long): List<Fixture> =
         rounds.flatMap { round ->
             round.sessions.mapNotNull { session ->
                 if (session.startMs <= 0) return@mapNotNull null
@@ -157,7 +157,7 @@ object F1Schedule {
                     home = null,
                     away = null,
                     broadcasts = emptyList(),
-                    channelHints = listOf(hint),
+                    channelHints = emptyList(),
                     venue = round.locality.ifBlank { null },
                 )
             }

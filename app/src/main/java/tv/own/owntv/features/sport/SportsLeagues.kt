@@ -139,7 +139,6 @@ val SportsLeagues: List<SportLeague> = listOf(
         region = LeagueRegion.INTERNATIONAL,
         kind = LeagueKind.EVENT,
         defaultActive = true,
-        extraChannelRes = R.string.sport_channel_sky_main_event,
     ),
     SportLeague(
         id = "racing.irl",

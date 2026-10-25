@@ -59,14 +59,14 @@ class F1ScheduleTest {
     fun fixturesBecomeEventRowsWithCorrectStatesAndTitles() {
         val round = F1Schedule.parseRoundDetail(detailJson)
         val now = utc("2026-10-24T17:10:00Z") // during the sprint
-        val fixtures = F1Schedule.fixtures(listOf(round), now, "Sky Sports Main Event")
+        val fixtures = F1Schedule.fixtures(listOf(round), now)
 
         assertEquals(4, fixtures.size)
         assertEquals(listOf(FixtureState.FINISHED, FixtureState.LIVE, FixtureState.UPCOMING, FixtureState.UPCOMING), fixtures.map { it.state })
         assertEquals("United States Grand Prix — Practice 1", fixtures[0].title)
         assertEquals("United States Grand Prix — Sprint", fixtures[1].title)
         assertEquals("United States Grand Prix", fixtures[3].title)
-        assertEquals(listOf("Sky Sports Main Event"), fixtures[1].channelHints)
+        assertEquals(emptyList<String>(), fixtures[1].channelHints)
         assertEquals("Austin", fixtures[1].venue)
         assertEquals("f1-18-sprint", fixtures[1].id)
         assertTrue(fixtures[1].statusLine.matches(Regex("\\d{2}:\\d{2}")))

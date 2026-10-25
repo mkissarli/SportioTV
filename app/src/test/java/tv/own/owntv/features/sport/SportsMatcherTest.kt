@@ -235,10 +235,12 @@ class SportsMatcherTest {
         assertEquals(1, matches.single().score)
     }
 
-    // --- (l) duel: the league hint matches a tennis-named channel without any guide ------------
+    // --- (l) duels: a broadcaster hint alone is a bonus, not a qualification ------------
 
     @Test
-    fun duelHintMatchesTennisChannelByName() = runBlocking {
+    fun duelHintAloneDoesNotQualifyAChannel() = runBlocking {
+        // "US TENNIS PPV" shares only the word "tennis" with this duel — exactly the weak-signal
+        // flood the web-guide rule removed: any tennis fixture on any tennis-named channel.
         val store = FakeStore(
             channels = listOf(channel(15, "US TENNIS PPV")),
             programmes = emptyList(),
@@ -246,8 +248,7 @@ class SportsMatcherTest {
 
         val matches = matcher(store).match(duelFixture(hints = listOf("Tennis")))
 
-        assertEquals(listOf("US TENNIS PPV"), matches.map { it.channelName })
-        assertEquals(6, matches.single().score)
+        assertTrue(matches.isEmpty())
     }
 
     // --- (m) doubles: a "A / B" roster side contributes both players ------------
@@ -293,6 +294,8 @@ class SportsMatcherTest {
 
     @Test
     fun duelExactChannelSurvivesForeignLanguageFilter() = runBlocking {
+        // The hint ("Tennis") alone no longer qualifies "DE: SKY SPORT TENNIS" — only the exact
+        // per-event channel, which names both athletes, survives the foreign language filter.
         val store = FakeStore(
             channels = listOf(
                 channel(20, "NEXT | ALEX DE MINAUR - KAREN KHACHANOV | Tue 13 Oct 06:00 CEST (FR) | FR: MAX PPV 21"),
@@ -305,11 +308,11 @@ class SportsMatcherTest {
         val matches = matcher(store).match(fixture, languages = setOf(SportLanguage.GERMAN))
 
         assertEquals(
-            listOf("DE: SKY SPORT TENNIS", "NEXT | ALEX DE MINAUR - KAREN KHACHANOV | Tue 13 Oct 06:00 CEST (FR) | FR: MAX PPV 21"),
+            listOf("NEXT | ALEX DE MINAUR - KAREN KHACHANOV | Tue 13 Oct 06:00 CEST (FR) | FR: MAX PPV 21"),
             matches.map { it.channelName },
         )
-        assertEquals(listOf(6, 4), matches.map { it.score })
-        assertEquals(listOf(false, true), matches.map { it.isExact })
+        assertEquals(listOf(4), matches.map { it.score })
+        assertEquals(listOf(true), matches.map { it.isExact })
     }
 
     // --- (p) teams: the exact per-event channel survives a foreign language filter ------------
@@ -746,7 +749,9 @@ class SportsMatcherTest {
     }
 
     @Test
-    fun aSingleWordBroadcastStillMatchesByWord() = runBlocking {
+    fun aSingleWordBroadcastAloneDoesNotQualifyAChannel() = runBlocking {
+        // The broadcast word ("ESPN" in "ESPN 2") is a rank signal, not evidence: a fixture with
+        // two participants needs both teams (name or one EPG programme) or a guide confirmation.
         val store = FakeStore(
             channels = listOf(channel(621, "ESPN 2")),
             programmes = emptyList(),
@@ -764,9 +769,88 @@ class SportsMatcherTest {
             venue = null,
         )
 
-        val matches = matcher(store).match(nba)
-        assertEquals(listOf("ESPN 2"), matches.map { it.channelName })
+        assertTrue(matcher(store).match(nba).isEmpty())
+    }
+
+    // --- events without participants: competition signals still qualify -----------------------
+
+    @Test
+    fun aBroadcastAloneCanQualifyAnEventWithoutParticipants() = runBlocking {
+        // An EVENT fixture (F1) has no team names — the broadcast name IS the competition signal.
+        val store = FakeStore(
+            channels = listOf(channel(622, "UK| SKY SPORTS F1")),
+            programmes = emptyList(),
+        )
+
+        val f1 = Fixture(
+            id = "f1-1",
+            leagueId = "racing.f1",
+            dateMs = Noon,
+            state = FixtureState.UPCOMING,
+            statusLine = "16:00",
+            format = FixtureFormat.EVENT,
+            title = "United States Grand Prix",
+            broadcasts = listOf("Sky Sports F1"),
+            venue = "Austin",
+        )
+
+        val matches = matcher(store).match(f1)
+
+        assertEquals(listOf("UK| SKY SPORTS F1"), matches.map { it.channelName })
         assertEquals(3, matches.single().score)
+    }
+
+    @Test
+    fun anEventTitleMatchesItsEpgCarrierWithoutAnyHint() = runBlocking {
+        // No hard-coded channel hint: the race title ("United States Grand Prix") is the fixture's
+        // competition text — it drives discovery AND scoring against the EPG line.
+        val store = FakeStore(
+            channels = listOf(channel(623, "PT| TVI SPORTS", epgKey = "tvi")),
+            programmes = listOf(programme("tvi", title = "Formula 1: United States Grand Prix")),
+        )
+
+        val f1 = Fixture(
+            id = "f1-2",
+            leagueId = "racing.f1",
+            dateMs = Noon,
+            state = FixtureState.UPCOMING,
+            statusLine = "16:00",
+            format = FixtureFormat.EVENT,
+            title = "United States Grand Prix",
+            broadcasts = emptyList(),
+            venue = null,
+        )
+
+        val matches = matcher(store).match(f1)
+
+        assertEquals(listOf("PT| TVI SPORTS"), matches.map { it.channelName })
+        assertEquals(1, matches.single().score)
+    }
+
+    // --- rule-4 dedup: one display entry per underlying channel -------------------------------
+
+    @Test
+    fun theSameChannelVariantAppearsOnceAndKeepsTheBestResolution() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(
+                channel(641, "UK| SKY SPORTS PREMIER LEAGUE"),
+                channel(642, "UK: SKY SPORTS PREMIER LEAGUE HD"),
+                channel(643, "DE: SKY SPORT PREMIER LEAGUE", epgKey = "de-premier"),
+            ),
+            programmes = listOf(programme("de-premier", title = "Coventry City v Newcastle United")),
+        )
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(languages = emptySet(), confirmedBroadcasters = listOf("Sky Sports Premier League")),
+        )
+
+        // Two variants of one Sky channel collapse into the best-resolution copy; the German EPG
+        // evidence channel keeps its own slot.
+        assertEquals(
+            listOf("UK: SKY SPORTS PREMIER LEAGUE HD", "DE: SKY SPORT PREMIER LEAGUE"),
+            matches.map { it.channelName },
+        )
     }
 
     // --- TV-guide-confirmed broadcasters --------------------------------------------------------

@@ -835,36 +835,45 @@
 2	technical	app/src/main/java/tv/own/owntv/features/sport/AiChannelMatcher.kt	test
 1	technical	app/src/main/java/tv/own/owntv/features/sport/AiChannelMatcher.kt	tv
 2	technical	app/src/main/java/tv/own/owntv/features/sport/AiChannelMatcher.kt	uhd
-5	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	\0
-1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	$1
+6	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	&
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	&#39;
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	&amp;
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	&nbsp;
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	'
-1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	(\\d)(st|nd|rd|th)\\b
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	<[^>]*>
-1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	<div class="fixture__competition">([^<]+)</div>
-1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	<div class="fixture__teams">([^<]+)</div>
-1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	<span class="fixture">(.*?)</span>
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	<td class="competition-name"[^>]*>.*?<span>([^<]+)</span>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	<td class="fixture-details">(.*?)</td>
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	<time[^>]*datetime="([^"]+)"
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	<tr
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	Accept-Language
-1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	EEEE d MMMM yyyy
-1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	Europe/London
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	Guide HTTP
 1	log	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	Guide page too large
-1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	H:mm
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	Mozilla/5.0 (Windows NT 10.0; Win64; x64) Matchday/1
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	User-Agent
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	\\s+
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	aria-label="[^"]*TV coverage on ([^"]+)"
-1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	class="channel-pill"[^>]*>([^<]+)</span>
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	championship
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	championships
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	cup
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	en-GB,en;q=0.9
-1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	https://www.live-footballontv.com/
-1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	https://www.wheresthematch.com/live-football-on-tv/
-1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	https://www.wheresthematch.com/live-tennis-on-tv/
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	final
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	finals
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	grand
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	heat
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	masters
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	open
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	practice
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	prix
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	qualifying
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	quarterfinal
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	race
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	semifinal
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	series
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	tour
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	trophy
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	warm
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	world
 1	technical	app/src/main/java/tv/own/owntv/features/sport/CountryTags.kt	\0
 1	regex	app/src/main/java/tv/own/owntv/features/sport/CountryTags.kt	^\\s*([A-Z]{3})\\s*\\|\\s*
 1	regex	app/src/main/java/tv/own/owntv/features/sport/CountryTags.kt	^\\s*([A-Za-z]{2})\\s*[:/]\\s*

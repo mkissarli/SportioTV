@@ -232,15 +232,14 @@ class SportsMatcher(
     ): List<ChannelMatch> {
         val limit = options.limit.coerceIn(MinChannelLimit, MaxChannelLimit)
         val order = SportLanguages.countryOrder(options.preferCountry)
-        val ranked = scored
-            .map { m ->
+        val ranked = ChannelDedup.dedupe(
+            scored.map { m ->
                 val rank = SportLanguages.countryRank(m.channelName, order)
                 val bonus = if (rank >= 0) (order.size - rank) * CountryTierStep else 0
                 val sortScore = m.score + bonus - if (demotePpv && isPpvChannel(m.channelName)) PpvPenalty else 0
                 m to sortScore
-            }
-            .sortedByDescending { it.second }
-            .map { it.first }
+            }.sortedByDescending { it.second },
+        )
         // The guide's carriers are always listed: they are the answer to "who shows this?", and the
         // preferred-language filter is a preference, not a veto. Excluded languages still apply.
         val guide = SportLanguages.filterStrict(ranked.filter { it.guideConfirmed }, emptySet(), options.excludedLanguages)
@@ -325,8 +324,9 @@ class SportsMatcher(
         // B — the guide. A programme title naming a team is enough to pull its channel in; the
         // scoring below still decides whether it finally qualifies. Runs regardless of how full A
         // got — see the gotcha above. The returned rows are kept as [epgEvidence], so pass 2
-        // scores from memory instead of querying each candidate's programmes.
-        if (teamSport || duelSport || !fixture.tournament.isNullOrBlank()) {
+        // scores from memory instead of querying each candidate's programmes. Event fixtures
+        // (F1/golf) join through their title — there is no hard-coded channel hint anywhere.
+        if (teamSport || duelSport || !fixture.tournament.isNullOrBlank() || !fixture.title.isNullOrBlank()) {
             val epgKeys = LinkedHashSet<String>()
             val seen = HashSet<String>()
             fun add(rows: List<EpgProgrammeEntity>) {
@@ -475,6 +475,9 @@ class SportsMatcher(
             }
         }
         fixture.tournament?.let { queries += SportNameMatch.discoveryPhrases(it, vocab.broadcastStopwords) }
+        if (fixture.home == null && fixture.away == null) {
+            fixture.title?.let { queries += SportNameMatch.discoveryPhrases(it, vocab.broadcastStopwords) }
+        }
         for (broadcast in fixture.broadcasts) {
             queries += SportNameMatch.discoveryPhrases(broadcast, vocab.broadcastStopwords)
         }
@@ -521,6 +524,11 @@ class SportsMatcher(
             tokens += duelNameQueries(sides.second)
         }
         fixture.tournament?.let { tokens += SportNameMatch.discoveryPhrases(it, vocab.broadcastStopwords) }
+        // Event fixtures (F1/golf) probe by their title — the race or tournament name — since that
+        // is what the guide and an EPG line name; there is no hard-coded channel hint.
+        if (fixture.home == null && fixture.away == null) {
+            fixture.title?.let { tokens += SportNameMatch.discoveryPhrases(it, vocab.broadcastStopwords) }
+        }
         for (hint in fixture.channelHints) {
             val trimmed = hint.trim()
             if (trimmed.length >= MinHintLength) tokens += trimmed
@@ -552,6 +560,9 @@ class SportsMatcher(
             }
         }
         fixture.tournament?.trim()?.takeIf { it.length >= MinTokenLength && it.contains(' ') }?.let(phrases::add)
+        if (fixture.home == null && fixture.away == null) {
+            fixture.title?.trim()?.takeIf { it.length >= MinTokenLength && it.contains(' ') }?.let(phrases::add)
+        }
         return phrases.take(EpgTokenCap)
     }
 
@@ -577,11 +588,23 @@ class SportsMatcher(
         return tokens
     }
 
-    /** Scoring tokens for the tournament name, or empty when the fixture carries none. */
+    /**
+     * Scoring tokens for the tournament name, or empty when the fixture carries none. Fixtures
+     * without participants (F1 sessions, golf) contribute their **event title** as well — it is
+     * the only competition text they carry, and it is what both the web guide ("Formula 1
+     * Australian Grand Prix") and an EPG line ("F1: Australian Grand Prix Qualifying") spell out.
+     */
     private fun Fixture.tournamentTokens(): Set<String> {
-        val tournament = tournament?.trim().orEmpty()
-        if (tournament.isEmpty()) return emptySet()
-        return SportNameMatch.tokensForName(tournament, vocab.broadcastStopwords)
+        val tokens = LinkedHashSet<String>()
+        if (home == null && away == null) {
+            title?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                tokens += SportNameMatch.tokensForName(it, vocab.broadcastStopwords)
+            }
+        }
+        tournament?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            tokens += SportNameMatch.tokensForName(it, vocab.broadcastStopwords)
+        }
+        return tokens
     }
 
     // ---- Pass 2: scoring ------------------------------------------------------------------------
@@ -640,14 +663,16 @@ class SportsMatcher(
             score += NameBothTeamsScore
             exact = true
         }
-        // Broadcast names (ESPN) and a league's extra on-air phrase ("Sky Sports Main Event" for F1).
-        // The word fallback applies only to SINGLE-WORD broadcasts ("ESPN" → "ESPN 2"): splitting a
-        // multi-word broadcast into words ("NBA League Pass" → "league", "USA Network" → "network")
-        // matches unrelated channels ("UK: NATIONAL LEAGUE"), so a multi-word broadcast must match
-        // as a whole phrase or not at all.
+        // Broadcast names (ESPN) and channel hints ("Sky Sports F1") are rank/signals but NOT
+        // qualification: a channel that only names the network ("Sky Sports Main Event" on every
+        // Sky feed) would otherwise flood every fixture that network touches. They are a bonus on
+        // top of real evidence — both teams in the name/EPG, guide confirmation — and they qualify
+        // alone only for fixtures without participants (F1/golf), whose only channel signal is
+        // the competition hint. "Event" is never stripped anywhere: it is identity ("Main Event").
         val sportish = isSportishName(nameNorm)
+        var broadcastBonus = 0
         if (sportish && fixture.broadcasts.any { SportNameMatch.containsPhrase(it, nameNorm) }) {
-            score += BroadcastPhraseScore
+            broadcastBonus += BroadcastPhraseScore
         } else if (sportish && fixture.broadcasts.any { broadcast ->
                 val word = broadcast.words().singleOrNull() ?: return@any false
                 word.length >= MinHintLength &&
@@ -655,20 +680,26 @@ class SportsMatcher(
                     SportNameMatch.containsWord(word, nameNorm)
             }
         ) {
-            score += BroadcastWordScore
+            broadcastBonus += BroadcastWordScore
         }
-        if (sportish && fixture.channelHints.any { it.isNotBlank() && name.contains(it.lowercase(Locale.ROOT)) }) {
-            score += HintScore
+        if (sportish && fixture.channelHints.any { hint ->
+                hint.isNotBlank() && (name.contains(hint.lowercase(Locale.ROOT)) ||
+                    SportNameMatch.containsPhraseLoose(hint, nameNorm))
+            }
+        ) {
+            broadcastBonus += HintScore
         }
         // TV-guide-confirmed broadcasters: the web guide names this channel as the carrier, which
         // ESPN's own broadcast field never would. Phrase-only (a multi-word broadcaster name is one
         // unit). Above every other signal, including the country tiers, so the guide's own list
-        // comes first and the country order decides inside it.
+        // comes first and the country order decides inside it. The guide match implies a
+        // fixture-level check (both participants + kickoff) before this point, so it counts as
+        // evidence, unlike the raw broadcast words above.
         val guideConfirmed = confirmedBroadcasters.any {
             SportNameMatch.containsPhraseLoose(guidePhrase(it), nameNorm)
         }
         if (guideConfirmed) {
-            score += ConfirmedBroadcasterScore
+            broadcastBonus += ConfirmedBroadcasterScore
         }
 
         // --- EPG tier (Lume): a programme counts only when it names BOTH teams AND covers kickoff ---
@@ -800,6 +831,15 @@ class SportsMatcher(
             SportLanguages.countryCodeOf(channel.name) == UsCountryCode
         ) {
             score += UsRegionBonus
+        }
+
+        // Merge the broadcast bonus: rank signal only. A fixture with participants (both teams or
+        // a duel) never qualifies on the network name alone; guide confirmation and event-only
+        // fixtures (F1/golf, competition hint) may.
+        val hasParticipants = (home != null && away != null) ||
+            (sideATokens.isNotEmpty() && sideBTokens.isNotEmpty())
+        if (broadcastBonus > 0) {
+            if (!hasParticipants || guideConfirmed || score > 0) score += broadcastBonus
         }
 
         return if (score > 0) {

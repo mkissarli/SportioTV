@@ -73,6 +73,8 @@ Status: **Phase 1 umgesetzt (2026-10-12); Phasen 2–7 geplant.**
     Hint wird als **ganze Phrase** gesucht, damit der eigene Sky-Kanal erscheint.
     Emulator-verifiziert: „Singapore Airlines Singapore GP" + „Marina Bay Street Circuit,
     Singapore" + Kanal „4K: SKY SPORTS MAIN EVENTS …".
+    (Veraltet 2026-10-25: der F1-Hint ist entfernt — fest kodierte Kanalnamen gab falsche
+   Treffer. Der Where's-The-Match-Guide deckt F1 dynamisch ab, siehe `SPORT-HUB.md`.)
 - **Abweichung vom §9-Entwurf**: Liga-Labels nicht als Kotlin-Literale klassifiziert,
   sondern als nicht-übersetzbare String-Ressourcen (`donottranslate.xml`) abgelegt —
   sauberer für das i18n-Gate und die Projektregel „UI-Text in Resources".
@@ -692,6 +694,8 @@ Umbau am TV-Picker (`SportPickerDialog`), kein Live-Refresh der Handy-Seite.
   `Fixture.venue` (Circuit aus `event.circuit`). `SportLeague.extraChannelRes` liefert einen
   Kanal-Suchbegriff (F1 → „Sky Sports Main Event"), den `SportsMatcher` **zusätzlich** zum
   normalen Matching als ganze Phrase sucht (`Fixture.channelHints`).
+  (Veraltet 2026-10-25: `channelHints` bleibt leer für F1; das Matchen läuft über den
+  Event-Titel gegen den Web-Guide und die EPG-Zeilen — kein fest kodierter Kanalname.)
 
 ---
 

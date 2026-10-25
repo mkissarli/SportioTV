@@ -25,6 +25,17 @@
   Ort: im Matcher VOR dem Cap (`match(fixture, languages, limit)`). Exakte
   Event-Kanäle (Name nennt beide Teams/Spieler, `ChannelMatch.isExact`) passieren
   immer — sie sind das Event selbst, kein Fremd-Feed davon.
+- Web-Guide (Where's The Match, `BroadcastGuideApi`): ein Day-Window-Request
+  (`live-sport-on-tv/?showdatestart=…&showdateend=…`, 30-min-Cache, ein Retry) deckt
+  **alle Sportarten** für ~1 Woche ab. Rows matchen per exaktem UTC-Kickoff (`<time
+  datetime="…Z">`) + Beide-Teams-Token-Overlap; Events ohne Teilnehmer (F1/Turniere)
+  über Titel-Tokens (2 Treffer, davon 1 kein Serien-Wort), jeweils die zeitlich
+  nächste Session-Zeile. Bestätigte Sender (`ConfirmedBroadcasterScore`) führen die
+  Liste an — als Qualifikations-Beweis.Broadcast-/Hint-Wörter allein qualifizieren
+  nie (kein „Sky Sports Main Event" auf jedem Sky-Feed). Dedup nach Regel-4-Identität
+  (`ChannelDedup`): Länder-/Quellen-Tag bleibt Teil der Identität („NOW:" vs „FR:"
+  sind zwei Optionen), Auflösungs-/Codec-Wörter fliegen — die kopie mit der besten
+  Auflösung gewinnt, und „Main Event" wird nie als Noise gestrippt.
 - KI-Empfehlung: DeepSeek nennt Sender je gewähltem Land, `AiChannelMatcher`
   prüft sie gegen die eigenen Live-Playlists. Der Kanäle-Bereich hat oben die Tabs
   **Classic | AI**; im AI-Tab stehen die Treffer als normale vertikale Liste, nach
@@ -45,9 +56,9 @@
   (hat „Coventry v Newcastle" auf 6 statt 12 Sender reduziert).
 - Discovery = rohe akzentbehaftete Tokens für SQL `LIKE`; Scoring = normalisierte
   Tokens in-memory. Nicht vermischen (verliert „München").
-- Nur Team-Sportarten und Duelle nutzen den Guide-Pfad; reine Events ohne Gegner
-  (F1/Golf) überspringen ihn weiter. F1 matcht zusätzlich ganze Phrase aus
-  `SportLeague.extraChannelRes` („Sky Sports Main Event").
+- Nur Team-Sportarten und Duelle nutzen den Guide-Pfad; reine Events (F1/Golf) und
+  Titel-tragende Event-Fixtures laufen ihn über den Titel (`united states grand
+  prix` — kein fest kodierter Kanal-Hint mehr). PGA/IRL haben keinen Hint.
 - Duelle (`VERSUS` mit 2 Entries, Tennis/MMA) laufen seit 2026-10-13 denselben
   Pfad mit Spielernamen: beide Athleten im Titel +10 / verteilt +3, ein Athlet
   mit Tennis-Kontext +2, Turnier allein +1. Doppel-Roster („A / B") liefert beide

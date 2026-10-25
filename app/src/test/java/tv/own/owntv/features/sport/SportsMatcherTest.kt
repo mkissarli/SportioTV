@@ -856,9 +856,9 @@ class SportsMatcherTest {
     // --- TV-guide-confirmed broadcasters --------------------------------------------------------
 
     @Test
-    fun aConfirmedBroadcasterRanksWithTheWebGuideFirst() = runBlocking {
+    fun theWebGuideCarrierIsTheWholeList() = runBlocking {
         // The guide names "Sky Sports Premier League" as the carrier; the provider's EPG says
-        // nothing, so the confirmed tier is the channel's only evidence.
+        // nothing. The guide is the answer — no scoring tiers involved.
         val store = FakeStore(
             channels = listOf(channel(630, "UK| SKY SPORTS PREMIER LEAGUE")),
             programmes = emptyList(),
@@ -870,11 +870,13 @@ class SportsMatcherTest {
         )
 
         assertEquals(listOf("UK| SKY SPORTS PREMIER LEAGUE"), matches.map { it.channelName })
-        assertEquals(SportsMatcher.ConfirmedBroadcasterScore, matches.single().score)
+        assertTrue(matches.single().guideConfirmed)
     }
 
     @Test
-    fun aConfirmedBroadcasterBeatsDirectEpgEvidence() = runBlocking {
+    fun aGuideFixtureDoesNotMixInEpgGuesses() = runBlocking {
+        // The EPG names both teams on "US: ESPN+", but the guide names only Sky Sports. When the
+        // guide has an answer, that answer is the list — no second-guessing from the EPG.
         val store = FakeStore(
             channels = listOf(
                 channel(631, "UK| SKY SPORTS PREMIER LEAGUE"),
@@ -888,10 +890,7 @@ class SportsMatcherTest {
             SportMatchOptions(languages = emptySet(), confirmedBroadcasters = listOf("Sky Sports Premier League")),
         )
 
-        // The web guide is the list: its carrier comes first even without EPG evidence of its own.
-        assertEquals(listOf("UK| SKY SPORTS PREMIER LEAGUE", "US: ESPN+"), matches.map { it.channelName })
-        assertEquals(SportsMatcher.ConfirmedBroadcasterScore, matches.first().score)
-        assertEquals(10, matches.last().score)
+        assertEquals(listOf("UK| SKY SPORTS PREMIER LEAGUE"), matches.map { it.channelName })
     }
 
     @Test
@@ -946,7 +945,7 @@ class SportsMatcherTest {
             setOf("UK: SKY SPORT MAIN EVENT ᴿᴬᵂ", "NOW: SKY SPORTS PREMIER LEAGUE ᴴᴰ"),
             matches.map { it.channelName }.toSet(),
         )
-        assertTrue(matches.all { it.score == SportsMatcher.ConfirmedBroadcasterScore })
+        assertTrue(matches.all { it.guideConfirmed })
     }
 
     @Test

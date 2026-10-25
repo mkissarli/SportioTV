@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 /**
  * The pure Where's The Match machinery: the day-window row parser (real page snippets) and the
@@ -153,6 +155,20 @@ class BroadcastGuideTest {
         assertFalse(GuideMatch.timeMatches(0L, row.dateMs))
     }
 
+    @Test
+    fun aRowTwoHoursAwayDoesNotConfirmATeamFixture() {
+        // The guide lists this fixture at another time — a different listing, not this kickoff.
+        val kickoff = GuideEntryTestScope.time(2026, 10, 31, 17, 30)
+        val twoHoursOff = chelseaRow.copy(dateMs = kickoff + 2L * 60L * 60L * 1000L)
+        assertTrue(GuideMatch.confirmedBroadcasters(listOf(twoHoursOff), teamsFixtureAt(kickoff)).isEmpty())
+        // The row at kickoff confirms its carriers.
+        val onTime = chelseaRow.copy(dateMs = kickoff)
+        assertEquals(
+            listOf("Sky Sports Main Event", "TNT Sports 1"),
+            GuideMatch.confirmedBroadcasters(listOf(onTime), teamsFixtureAt(kickoff)),
+        )
+    }
+
     // --- the event/tournament case -----------------------------------------------------------
 
     @Test
@@ -166,15 +182,113 @@ class BroadcastGuideTest {
     }
 
     @Test
-    fun tournamentDuelsFallBackToTwoTokenOverlap() {
-        // The guide groups tennis by tournament ("ATP Tennis ATP Shanghai / ATP Beijing"); two
-        // tokens reaching a distinctive one ("shanghai") is a real listing, series words alone
-        // ("world", "tour") are not.
-        val row = SportNameMatch.normalize("ATP Tennis ATP Shanghai / ATP Beijing ATP World Tour")
-        assertTrue(GuideMatch.eventTokensInRow(row, "ATP Shanghai Masters"))
-        assertTrue(GuideMatch.eventTokensInRow(row, "ATP Beijing"))
-        assertFalse(GuideMatch.eventTokensInRow(row, "WTA Finals"))
-        assertFalse(GuideMatch.eventTokensInRow(row, "World Tour"))
+    fun genericClubWordsDoNotIdentifyASide() {
+        val row = SportNameMatch.normalize("Manchester United v Manchester City Premier League")
+        // "United" and "City" belong to dozens of clubs — they identify no side on their own.
+        assertFalse(GuideMatch.bothSidesInRow(row, "Newcastle United", "Leicester City"))
+        assertTrue(GuideMatch.bothSidesInRow(row, "Manchester United", "Manchester City"))
+    }
+
+    @Test
+    fun seriesWordsAloneAreNotAnEventOverlap() {
+        val row = SportNameMatch.normalize("Formula 1 Australian Grand Prix F1 2026 season")
+        assertFalse(GuideMatch.eventTokensInRow(row, "Grand Prix"))
+        assertTrue(GuideMatch.eventTokensInRow(row, "Australian Grand Prix"))
+    }
+
+    // --- tennis: the guide has one row per tour per day, never per match ----------------------
+
+    private fun tennisFixtureAt(ms: Long, leagueId: String, first: String, second: String) = Fixture(
+        id = "tennis-1", leagueId = leagueId, dateMs = ms, state = FixtureState.UPCOMING,
+        statusLine = "14:00", format = FixtureFormat.VERSUS,
+        entries = listOf(
+            FixtureEntry(id = "1", name = first, order = null, detail = null, logoUrl = null),
+            FixtureEntry(id = "2", name = second, order = null, detail = null, logoUrl = null),
+        ),
+        broadcasts = emptyList(), venue = null,
+    )
+
+    @Test
+    fun everyTennisMatchOfTheTourGetsTheTourChannels() {
+        val atpRow = GuideEntry(
+            GuideEntryTestScope.time(2026, 10, 25, 12, 0),
+            "ATP World Tour",
+            "ATP Tennis ATP Lyon / ATP Almaty / ATP Brussels",
+            listOf("Sky Sports Tennis", "Sky Sports+"),
+        )
+        val wtaRow = GuideEntry(
+            GuideEntryTestScope.time(2026, 10, 25, 5, 30),
+            "WTA Tour",
+            "WTA Tennis WTA Japan Open / WTA Ningbo Open",
+            listOf("Sky Sports Tennis", "Sky Sports+"),
+        )
+        val entries = listOf(atpRow, wtaRow)
+        val players = "Alex de Minaur" to "Karen Khachanov"
+        // Every ATP match of that day runs on the tour's channel — first match, mid-day, evening.
+        for (hour in listOf(12, 15, 20)) {
+            val fixture = tennisFixtureAt(GuideEntryTestScope.time(2026, 10, 25, hour, 0), "tennis.atp", players.first, players.second)
+            assertEquals(
+                listOf("Sky Sports Tennis", "Sky Sports+"),
+                GuideMatch.confirmedBroadcasters(entries, fixture),
+            )
+        }
+        // A different tour's row does not serve an ATP fixture, and neither does another day.
+        val nextDay = tennisFixtureAt(GuideEntryTestScope.time(2026, 10, 26, 14, 0), "tennis.atp", players.first, players.second)
+        assertTrue(GuideMatch.confirmedBroadcasters(listOf(wtaRow), nextDay).isEmpty())
+    }
+
+    @Test
+    fun aTennisRowNamingBothPlayersWinsOverTheTourRow() {
+        val day = GuideEntryTestScope.time(2026, 10, 25, 12, 0)
+        val matchRow = GuideEntry(day, "ATP World Tour", "ATP Tennis Alex de Minaur v Karen Khachanov", listOf("Sky Sports Tennis"))
+        val tourRow = GuideEntry(day, "ATP World Tour", "ATP Tennis ATP Lyon / ATP Almaty", listOf("Sky Sports Tennis", "Sky Sports+"))
+        val fixture = tennisFixtureAt(day, "tennis.atp", "Alex de Minaur", "Karen Khachanov")
+        // The per-match row is the stronger evidence; the tour row only fills gaps.
+        assertEquals(listOf("Sky Sports Tennis"), GuideMatch.confirmedBroadcasters(listOf(matchRow, tourRow), fixture))
+    }
+
+    // --- F1: sessions are distinct, the row names one of them --------------------------------
+
+    @Test
+    fun f1SessionsNeverBorrowAnotherSessionsRow() {
+        val raceMs = GuideEntryTestScope.time(2026, 10, 25, 20, 0)
+        val qualiMs = GuideEntryTestScope.time(2026, 10, 25, 17, 0)
+        val entries = listOf(
+            entryAt(qualiMs, "United States Grand Prix Qualifying - Circuit of the Americas", listOf("Sky Sports F1")),
+            entryAt(raceMs, "United States Grand Prix Race - Circuit of the Americas", listOf("Sky Sports F1", "Sky Sports Main Event")),
+        )
+        assertEquals(
+            listOf("Sky Sports F1", "Sky Sports Main Event"),
+            GuideMatch.confirmedBroadcasters(entries, fixtureAt(raceMs, title = "United States Grand Prix — Race")),
+        )
+        assertEquals(
+            listOf("Sky Sports F1"),
+            GuideMatch.confirmedBroadcasters(entries, fixtureAt(qualiMs, title = "United States Grand Prix — Qualifying")),
+        )
+        // A practice session with no row of its own must not inherit the race's channels.
+        val practiceMs = GuideEntryTestScope.time(2026, 10, 25, 15, 0)
+        assertTrue(
+            GuideMatch.confirmedBroadcasters(entries, fixtureAt(practiceMs, title = "United States Grand Prix — Practice 1"))
+                .isEmpty(),
+        )
+    }
+
+    // --- fetch windows: a past start date makes the site drop rows --------------------------
+
+    @Test
+    fun guideWindowsNeverStartInThePast() {
+        val today = LocalDate.of(2026, 10, 25)
+        val windows = GuideWindows.forDay(today)
+        assertEquals(today, windows.first().first)
+        windows.forEach { (start, end) ->
+            assertFalse(start.isBefore(today))
+            assertFalse(end.isBefore(start))
+        }
+        // Contiguous coverage today..+8; the measured US GP row (today 20:00) is inside it.
+        assertEquals(8L, ChronoUnit.DAYS.between(today, windows.last().second))
+        windows.zipWithNext().forEach { (first, second) ->
+            assertEquals(first.second.plusDays(1), second.first)
+        }
     }
 
     @Test

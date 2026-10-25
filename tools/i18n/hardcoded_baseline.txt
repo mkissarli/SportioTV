@@ -46,7 +46,6 @@
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	bk
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	calcio
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	cf
-1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	club
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	fc
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	https://www.wheresthematch.com/live-sport-on-tv/
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	if

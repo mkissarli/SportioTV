@@ -34,10 +34,10 @@ data class SportMatchOptions(
      */
     val preferCountry: String? = null,
     /**
-     * Broadcaster names confirmed by an independent TV guide (Where's The Match / Live Football
-     * On TV) for this fixture ("Sky Sports Premier League"). Probed against channel names and
-     * scored [SportsMatcher.ConfirmedBroadcasterScore] — evidence the guide names the carrier,
-     * which ESPN's US-centric broadcast field never would.
+     * Broadcaster names confirmed by an independent TV guide (Where's The Match) for this fixture
+     * ("Sky Sports Premier League"). When present they **are** the channel list: the carriers are
+     * resolved against the playlist by name and rendered as-is, in guide order, deduplicated. The
+     * EPG matcher below is only consulted when the guide has nothing for the fixture.
      */
     val confirmedBroadcasters: List<String> = emptyList(),
 )
@@ -132,39 +132,41 @@ class SportsMatcher(
         languages: Set<SportLanguage> = emptySet(),
         limit: Int = DefaultChannelLimit,
     ): List<ChannelMatch> =
-        withContext(Dispatchers.IO) {
-            // Legacy path: quota 1, so the full-list fallback triggers exactly when the filter
-            // keeps nothing (the previous SportLanguages.filter behaviour).
-            applyFilter(
-                resolveSorted(fixture, emptyList()),
-                SportMatchOptions(languages, limit = limit, minPreferred = 1, strict = false),
-                demotePpv = fixture.isTeamSport(),
-            )
-        }
+        // Legacy path: quota 1, so the full-list fallback triggers exactly when the filter keeps
+        // nothing (the previous SportLanguages.filter behaviour). No guide list is passed, so the
+        // EPG matcher decides.
+        match(fixture, SportMatchOptions(languages, limit = limit, minPreferred = 1, strict = false))
 
     /**
-     * Channels that (probably) carry [fixture] under [options]: excluded languages dropped first,
-     * then the preferred languages filtered **before** the [SportMatchOptions.limit] cut (a German
-     * feed naming the clubs only in its EPG *description* scores far below the many
-     * English/Italian title feeds, so a post-cut filter would never see it). In strict mode a
-     * short preferred list stays short — no foreign feed is padded back in.
+     * The channels that carry [fixture].
+     *
+     * **Guide first.** When [SportMatchOptions.confirmedBroadcasters] names carriers, that list is
+     * the answer: each name is resolved against the playlist (prefix/suffix/plural tolerant) and
+     * shown in guide order with the best resolution kept — no EPG involvement, because the guide
+     * already answered the question.
+     *
+     * **EPG fallback.** Only when the guide has nothing for this fixture does the evidence matcher
+     * run: channel names and EPG programmes must name both participants (or, for events, the
+     * event's own title) and cover the kickoff.
      *
      * Never throws for a malformed playlist or a cold EPG: every DAO call is `runCatching`-guarded
      * and an empty result simply means "nothing matched".
      */
     suspend fun match(fixture: Fixture, options: SportMatchOptions): List<ChannelMatch> =
         withContext(Dispatchers.IO) {
-            applyFilter(resolveSorted(fixture, options.confirmedBroadcasters), options, demotePpv = fixture.isTeamSport())
+            val guided = guideChannels(options.confirmedBroadcasters)
+            val resolved = if (guided.isNotEmpty()) guided else resolveSorted(fixture)
+            applyFilter(resolved, options, demotePpv = fixture.isTeamSport())
         }
 
     /** Team sports have home/away sides; duels (tennis/MMA) and events (F1/golf) do not. */
     private fun Fixture.isTeamSport(): Boolean = home != null && away != null
 
     /**
-     * Discovery (pass 1) + scoring (pass 2), strongest first, unfiltered. Pure IO; both [match]
-     * overloads share it so only the final filter differs.
+     * EPG fallback (pass 1 discovery + pass 2 scoring), strongest first, unfiltered. Runs only when
+     * the web guide named no carrier for the fixture.
      */
-    private suspend fun resolveSorted(fixture: Fixture, confirmedBroadcasters: List<String>): List<ChannelMatch> {
+    private suspend fun resolveSorted(fixture: Fixture): List<ChannelMatch> {
         val sourceIds = sources.liveSourceIds()
         if (sourceIds.isEmpty()) return emptyList()
 
@@ -183,7 +185,7 @@ class SportsMatcher(
         // profile's channels; the guide probes stay SQL (indexed window) and their rows double as
         // the EPG evidence for scoring, so pass 2 issues no queries at all.
         val epgEvidence = HashMap<String, MutableList<EpgProgrammeEntity>>()
-        val candidates = discoverCandidates(fixture, teamSport, duelSport, sourceIds, from, to, epgEvidence, confirmedBroadcasters)
+        val candidates = discoverCandidates(fixture, teamSport, duelSport, sourceIds, from, to, epgEvidence)
         if (candidates.isEmpty()) return emptyList()
 
         // Pass 2 — score each candidate against the fixture.
@@ -205,9 +207,43 @@ class SportsMatcher(
                 sideBTokens = sideBTokens,
                 tournamentTokens = tournamentTokens,
                 programmes = epgEvidence[channel.epgChannelId?.trim()?.lowercase(Locale.ROOT)].orEmpty(),
-                confirmedBroadcasters = confirmedBroadcasters,
             )
         }.sortedByDescending { it.score }
+    }
+
+    /**
+     * The guide's carriers, resolved against the playlist. Each name matches as a plural-tolerant
+     * phrase anywhere in the channel name (so "UK| SKY SPORTS F1 HD" and "NOW: Sky Sports F1 4K"
+     * both answer "Sky Sports F1"); playback tiers collapse later in [applyFilter]. Score encodes
+     * guide order so the list reads exactly like the guide's list.
+     */
+    private suspend fun guideChannels(carriers: List<String>): List<ChannelMatch> {
+        val wanted = carriers.map { guidePhrase(it).trim() }
+            .filter { it.length >= MinHintLength }
+            .distinct()
+        if (wanted.isEmpty()) return emptyList()
+        val sourceIds = sources.liveSourceIds()
+        if (sourceIds.isEmpty()) return emptyList()
+        val rows = scanRows(sourceIds)
+        if (rows.isEmpty()) return emptyList()
+
+        val out = LinkedHashMap<Long, ChannelMatch>()
+        for ((index, carrier) in wanted.withIndex()) {
+            for (row in rows) {
+                if (out.containsKey(row.channel.id)) continue
+                if (!SportNameMatch.containsPhraseLoose(carrier, row.normName)) continue
+                out[row.channel.id] = ChannelMatch(
+                    channelId = row.channel.id,
+                    channelName = row.channel.name,
+                    logoUrl = row.channel.logoUrl,
+                    epgTitle = null,
+                    // Guide order is the display order; a later carrier never outranks an earlier.
+                    score = (wanted.size - index) * GuideOrderStep,
+                    guideConfirmed = true,
+                )
+            }
+        }
+        return out.values.toList()
     }
 
     /**
@@ -215,15 +251,15 @@ class SportsMatcher(
      * per-event channels), then the preferred languages — strict without fallback, legacy with the
      * full post-exclude list when fewer than [SportMatchOptions.minPreferred] survive.
      *
-     * Ranking adjustments happen here, in one re-sort: [ChannelMatch.score] already puts a
-     * web-guide-confirmed broadcaster on top ([ConfirmedBroadcasterScore]); a country tier then
-     * ranks the rest of the list — the user's pick first, then UK, US, FR, AR
-     * ([SportLanguages.countryOrder]) — and, for **team sports only** ([demotePpv]), PPV/event
-     * channels sort to the very bottom via [PpvPenalty], applied AFTER the tiers so a
-     * preferred-country PPV feed never tops a real channel that actually carries the fixture. Duels
-     * (tennis/MMA) and events (F1/golf) keep PPV feeds in normal order: those channels ("US TENNIS
-     * PPV") ARE the carriers there. The PPV demotion is a sort key only; the match's
-     * [ChannelMatch.score] keeps the evidence value.
+     * Ranking adjustments happen here, in one re-sort: guide-resolved channels ([ChannelMatch.
+     * guideConfirmed]) keep their guide order and bypass the preference filter — the guide is the
+     * answer to "who shows this?". Everything else gets the country tier — the user's pick first,
+     * then UK, US, FR, AR ([SportLanguages.countryOrder]) — and, for **team sports only**
+     * ([demotePpv]), PPV/event channels sort to the very bottom via [PpvPenalty], applied AFTER the
+     * tiers so a preferred-country PPV feed never tops a real channel that actually carries the
+     * fixture. Duels (tennis/MMA) and events (F1/golf) keep PPV feeds in normal order: those
+     * channels ("US TENNIS PPV") ARE the carriers there. The PPV demotion is a sort key only; the
+     * match's [ChannelMatch.score] keeps the evidence value.
      */
     private fun applyFilter(
         scored: List<ChannelMatch>,
@@ -308,7 +344,6 @@ class SportsMatcher(
         from: Long,
         to: Long,
         epgEvidence: MutableMap<String, MutableList<EpgProgrammeEntity>>,
-        confirmedBroadcasters: List<String>,
     ): LinkedHashMap<Long, ChannelEntity> {
         val out = LinkedHashMap<Long, ChannelEntity>()
 
@@ -316,9 +351,6 @@ class SportsMatcher(
         // of the profile's channels instead of ~30 SQL LIKE scans over the whole playlist. Every
         // row is tested once against all queries, so a 50k-channel playlist costs one pass.
         val rows = scanRows(sourceIds)
-        // The web guide's carriers get their own budget: a 50k playlist holds dozens of
-        // "SKY SPORT …" variants, and sharing one cap let them crowd out the team-name channels.
-        addNameMatches(rows, guideNameQueries(confirmedBroadcasters), GuideCandidateCap, out)
         addNameMatches(rows, nameDiscoveryQueries(fixture, emptyList()), NameCandidateCap, out)
 
         // B — the guide. A programme title naming a team is enough to pull its channel in; the
@@ -413,17 +445,6 @@ class SportsMatcher(
      * while a tournament word ("Masters") also matches other sports' channels and would otherwise
      * spend the cap first.
      */
-    /**
-     * Guide broadcaster phrases — FULL phrases only, as written and with plural "s" dropped
-     * ("Sky Sports Premier League" → "sky sport premier league"). Never their single words: "sky"
-     * or "premier" alone fill the guide budget with channels that carry nothing.
-     */
-    private fun guideNameQueries(confirmedBroadcasters: List<String>): List<String> =
-        confirmedBroadcasters.map { guidePhrase(it) }
-            .flatMap { listOf(it.trim(), SportNameMatch.singularize(it).trim()) }
-            .filter { it.isNotEmpty() }
-            .distinct()
-
     /**
      * A guide name as the playlist would spell it: "Sky Sports+" is the Sky "Plus" service, and a
      * literal "+" would otherwise normalise away and match every Sky channel in the country.
@@ -632,7 +653,6 @@ class SportsMatcher(
         sideBTokens: Set<String>,
         tournamentTokens: Set<String>,
         programmes: List<EpgProgrammeEntity>,
-        confirmedBroadcasters: List<String>,
     ): ChannelMatch? {
         var score = 0
         var epgTitle: String? = null
@@ -666,9 +686,9 @@ class SportsMatcher(
         // Broadcast names (ESPN) and channel hints ("Sky Sports F1") are rank/signals but NOT
         // qualification: a channel that only names the network ("Sky Sports Main Event" on every
         // Sky feed) would otherwise flood every fixture that network touches. They are a bonus on
-        // top of real evidence — both teams in the name/EPG, guide confirmation — and they qualify
-        // alone only for fixtures without participants (F1/golf), whose only channel signal is
-        // the competition hint. "Event" is never stripped anywhere: it is identity ("Main Event").
+        // top of real evidence — both teams in the name/EPG — and they qualify alone only for
+        // fixtures without participants (F1/golf), whose only channel signal is the competition
+        // hint. "Event" is never stripped anywhere: it is identity ("Main Event").
         val sportish = isSportishName(nameNorm)
         var broadcastBonus = 0
         if (sportish && fixture.broadcasts.any { SportNameMatch.containsPhrase(it, nameNorm) }) {
@@ -688,18 +708,6 @@ class SportsMatcher(
             }
         ) {
             broadcastBonus += HintScore
-        }
-        // TV-guide-confirmed broadcasters: the web guide names this channel as the carrier, which
-        // ESPN's own broadcast field never would. Phrase-only (a multi-word broadcaster name is one
-        // unit). Above every other signal, including the country tiers, so the guide's own list
-        // comes first and the country order decides inside it. The guide match implies a
-        // fixture-level check (both participants + kickoff) before this point, so it counts as
-        // evidence, unlike the raw broadcast words above.
-        val guideConfirmed = confirmedBroadcasters.any {
-            SportNameMatch.containsPhraseLoose(guidePhrase(it), nameNorm)
-        }
-        if (guideConfirmed) {
-            broadcastBonus += ConfirmedBroadcasterScore
         }
 
         // --- EPG tier (Lume): a programme counts only when it names BOTH teams AND covers kickoff ---
@@ -834,13 +842,11 @@ class SportsMatcher(
         }
 
         // Merge the broadcast bonus: rank signal only. A fixture with participants (both teams or
-        // a duel) never qualifies on the network name alone; guide confirmation and event-only
-        // fixtures (F1/golf, competition hint) may.
+        // a duel) never qualifies on the network name alone; event-only fixtures (F1/golf,
+        // competition hint) may.
         val hasParticipants = (home != null && away != null) ||
             (sideATokens.isNotEmpty() && sideBTokens.isNotEmpty())
-        if (broadcastBonus > 0) {
-            if (!hasParticipants || guideConfirmed || score > 0) score += broadcastBonus
-        }
+        if (broadcastBonus > 0 && (!hasParticipants || score > 0)) score += broadcastBonus
 
         return if (score > 0) {
             ChannelMatch(
@@ -850,7 +856,6 @@ class SportsMatcher(
                 epgTitle = epgTitle,
                 score = score,
                 isExact = exact,
-                guideConfirmed = guideConfirmed,
             )
         } else {
             null
@@ -962,8 +967,8 @@ class SportsMatcher(
          * Score per country tier in [applyFilter]: the first country in
          * [SportLanguages.countryOrder] gets `order.size * CountryTierStep`, the next one step less,
          * and so on. With the house order (UK, US, FR, AR) that is UK 400, US 300, FR 200, AR 100 —
-         * above any evidence signal (~25) so the country ranking decides, and below
-         * [ConfirmedBroadcasterScore] so the web guide's own list still comes first.
+         * above any evidence signal (~25) so the country ranking decides. Guide order never
+         * competes with it: guide channels are the only entries in that branch.
          */
         private const val CountryTierStep = 100
         /**
@@ -986,8 +991,6 @@ class SportsMatcher(
          * guide discovery is deliberately NOT bounded by this — see `discoverCandidates`.
          */
         private const val NameCandidateCap = 120
-        /** Channels the TV guide's broadcasters may add to the candidate set on their own. */
-        private const val GuideCandidateCap = 60
         /** Per-token cap for a guide-title probe. */
         private const val EpgMatchLimit = 40
         /** How many tokens are probed against the guide. */
@@ -1031,8 +1034,8 @@ class SportsMatcher(
         private const val EpgSingleWithContextScore = 2
         private const val EpgTournamentScore = 1
         private const val SportCategoryScore = 1
-        /** A TV-guide-confirmed carrier ("Sky Sports Premier League") — below EPG evidence, above names. */
-        const val ConfirmedBroadcasterScore = 1000
+        /** Score step that keeps the guide's own carrier order (a guide list is the answer). */
+        private const val GuideOrderStep = 1000
         /**
          * Region tie-break for US-league games: a `US:`-tagged feed outranks an equally evidenced
          * foreign feed, but never outranks genuinely stronger evidence (a +10 title hit still beats

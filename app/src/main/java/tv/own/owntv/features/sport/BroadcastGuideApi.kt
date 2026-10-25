@@ -1,7 +1,9 @@
 package tv.own.owntv.features.sport
 
+import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +16,23 @@ import tv.own.owntv.R
 
 /** One scraped WTM listing: exact UTC kickoff, competition name, fixture text, channels. */
 data class GuideEntry(val dateMs: Long, val league: String, val teams: String, val channels: List<String>)
+
+/**
+ * The day windows one guide refresh requests. Pure so the "never start in the past" rule (the site
+ * degrades a past-start range to today's remaining rows) is unit-testable without a network.
+ */
+object GuideWindows {
+
+    /** Days covered per request — the site returns only ~3–5 days of any range. */
+    private const val DaysPerWindow = 3L
+    private const val WindowCount = 3L
+
+    fun forDay(today: LocalDate): List<Pair<LocalDate, LocalDate>> =
+        (0 until WindowCount).map { index ->
+            val start = today.plusDays(index * DaysPerWindow)
+            start to start.plusDays(DaysPerWindow - 1)
+        }
+}
 
 /**
  * Keyless "where to watch" lookup, scraped from Where's The Match (wheresthematch.com).
@@ -69,19 +88,16 @@ class BroadcastGuideApi(private val client: OkHttpClient) {
     }
 
     /**
-     * Two overlapping day windows: the site shortens long ranges to a few days of rows, so
-     * "tomorrow" plus "+3..+8" together cover what the hub can show. Same rows in the seam are
-     * collapsed by the merge below.
+     * Three contiguous day windows covering today..+8, never starting in the past: a start date in
+     * the past makes the site answer with a degenerate "today only" page — measured 2026-10-25,
+     * `showdatestart=<yesterday>` returned 33 rows for today while `showdatestart=<today>` returned
+     * 111+ rows including tomorrow. That silently dropped the F1 race row. A request covers ~3–5
+     * days, so 3-day chunks stay well inside the site's limit.
      */
     private suspend fun refreshOnce() {
         val merged = withContext(Dispatchers.IO) {
-            val today = LocalDate.now()
-            val ranges = listOf(
-                today.minusDays(1) to today.plusDays(3),
-                today.plusDays(4) to today.plusDays(8),
-            )
             val found = ArrayList<GuideEntry>()
-            for ((start, end) in ranges) {
+            for ((start, end) in GuideWindows.forDay(LocalDate.now())) {
                 runCatching { get(dayWindowUrl(start, end)) }.getOrNull()?.let { html ->
                     runCatching { GuideParsers.wtm(html) }.getOrNull()?.let { found += it }
                 }
@@ -140,41 +156,78 @@ class BroadcastGuideApi(private val client: OkHttpClient) {
     }
 }
 
-/** Pure guide ↔ fixture matching (kickoff time, both participants, event title). */
+/**
+ * Pure guide ↔ fixture matching. The guide's rows are not uniform, so neither is their evidence:
+ *
+ *  - team fixtures (and MMA duels) get a row naming both sides;
+ *  - **tennis has one row per tour per day** ("ATP Tennis ATP Lyon / ATP Almaty", 12:00Z) — never a
+ *    per-match row, so that row is the tour's carrier list for the fixture's day;
+ *  - events (F1) get one row per session, with the session named in the row text.
+ *
+ * A fixture with no matching row gets no channels: an empty list is the honest answer, never a
+ * guess from a nearby row.
+ */
 object GuideMatch {
 
     /**
-     * The channels that (probably) carry [fixture], from [snapEntries]. A row matches when its
-     * UTC kickoff is inside the fixture's window and — for a fixture with two participants (teams
-     * or duel athletes) — **both** names token-overlap the row; otherwise (events, and duels the
-     * guide names by tournament) the title/token overlap decides. When several rows match, the
-     * one closest to the kickoff wins (race-weekend sessions list separately); team fixtures keep
-     * every matching row with their channels merged and deduplicated.
+     * The channels that (probably) carry [fixture], from [snapEntries]. Never fetches.
+     *
+     * Team/duel fixtures need a row naming both participants inside [ParticipantWindowMs]; when no
+     * such row exists, tennis falls back to its tour's day row ([tourChannels]). Event fixtures
+     * (F1) match on title tokens, then the same session, nearest row winning.
      */
     fun confirmedBroadcasters(snapEntries: List<GuideEntry>, fixture: Fixture): List<String> {
         if (snapEntries.isEmpty()) return emptyList()
-        val inWindow = snapEntries.filter { timeMatches(it.dateMs, fixture.dateMs) }
-        if (inWindow.isEmpty()) return emptyList()
         val sides = participantsOf(fixture)
         if (sides != null) {
-            val teamRows = inWindow.filter {
-                bothSidesInRow(rowText(it), sides.first, sides.second)
-            }
+            val nearby = snapEntries.filter { timeMatches(it.dateMs, fixture.dateMs, ParticipantWindowMs) }
+            val teamRows = nearby.filter { bothSidesInRow(rowText(it), sides.first, sides.second) }
             if (teamRows.isNotEmpty()) return teamRows.flatMap { it.channels }.distinct()
-            // Tennis-style duels: the guide groups by tournament, the fixture carries player
-            // names — the tournament text falls back to the event path below.
+            return tourChannels(snapEntries, fixture)
         }
         val eventTitle = fixture.title?.trim().takeUnless { it.isNullOrEmpty() }
             ?: fixture.tournament?.trim().orEmpty()
         if (eventTitle.isBlank()) return emptyList()
-        val matchingRows = inWindow.filter { eventTokensInRow(rowText(it), eventTitle) }
-        if (matchingRows.isEmpty()) return emptyList()
-        // Several matching rows are race-weekend sessions: the nearest one is this session's
-        // listing. (Team fixtures are decided by the both-sides path above, so closest-row never
-        // trims a legitimate team duplicate.)
-        return matchingRows.minByOrNull { kotlin.math.abs(it.dateMs - fixture.dateMs) }
+        val nearby = snapEntries.filter { timeMatches(it.dateMs, fixture.dateMs, EventWindowMs) }
+        val titled = nearby.filter { eventTokensInRow(rowText(it), eventTitle) }
+        val session = sessionWordsIn(eventTitle)
+        val usable = if (session.isEmpty()) {
+            titled
+        } else {
+            // A practice fixture must not take the race row's channels because the event name
+            // matches: accept the same session, or a row that names no session at all.
+            titled.filter { row ->
+                val rowSession = sessionWordsIn(rowText(row))
+                rowSession.isEmpty() || rowSession.any { it in session }
+            }
+        }
+        return usable.minByOrNull { kotlin.math.abs(it.dateMs - fixture.dateMs) }
             ?.channels?.distinct().orEmpty()
     }
+
+    /**
+     * The tennis tour's day row: the guide lists "ATP Tennis ATP Lyon / ATP Almaty" once per tour
+     * per day with the channels carrying that tour. Every match of that tour on that day runs
+     * there, so the row is usable for all of them — but nothing finer can be claimed from it.
+     */
+    private fun tourChannels(entries: List<GuideEntry>, fixture: Fixture): List<String> {
+        val tour = when {
+            fixture.leagueId.endsWith(".atp") -> "atp"
+            fixture.leagueId.endsWith(".wta") -> "wta"
+            else -> return emptyList()
+        }
+        return entries
+            .filter {
+                sameUtcDay(it.dateMs, fixture.dateMs) &&
+                    SportNameMatch.containsWord(tour, SportNameMatch.normalize(it.league))
+            }
+            .flatMap { it.channels }
+            .distinct()
+    }
+
+    private fun sameUtcDay(firstMs: Long, secondMs: Long): Boolean =
+        Instant.ofEpochMilli(firstMs).atZone(ZoneOffset.UTC).toLocalDate() ==
+            Instant.ofEpochMilli(secondMs).atZone(ZoneOffset.UTC).toLocalDate()
 
     private fun rowText(entry: GuideEntry): String =
         SportNameMatch.normalize(entry.teams + " " + entry.league)
@@ -190,13 +243,14 @@ object GuideMatch {
         return fixture.entries[0].name to fixture.entries[1].name
     }
 
-    fun timeMatches(guideMs: Long, fixtureMs: Long): Boolean =
-        guideMs > 0 && kotlin.math.abs(guideMs - fixtureMs) <= MaxTimeDeltaMs
+    fun timeMatches(guideMs: Long, fixtureMs: Long, windowMs: Long = EventWindowMs): Boolean =
+        guideMs > 0 && kotlin.math.abs(guideMs - fixtureMs) <= windowMs
 
     /**
      * Both participant names must token-overlap the row text: tokens after stripping generic club
-     * affixes (fc/cf/afc/…), lowercased, diacritic-free, plural-tolerant. Only a row naming both
-     * sides is this fixture — one side alone is any other event on that day.
+     * affixes (fc/cf/afc/…) and generic club words (united/city/…), lowercased, diacritic-free,
+     * plural-tolerant. Only a row naming both sides is this fixture — one side alone is any other
+     * event on that day, and "United" alone identifies no club.
      */
     fun bothSidesInRow(rowNorm: String, sideA: String, sideB: String): Boolean =
         sideA.isNotBlank() && sideB.isNotBlank() &&
@@ -204,18 +258,22 @@ object GuideMatch {
 
     private fun sideTokensHit(rowNorm: String, side: String): Boolean {
         val tokens = SportNameMatch.tokensForName(side, TeamSuffixes)
-        return tokens.any { token ->
+        if (tokens.isEmpty()) return false
+        // "Newcastle United" is identified by "newcastle"; "united"/"city" are shared by dozens of
+        // clubs and must not decide a side on their own. All remaining tokens must hit, so a row
+        // naming "Manchester United" never stands in for "Manchester City".
+        val required = tokens.filterNot { it in GenericTeamWords }.ifEmpty { tokens }
+        return required.all { token ->
             SportNameMatch.containsWord(token, rowNorm) ||
                 SportNameMatch.containsWord(SportNameMatch.singularize(token).trim(), rowNorm)
         }
     }
 
     /**
-     * Title/token overlap for fixtures without participants (F1, tournaments, and duels whose
-     * sides the guide names by tournament instead). At least two distinctive tokens must hit the
-     * row, at least one of them NOT a series word ("grand", "prix", "cup", … every round of a
-     * series shares those): "atp"+"lyon" against "ATP Lyon / ATP Almaty" is a real listing,
-     * "Monaco Grand Prix" against an Australian race row is not.
+     * Title/token overlap for fixtures without participants (F1, golf) and events. At least two
+     * distinctive tokens must hit the row, one of them not a series word ("grand", "prix", "cup", …
+     * every round of a series shares those). Session words are matched separately so a practice
+     * fixture cannot claim the race's row.
      */
     fun eventTokensInRow(rowNorm: String, eventTitle: String): Boolean {
         val tokens = SportNameMatch.normalize(eventTitle).trim().split(' ')
@@ -225,17 +283,30 @@ object GuideMatch {
         return hits.size >= 2 && hits.any { it !in SeriesWords }
     }
 
-    /** Same window as the hub's board fill (large enough for a delayed listing row). */
-    private const val MaxTimeDeltaMs = 3L * 60L * 60L * 1000L
+    /** The session labels ("race", "qualifying", …) a title or row text names, if any. */
+    private fun sessionWordsIn(text: String): Set<String> =
+        SportNameMatch.normalize(text).trim().split(' ').filter { it in SessionWords }.toSet()
+
+    /** A row listing one kickoff: a row hours away is another event, not this fixture. */
+    private const val ParticipantWindowMs = 90L * 60L * 1000L
+
+    /** Session rows can sit a couple of hours off the fixture time (schedule vs broadcast start). */
+    private const val EventWindowMs = 3L * 60L * 60L * 1000L
 
     /** Generic club affixes (after [SportNameMatch.tokensForName]'s length rule). */
     private val TeamSuffixes = setOf(
         "fc", "cf", "afc", "sc", "ac", "sk", "if", "bk", "club", "calcio",
     )
 
+    /** Club words dozens of sides share — never enough to identify one side. */
+    private val GenericTeamWords = setOf(
+        "united", "city", "town", "rovers", "wanderers", "athletic", "sporting", "club", "sports",
+    )
+
     /** Session words name a race-weekend session, not the event — never event tokens. */
     private val SessionWords = setOf(
-        "race", "qualifying", "practice", "warm", "final", "semifinal", "quarterfinal", "heat",
+        "race", "qualifying", "practice", "sprint", "warm", "final", "semifinal", "quarterfinal",
+        "heat",
     )
 
     /** Series words every round of a competition shares — never the distinctive overlap. */

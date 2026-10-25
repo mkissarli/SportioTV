@@ -96,7 +96,6 @@ der Stadt des Vereins oder ein Film-Blurb, nicht das Spiel. Das ist Lumes
 | Volle Broadcast-Phrase im Kanalnamen | +3* | `BroadcastPhraseScore` |
 | Broadcast-Wort im Kanalnamen (nur Ein-Wort-Broadcasts) | +3* | `BroadcastWordScore` |
 | Channel-Hint im Kanalnamen (Tennis: „Tennis") | +6* | `HintScore` |
-| Web-Guide-Transport (Where's The Match: Beide-Teams/Eventtoken + Kickoff bestätigt) | +1000 | `ConfirmedBroadcasterScore` |
 | **Beide** Teams/Athleten im EPG-Titel | +10 | `EpgBothTeamsScore` |
 | Beide über Titel/Beschreibung (nur eins im Titel) | +3 | `EpgDescriptionBothScore` |
 | Ein Athlet + Tennis-Kontext im selben Programm (Duell-Recall) | +2 | `EpgSingleWithContextScore` |
@@ -359,18 +358,26 @@ oder beide zusammen in einem EPG-Programm, das **den Anstoß überdeckt**.
 
 - **Qualifikation ist Beweis, Bonus ist kein Beweis.** Ein Kanal erscheint nur, wenn er
   echte Evidenz trägt: beim Duell beide Athleten im Namen oder ein EPG-Programm, das
-  beide Teams nennt, `isExact`; Guide-Bestätigung (`ConfirmedBroadcasterScore`,
-  `guideConfirmed`) oder — nur bei Fixtures **ohne** Teilnehmer (F1/Golf) — der
-  Broadcast-/Hint-Name selbst. Mit Teilnehmern sind Broadcast-/Hint-Treffer reiner
+  beide Teams nennt, `isExact`; oder — nur bei Fixtures **ohne** Teilnehmer (F1/Golf) —
+  der Broadcast-/Hint-Name selbst. Mit Teilnehmern sind Broadcast-/Hint-Treffer reiner
   Bonus („NOW:" vs „FR:"); sie qualifizieren nie allein.
-- **Web-Guide (Where's The Match):** `BroadcastGuideApi` holt pro Tag-Window
-  (`live-sport-on-tv/?showdatestart=…&showdateend=…`, siehe `SPORT-HUB.md`) alle
-  Sportarten. Beim Hub-Lauf matcht `GuideMatch.confirmedBroadcasters`:
-  Teams/Duelle → **beide** Namen Token-Overlap; ohne Treffer fällt das Duell auf den
-  Turnier-Titel zurück (Guide gruppiert Tennis nach Turnier); Events (F1) → Titel-Tokens
-  (2 Treffer, davon 1 kein `SessionWords`-Wort und kein `SeriesWords`-Wort; die
-  **zeitlich nächste** Session-Zeile gewinnt). Gated Rows („Log in to view") fliegen raus,
-  `[Not Televised]` nie in die Kanäle.
+- **Web-Guide zuerst.** Nennt Where's The Match Sender für das Fixture, ist diese Liste
+  die Antwort: `SportsMatcher.guideChannels` löst die Namen gegen die Playlist auf
+  (Phrasen-Treffer, Präfix/Suffix/Plural-tolerant), zeigt sie in Guide-Reihenfolge und
+  dedupliziert nach Regel 4. Kein EPG-Scoring in diesem Fall. Der EPG-Pfad läuft nur,
+  wenn der Guide nichts für das Fixture hat.
+- **Web-Guide (Where's The Match) — Datenform und Matching:** `BroadcastGuideApi` holt
+  drei 3-Tage-Fenster ab **heute** (`live-sport-on-tv/?showdatestart=…&showdateend=…`,
+  siehe `SPORT-HUB.md`; ein Start in der Vergangenheit liefert nur die Reste von heute,
+  gemessen 2026-10-25: 33 statt 111+ Zeilen und die F1-Renn-Zeile fehlt). Beim Hub-Lauf
+  matcht `GuideMatch.confirmedBroadcasters`: Teams/Duelle → **beide** Namen Token-Overlap
+  (generische Club-Wörter wie „united"/„city" identifizieren keine Seite); Tennis →
+  die Tour-Tag-Zeile („ATP Tennis ATP Lyon / ATP Almaty", eine Zeile pro Tour und Tag,
+  gilt für alle Matches dieser Tour an dem Tag — Einzelmatch-Attribution gibt die Quelle
+  nicht her); Events (F1) → Titel-Tokens (2 Treffer, davon 1 kein `SessionWords`-Wort
+  und kein `SeriesWords`-Wort) **plus gleiche Session** (ein Practice-Fixture erbt nie
+  die Renn-Zeile). Gated Rows („Log in to view") fliegen raus, `[Not Televised]` nie in
+  die Kanäle.
 - **Regel-4-Dedup (`ChannelDedup`, im `applyFilter` vor dem Ranking-Split):** Identität =
   (führendes Tag — `NOW:`/`UK|`/`FR:`/`VIP|` — bleibt Teil der Identität, gestrippte Basis
   ohne Auflösungs-/Codec-/Noise-Wörter). Auflösungen („4K", „FHD", „HD", „SD") bestimmen den

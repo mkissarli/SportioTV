@@ -16,6 +16,7 @@ class ChannelDedupTest {
     fun identityStripsResolutionCodecAndNoiseButKeepsMainEvent() {
         fun id(name: String) = ChannelDedup.identityOf(name)?.let { it.first + "|" + it.second }
         assertEquals("now|sky sports main event", id("NOW: Sky Sports Main Event 4K"))
+        assertEquals("now|sky sports main event", id("NOW: Sky Sports Main Event 8K"))
         assertEquals("now|sky sports main event", id("NOW: Sky Sports Main Event"))
         // "FR:" is a different country/source → a different option.
         assertEquals("fr|sky sports main event", id("FR: Sky Sports Main Event"))
@@ -30,6 +31,7 @@ class ChannelDedupTest {
 
     @Test
     fun resolutionRankKeepsTheBestCopy() {
+        assertEquals(5, ChannelDedup.resolutionRank("NOW: Sky Sports Main Event 8K"))
         assertEquals(4, ChannelDedup.resolutionRank("NOW: Sky Sports Main Event 4K"))
         assertEquals(4, ChannelDedup.resolutionRank("UK| SKY SPORTS UHD HDR"))
         assertEquals(3, ChannelDedup.resolutionRank("TNT Sports 1 FHD"))

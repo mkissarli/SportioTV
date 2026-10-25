@@ -630,6 +630,46 @@ class SportsMatcherTest {
         assertTrue(preferred.all { it.score == 10 })
     }
 
+    // --- classic column order and quality-variant dedupe ----------------------------------------
+
+    @Test
+    fun classicPrefixOrderIsUkNowThenUsThenFrOr4kThenTheRestAndQualityVariantsCollapse() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(
+                channel(630, "NOW: SKY SPORTS MAIN EVENT HD", epgKey = "now-hd"),
+                channel(631, "NOW: SKY SPORTS MAIN EVENT 4K", epgKey = "now-4k"),
+                channel(632, "US: ESPN+", epgKey = "us"),
+                channel(633, "FR: CANAL+ SPORT 4K", epgKey = "fr"),
+                channel(634, "DE: SKY SPORT 1 HD", epgKey = "de-hd"),
+                channel(635, "DE: SKY SPORT 1 RAW", epgKey = "de-raw"),
+            ),
+            programmes = listOf(
+                programme("now-hd", title = "Coventry City v Newcastle United"),
+                programme("now-4k", title = "Coventry City v Newcastle United"),
+                programme("us", title = "Coventry City v Newcastle United"),
+                programme("fr", title = "Coventry City v Newcastle United"),
+                programme("de-hd", title = "Coventry City v Newcastle United"),
+                programme("de-raw", title = "Coventry City v Newcastle United"),
+            ),
+        )
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(languages = emptySet(), limit = 10, classicPrefixOrder = true),
+        )
+
+        assertEquals(
+            listOf(
+                "NOW: SKY SPORTS MAIN EVENT 4K",
+                "US: ESPN+",
+                "FR: CANAL+ SPORT 4K",
+                "DE: SKY SPORT 1 HD",
+            ),
+            matches.map { it.channelName },
+        )
+        assertEquals(4, matches.size)
+    }
+
     // --- kickoff containment: a same-name listing at another hour is not the fixture ------------
 
     @Test

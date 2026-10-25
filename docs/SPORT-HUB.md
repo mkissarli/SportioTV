@@ -44,6 +44,16 @@
   mergeEvidence`): ein nicht-leerer Guide unterdrückt weder die EPG-Suche noch eine
   bestätigte Voll-Playlist-KI-Antwort. Evidenzklassen sortieren Guide > EPG/Name >
   KI-only; Priors und Länderwunsch sind nur Tie-Breaker. Details: `AI-PLAYLIST.md`.
+- **Standard-Landeseite (2026-10-25):** nach Login startet der Shell im **Sport-Hub**
+  (`ShellViewModel` initial `MainSection.SPORT`), sofern die Sektion sichtbar ist; die
+  Startup-Modi Last Channel/Favorites/Specific Channel behalten Vorrang.
+- **Drei Kanalspalten (2026-10-25):** **Classic** ist der ursprüngliche Guide-/EPG-Matcher
+  ohne Guide-Carrier, Priors oder KI-Evidenz; **Classic + AI** ist die bisherige gemergte
+  Liste; **AI** bleibt die separate DeepSeek-Empfehlung. Die KI-Spalten existieren nur bei
+  eingeschalteten KI-Funktionen.
+- **Classic-Reihenfolge:** UK/NOW → US → FR oder 4K/8K → alles andere, danach Evidenz und
+  Sprache. `ChannelDedup` fasst 4K/8K/UHD/FHD/HD/RAW-Varianten derselben Quelle zu einer
+  Zeile zusammen (beste Auflösung gewinnt); 8K/4320p sind ergänzt.
 - **Automatischer Board-KI-Abgleich (2026-10-25):** ein Discovery-Request für den ganzen
   Tag, parallele lokale Kandidatensuche über die komplette Playlist/EPG, dann wenige
   gebündelte Adjudication-Requests. Schalter **KI-Senderabgleich für Sport** (Default an),

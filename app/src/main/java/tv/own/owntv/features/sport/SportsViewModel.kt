@@ -201,6 +201,8 @@ class SportsViewModel(
     private val boardAt = HashMap<String, Long>()
     private val standingsCache = HashMap<String, List<LeagueTable>>()
     private val matchesCache = HashMap<String, List<ChannelMatch>>()
+    /** Drops a late match result after a fixture/mode/option change. */
+    private var matchesRequest = 0
 
     private val _selectedLeagueId = MutableStateFlow(FavouritesId)
     val selectedLeagueId: StateFlow<String> = _selectedLeagueId.asStateFlow()
@@ -245,6 +247,14 @@ class SportsViewModel(
     /** Which channel list the detail pane shows: false = classic matcher, true = AI suggestions. */
     private val _aiListSelected = MutableStateFlow(false)
     val aiListSelected: StateFlow<Boolean> = _aiListSelected.asStateFlow()
+
+    /**
+     * The classic column's evidence set: false = original guide/EPG matcher only, true = the same
+     * matcher plus guide carriers, priors and accepted AI rows. Selecting the AI column leaves this
+     * untouched, so returning to a classic column restores its last choice.
+     */
+    private val _classicAiSelected = MutableStateFlow(false)
+    val classicAiSelected: StateFlow<Boolean> = _classicAiSelected.asStateFlow()
 
     private var aiRequest = 0
     private var aiJob: kotlinx.coroutines.Job? = null
@@ -540,6 +550,7 @@ class SportsViewModel(
     fun selectFixture(fixture: Fixture?) {
         val previousId = _selectedFixture.value?.id
         _selectedFixture.value = fixture
+        matchesRequest++
         if (fixture == null) {
             _matches.value = MatchesState.Idle
             _aiState.value = AiState.Idle
@@ -563,8 +574,10 @@ class SportsViewModel(
             return
         }
         _matches.value = MatchesState.Loading
+        val request = matchesRequest
         viewModelScope.launch {
             val found = runCatching { matcher.match(fixture, matchOptions()) }.getOrDefault(emptyList())
+            if (request != matchesRequest) return@launch
             matchesCache[fixture.id] = found
             if (_selectedFixture.value?.id == fixture.id) _matches.value = MatchesState.Content(found)
         }
@@ -643,6 +656,14 @@ class SportsViewModel(
     fun setAiListSelected(selected: Boolean) {
         // While the AI functions are off there is no AI list to show.
         _aiListSelected.value = selected && aiEnabled.value
+    }
+
+    /** Toggle the classic column between the original matcher and its guide/AI-enriched variant. */
+    fun setClassicAiSelected(selected: Boolean) {
+        val next = selected && aiEnabled.value
+        if (_classicAiSelected.value == next) return
+        _classicAiSelected.value = next
+        viewModelScope.launch { reResolveSelected() }
     }
 
     /**
@@ -824,23 +845,37 @@ class SportsViewModel(
      * fixture: guide carriers, ranked priors (tie-break only) and any accepted full-playlist AI
      * rows. All reads are cached — never a network call.
      */
-    private fun matchOptions(): SportMatchOptions {
+    private fun matchOptions(withAiEvidence: Boolean = _classicAiSelected.value): SportMatchOptions {
         val fixture = _selectedFixture.value
         val market = preferredCountry.value.takeIf { it.isNotBlank() }
+        val includeAi = withAiEvidence && aiEnabled.value
         return SportMatchOptions(
             languages = preferredLanguages.value,
             excludedLanguages = excludedLanguages.value,
             limit = channelLimit.value,
             strict = languageFilterStrict.value,
             preferCountry = market,
-            confirmedBroadcasters = fixture?.let { guideApi.confirmedBroadcasters(it) }.orEmpty(),
-            priorCarriers = fixture?.let { priors.carriersFor(it, market) }.orEmpty(),
-            aiChannels = buildList {
-                fixture?.let { f ->
-                    addAll(aiBoardByFixture[f.id].orEmpty())
-                    addAll(aiPlaylistByFixture[f.id]?.picks.orEmpty())
-                }
+            confirmedBroadcasters = if (includeAi) {
+                fixture?.let { guideApi.confirmedBroadcasters(it) }.orEmpty()
+            } else {
+                emptyList()
             },
+            priorCarriers = if (includeAi) {
+                fixture?.let { priors.carriersFor(it, market) }.orEmpty()
+            } else {
+                emptyList()
+            },
+            aiChannels = if (includeAi) {
+                buildList {
+                    fixture?.let { f ->
+                        addAll(aiBoardByFixture[f.id].orEmpty())
+                        addAll(aiPlaylistByFixture[f.id]?.picks.orEmpty())
+                    }
+                }
+            } else {
+                emptyList()
+            },
+            classicPrefixOrder = true,
         )
     }
 
@@ -854,11 +889,13 @@ class SportsViewModel(
      * it was built with — drop it and re-resolve the selected fixture.
      */
     private suspend fun reResolveSelected(options: SportMatchOptions? = null) {
+        val request = ++matchesRequest
         matchesCache.clear()
         val fixture = _selectedFixture.value ?: return
         _matches.value = MatchesState.Loading
         val resolved = options ?: matchOptions()
         val found = runCatching { matcher.match(fixture, resolved) }.getOrDefault(emptyList())
+        if (request != matchesRequest) return
         matchesCache[fixture.id] = found
         if (_selectedFixture.value?.id == fixture.id) _matches.value = MatchesState.Content(found)
     }

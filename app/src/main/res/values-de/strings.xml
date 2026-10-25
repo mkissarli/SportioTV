@@ -30,6 +30,7 @@
     <string name="sport_standings">Tabelle</string>
     <string name="sport_channels">Kanäle</string>
     <string name="sport_channels_classic">Klassisch</string>
+    <string name="sport_channels_classic_ai">Klassisch + KI</string>
     <string name="sport_play">Abspielen</string>
     <string name="sport_no_channel">Kein passender Kanal in deinen Playlists</string>
     <string name="sport_follow">Folgen</string>

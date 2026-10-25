@@ -23,7 +23,7 @@ object ChannelDedup {
      */
     private val NoiseWords = setOf(
         // resolution/quality
-        "4k", "uhd", "2160p", "2k", "fhd", "1080i", "1080p", "1440p", "720p", "hd", "sd", "hdr", "raw",
+        "8k", "4320p", "4k", "uhd", "2160p", "2k", "fhd", "1080i", "1080p", "1440p", "720p", "hd", "sd", "hdr", "raw",
         // codec/audio tags
         "hevc", "h265", "h264", "x265", "x264", "aac", "ac3", "eac3", "dts", "dolby", "atmos",
         "mpeg2", "mpeg4", "mp3",
@@ -58,6 +58,7 @@ object ChannelDedup {
     fun resolutionRank(name: String): Int {
         val norm = SportNameMatch.normalize(name)
         return when {
+            ranks(norm, "8k", "4320p") -> 5
             ranks(norm, "4k", "uhd", "2160p", "hdr") -> 4
             ranks(norm, "fhd", "1080p", "1440p") -> 3
             ranks(norm, "hd", "720p") -> 2

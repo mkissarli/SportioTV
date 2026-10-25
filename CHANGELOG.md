@@ -14,6 +14,17 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.18
+
+### ✨ New features
+- **Sports Hub is the default landing page**
+- **Classic, Classic + AI and AI channel columns**
+- **Classic channel order by UK/NOW, US, FR or 4K/8K**
+- **4K/UHD/HD/RAW variants collapse into one channel row**
+
+### 🐛 Fixes
+- **8K streams collapse with their other quality variants**
+
 ## v0.2.17
 
 ### ✨ New features

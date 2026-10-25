@@ -141,6 +141,7 @@ fun SportsScreen(
     val aiState by vm.aiState.collectAsStateWithLifecycle()
     val playlistAiState by vm.playlistAiState.collectAsStateWithLifecycle()
     val aiListSelected by vm.aiListSelected.collectAsStateWithLifecycle()
+    val classicAiSelected by vm.classicAiSelected.collectAsStateWithLifecycle()
     val aiEnabled by vm.aiEnabled.collectAsStateWithLifecycle()
     val aiBoardHits by vm.aiBoardHits.collectAsStateWithLifecycle()
     var showSettings by remember { mutableStateOf(false) }
@@ -152,9 +153,11 @@ fun SportsScreen(
     var showPlaylistAiConsent by remember { mutableStateOf(false) }
     val remoteState by vm.remoteState.collectAsStateWithLifecycle()
 
-    // The AI functions were switched off while the AI list was open: the classic list takes over.
+    // The AI functions were switched off while an AI column was open: the original classic list
+    // takes over, and the AI-enriched classic column disappears with them.
     LaunchedEffect(aiEnabled) {
         if (!aiEnabled && aiListSelected) vm.setAiListSelected(false)
+        if (!aiEnabled && classicAiSelected) vm.setClassicAiSelected(false)
     }
 
     val favouritesSelected = selectedLeagueId == SportsViewModel.FavouritesId
@@ -481,8 +484,10 @@ fun SportsScreen(
                         playlistAiState = playlistAiState,
                         aiCountries = aiCountries,
                         aiListSelected = aiListSelected,
+                        classicAiSelected = classicAiSelected,
                         aiEnabled = aiEnabled,
                         onAiListSelected = { vm.setAiListSelected(it) },
+                        onClassicAiSelected = { vm.setClassicAiSelected(it) },
                         onRequestPlaylistAi = {
                             if (deepSeekApiKey.isBlank()) showAiKeyMissing = true else showPlaylistAiConsent = true
                         },
@@ -1119,9 +1124,11 @@ private fun FixtureDetail(
     playlistAiState: SportsViewModel.PlaylistAiState,
     aiCountries: Set<AiCountry>,
     aiListSelected: Boolean,
+    classicAiSelected: Boolean,
     /** Whether the AI functions may run; off means the AI tab does not exist. */
     aiEnabled: Boolean,
     onAiListSelected: (Boolean) -> Unit,
+    onClassicAiSelected: (Boolean) -> Unit,
     onRequestPlaylistAi: () -> Unit,
     onOpenAiCountries: () -> Unit,
     onCancelAi: () -> Unit,
@@ -1323,7 +1330,7 @@ private fun FixtureDetail(
                             }
                         }
                     }
-                    if (!aiVisible && aiEnabled) {
+                    if (!aiVisible && aiEnabled && classicAiSelected) {
                         StageSurface(
                             onClick = onRequestPlaylistAi,
                             radius = 14.mpx,
@@ -1336,8 +1343,9 @@ private fun FixtureDetail(
                         }
                     }
                 }
-                // Classic matcher list vs. AI suggestions, in the same place and the same row style.
-                // The AI tab only exists while the AI functions are switched on.
+                // Classic (original guide/EPG matcher), Classic + AI (the merged evidence list) and
+                // the separate AI recommendation column. The AI columns only exist while the AI
+                // functions are switched on.
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.mpx),
@@ -1345,11 +1353,24 @@ private fun FixtureDetail(
                     StageTab(
                         label = stringResource(R.string.sport_channels_classic),
                         count = "",
-                        selected = !aiVisible,
-                        onClick = { onAiListSelected(false) },
+                        selected = !aiVisible && !classicAiSelected,
+                        onClick = {
+                            onClassicAiSelected(false)
+                            onAiListSelected(false)
+                        },
                         modifier = Modifier.weight(1f),
                     )
                     if (aiEnabled) {
+                        StageTab(
+                            label = stringResource(R.string.sport_channels_classic_ai),
+                            count = "",
+                            selected = !aiVisible && classicAiSelected,
+                            onClick = {
+                                onClassicAiSelected(true)
+                                onAiListSelected(false)
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
                         StageTab(
                             label = stringResource(R.string.sport_ai_tab),
                             count = "",
@@ -1387,23 +1408,25 @@ private fun FixtureDetail(
                             style = stageText(14, 500), color = StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    when (val aiCheck = playlistAiState) {
-                        SportsViewModel.PlaylistAiState.Idle -> Unit
-                        SportsViewModel.PlaylistAiState.Loading -> Text(
-                            stringResource(R.string.sport_ai_playlist_loading),
-                            style = stageText(14, 500), color = StageColors.Dim,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                        is SportsViewModel.PlaylistAiState.Content -> Text(
-                            stringResource(R.string.sport_ai_playlist_done, aiCheck.added, aiCheck.checked),
-                            style = stageText(14, 500), color = StageColors.Dim,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                        is SportsViewModel.PlaylistAiState.Error -> Text(
-                            aiFailureText(aiCheck.failure),
-                            style = stageText(14, 500), color = StageColors.Dim,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        )
+                    if (classicAiSelected) {
+                        when (val aiCheck = playlistAiState) {
+                            SportsViewModel.PlaylistAiState.Idle -> Unit
+                            SportsViewModel.PlaylistAiState.Loading -> Text(
+                                stringResource(R.string.sport_ai_playlist_loading),
+                                style = stageText(14, 500), color = StageColors.Dim,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                            is SportsViewModel.PlaylistAiState.Content -> Text(
+                                stringResource(R.string.sport_ai_playlist_done, aiCheck.added, aiCheck.checked),
+                                style = stageText(14, 500), color = StageColors.Dim,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                            is SportsViewModel.PlaylistAiState.Error -> Text(
+                                aiFailureText(aiCheck.failure),
+                                style = stageText(14, 500), color = StageColors.Dim,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                     when (matchesState) {
                         SportsViewModel.MatchesState.Idle, SportsViewModel.MatchesState.Loading -> {

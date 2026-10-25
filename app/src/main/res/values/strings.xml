@@ -31,6 +31,7 @@
     <string name="sport_standings">Standings</string>
     <string name="sport_channels">Channels</string>
     <string name="sport_channels_classic">Classic</string>
+    <string name="sport_channels_classic_ai">Classic + AI</string>
     <string name="sport_play">Play</string>
     <string name="sport_no_channel">No matching channel in your playlists</string>
     <string name="sport_follow">Follow</string>

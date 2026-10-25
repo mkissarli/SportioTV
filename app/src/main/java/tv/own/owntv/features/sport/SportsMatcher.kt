@@ -49,6 +49,12 @@ data class SportMatchOptions(
      * locally). They are an additional evidence source, never a replacement for guide/EPG.
      */
     val aiChannels: List<ChannelMatch> = emptyList(),
+    /**
+     * Classic-mode presentation order: UK/NOW first, then US, then FR or 4K/8K, then everything
+     * else. Only the Sports Hub's classic columns set this; the default keeps the existing
+     * evidence-first order.
+     */
+    val classicPrefixOrder: Boolean = false,
 )
 
 /**
@@ -321,7 +327,8 @@ class SportsMatcher(
                     m.aiConfirmed -> AiEvidenceTier
                     else -> DeterministicEvidenceTier
                 }
-                val sortScore = evidenceTier + m.score + countryBonus + priorBonus -
+                val sortScore = (if (options.classicPrefixOrder) classicPrefixTier(m.channelName) else 0) +
+                    evidenceTier + m.score + countryBonus + priorBonus -
                     if (demotePpv && isPpvChannel(m.channelName)) PpvPenalty else 0
                 m to sortScore
             }.sortedByDescending { it.second },
@@ -346,6 +353,18 @@ class SportsMatcher(
         val norm = SportNameMatch.normalize(channelName)
         val index = priorCarriers.indexOfFirst { SportNameMatch.containsPhraseLoose(it, norm) }
         return if (index >= 0) (priorCarriers.size - index) * PriorTierStep else 0
+    }
+
+    /**
+     * Classic column order: UK/NOW → US → FR or 4K/8K → everything else. The band is deliberately
+     * large so a prefix wins over evidence class, while evidence still orders rows inside a band.
+     */
+    private fun classicPrefixTier(channelName: String): Int = when {
+        SportLanguages.isFromCountry(channelName, UkCountryCode) -> ClassicUkTier
+        SportLanguages.isFromCountry(channelName, UsCountryCode) -> ClassicUsTier
+        SportLanguages.isFromCountry(channelName, FranceCountryCode) ||
+            ChannelDedup.resolutionRank(channelName) >= UltraHdRank -> ClassicFrOr4kTier
+        else -> ClassicOtherTier
     }
 
     /**
@@ -1127,6 +1146,15 @@ class SportsMatcher(
         private const val UsRegionBonus = 2
         /** Country tag that marks the home feed of a US-league game (see `SportLanguages`). */
         private const val UsCountryCode = "US"
+        private const val UkCountryCode = "UK"
+        private const val FranceCountryCode = "FR"
+        /** Classic prefix bands, high to low: UK/NOW, US, FR or 4K/8K, everything else. */
+        private const val ClassicUkTier = 40_000_000
+        private const val ClassicUsTier = 30_000_000
+        private const val ClassicFrOr4kTier = 20_000_000
+        private const val ClassicOtherTier = 10_000_000
+        /** `ChannelDedup.resolutionRank` for 4K/UHD/8K; FHD stays in the normal evidence order. */
+        private const val UltraHdRank = 4
         /** European basketball shares the `basketball.` prefix but is not a US league. */
         private const val EuroleagueId = "basketball.euroleague"
 

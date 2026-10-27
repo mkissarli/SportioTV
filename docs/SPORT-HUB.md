@@ -53,11 +53,13 @@
   gemischt und Classic-Zeilen nie in DeepSeek.
 - **Classic-Reihenfolge:** bevorzugte Playlist → UK/NOW → US → FR → 4K/8K → alles andere,
   danach Evidenz und Sprache. Die Playlist ist eine Einstellung (0 = keine) und nur ein
-  Sortiersignal: Sender anderer Playlists bleiben gelistet. `ChannelDedup` fasst
-  4K/8K/UHD/FHD/HD/RAW-Varianten derselben Quelle zu einer Zeile zusammen (beste Auflösung
-  gewinnt); 8K/4320p sind ergänzt. Ein Playlist-Scan versorgt den Matcher; auf 60k-Sendern
-  statt einem Scan je Namensabfrage. EPG-Probes sind gekappt und laufen parallel; 48
-  sequenzielle EPG-`LIKE`-Scans waren der lange Classic-Pfad.
+  Sortiersignal: Sender anderer Playlists bleiben gelistet. `ChannelDedup` fasst alle
+  Auflösungs-/fps-Varianten derselben Quelle zusammen und zeigt höchstens **zwei** Zeilen:
+  die beste 4K/UHD/8K-Kopie und die beste HD-/niedriger-Kopie (Auflösung, dann fps
+  entscheidet); nur eine Klasse vorhanden → eine Zeile. `1080p50`/`4k60` zählen als
+  Auflösung, nicht als eigener Sender. Ein Playlist-Scan versorgt den Matcher; auf
+  60k-Sendern statt einem Scan je Namensabfrage. EPG-Probes sind gekappt und laufen
+  parallel; 48 sequenzielle EPG-`LIKE`-Scans waren der lange Classic-Pfad.
 - **DeepSeek Match (2026-10-25):** lazy pro geöffnetem Fixture. Phase 1 nennt Broadcaster;
   die lokale Suche nutzt die komplette Playlist/EPG; eine DeepSeek-Search-Anfrage plus
   Extraktor kann neue Kanalnamen ergänzen; Phase 2 bestätigt mit `Supported`/`Likely`/

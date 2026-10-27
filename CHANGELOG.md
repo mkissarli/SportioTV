@@ -14,6 +14,14 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.23
+
+### ✨ New features
+- **Best 4K and best HD copy of a channel listed as two rows**
+
+### 🐛 Fixes
+- **Channels that differ only in fps collapse into one**
+
 ## v0.2.22
 
 ### ✨ New features

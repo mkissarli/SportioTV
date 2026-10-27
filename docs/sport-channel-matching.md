@@ -381,5 +381,9 @@ oder beide zusammen in einem EPG-Programm, das **den Anstoß überdeckt**.
   die Kanäle.
 - **Regel-4-Dedup (`ChannelDedup`, im `applyFilter` vor dem Sprachfilter):** Identität =
   (führendes Tag — `NOW:`/`UK|`/`FR:`/`VIP|` — bleibt Teil der Identität, gestrippte Basis
-  ohne Auflösungs-/Codec-/Noise-Wörter). Auflösungen („4K", „FHD", „HD", „SD") bestimmen den
-  Rang in der Gruppe; die beste Kopie bleibt. „Event" („Main Event") wird nie gestrippt.
+  ohne Auflösungs-/fps-/Codec-/Noise-Wörter). fps-Marker (`50FPS`, `⁵⁰ FPS`, `1080p50`,
+  `4k60`) trennen keine Identität. Pro Identität bleiben höchstens zwei Zeilen: die beste
+  4K/UHD/8K-Kopie und die beste HD-/niedriger-Kopie; innerhalb einer Klasse gewinnt
+  Auflösung, dann fps. Gibt es nur eine Klasse, bleibt eine Zeile. „Event" („Main Event")
+  wird nie gestrippt. Messung am echten EPG (2026-10-27): 8350 Namen → 6122 Identitäten,
+  6451 Zeilen, 329 Sender mit 4K+HD-Wahl.

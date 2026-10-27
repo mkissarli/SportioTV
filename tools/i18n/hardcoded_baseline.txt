@@ -56,7 +56,7 @@
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	tottenham
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	tottenham hotspur
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	unlock-premier-listing
-1	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	\0
+4	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	\0
 1	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	1080i
 2	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	1080p
 2	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	1440p

@@ -662,13 +662,14 @@ class SportsMatcherTest {
         assertEquals(
             listOf(
                 "NOW: SKY SPORTS MAIN EVENT 4K",
+                "NOW: SKY SPORTS MAIN EVENT HD",
                 "US: ESPN+",
                 "FR: CANAL+ SPORT 4K",
                 "DE: SKY SPORT 1 HD",
             ),
             matches.map { it.channelName },
         )
-        assertEquals(4, matches.size)
+        assertEquals(5, matches.size)
     }
 
     // --- kickoff containment: a same-name listing at another hour is not the fixture ------------

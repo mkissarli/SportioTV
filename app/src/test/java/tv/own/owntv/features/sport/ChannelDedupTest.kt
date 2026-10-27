@@ -5,10 +5,9 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Rule-4 identity + dedup + ordering: "NOW: Sky Sports Main Event 4K" and
- * "NOW: Sky Sports Main Event" are one channel (keep the 4K copy), "FR: …" is a different
- * option, "Main Event" is never stripped as noise, and one identity appears once, keeping
- * its best-resolution variant.
+ * Rule-4 identity + dedup + ordering: resolution and fps variants of one channel are one
+ * identity, "FR: …" is a different option, "Main Event" is never stripped as noise, and an
+ * identity renders at most two rows — the best 4K/UHD copy and the best HD-or-lower copy.
  */
 class ChannelDedupTest {
 
@@ -24,6 +23,10 @@ class ChannelDedupTest {
         assertEquals("uk|sky sport main event", id("UK| Sky Sport Main Event ᴿᴬᵂ"))
         // Codec/audio tags go; the base stays readable.
         assertEquals("uk|tnt sports 1", id("UK: TNT Sports 1 HD HEVC AAC"))
+        // fps markers go, in every spelling the provider uses.
+        assertEquals("uk|sky sports f1", id("UK: SKY SPORTS F1 50FPS"))
+        assertEquals("uk|sky sports f1", id("UK: SKY SPORTS F1 ᴿᴬᵂ ⁵⁰ FPS"))
+        assertEquals("uk|tnt sports 1", id("UK: TNT SPORTS 1 1080p50"))
         // A name stripped to nothing never gets deduplicated.
         assertNull(ChannelDedup.identityOf("HD"))
         assertNull(ChannelDedup.identityOf(""))
@@ -38,31 +41,71 @@ class ChannelDedupTest {
         assertEquals(2, ChannelDedup.resolutionRank("TNT Sports 1 HD"))
         assertEquals(0, ChannelDedup.resolutionRank("TNT Sports 1 SD"))
         assertEquals(1, ChannelDedup.resolutionRank("TNT Sports 1"))
+        // Resolution+fps spellings keep their resolution class.
+        assertEquals(3, ChannelDedup.resolutionRank("TNT Sports 1 1080p50"))
+        assertEquals(4, ChannelDedup.resolutionRank("TNT Sports 1 4k60fps"))
     }
 
     @Test
-    fun dedupeKeepsOneEntryPerIdentityAndTheHighestResolution() {
+    fun fpsRankPicksTheBetterCopyInsideAClass() {
+        assertEquals(60, ChannelDedup.fpsRank("UK: SKY SPORTS F1 60FPS"))
+        assertEquals(50, ChannelDedup.fpsRank("UK: SKY SPORTS F1 50FPS"))
+        assertEquals(50, ChannelDedup.fpsRank("UK: SKY SPORTS F1 1080p50"))
+        assertEquals(1, ChannelDedup.fpsRank("UK: SKY SPORTS F1 ᴿᴬᵂ ⁵⁰ FPS"))
+        assertEquals(0, ChannelDedup.fpsRank("UK: SKY SPORTS F1 HD"))
+    }
+
+    @Test
+    fun dedupeKeepsOneRowPerResolutionClass() {
         val entries = listOf(
             match(1, "NOW: Sky Sports Main Event", score = 1000),
             match(2, "NOW: Sky Sports Main Event 4K", score = 1000),
             match(3, "FR: Sky Sports Main Event HD", score = 1000),
         )
         val out = ChannelDedup.dedupe(entries.map { it to 0 })
-        // 4K wins the "NOW:" identity; the French copy stays — different country.
-        assertEquals(listOf("NOW: Sky Sports Main Event 4K", "FR: Sky Sports Main Event HD"), out.map { it.channelName })
+        // 4K and HD are both rendered for the "NOW:" identity; the French copy stays — different country.
+        assertEquals(
+            listOf(
+                "NOW: Sky Sports Main Event 4K",
+                "NOW: Sky Sports Main Event",
+                "FR: Sky Sports Main Event HD",
+            ),
+            out.map { it.channelName },
+        )
     }
 
     @Test
-    fun dedupeUsesTheEvidenceOrderAndNeverDoublesAcrossRankings() {
-        val now4k = match(1, "NOW: Sky Sports Main Event", score = 3)
-        val nowHd = match(2, "NOW: Sky Sports Main Event 4K", score = 1000)
-        val out = ChannelDedup.dedupe(listOf(nowHd to 1000, now4k to 3))
-        // Sorted input put the strong variant first; both identity slots collapse to one entry.
-        assertEquals(listOf("NOW: Sky Sports Main Event 4K"), out.map { it.channelName })
+    fun dedupeKeepsTheBestCopyInsideEachClass() {
+        val entries = listOf(
+            match(1, "UK: SKY SPORTS F1 HD"),
+            match(2, "UK: SKY SPORTS F1 4K"),
+            match(3, "UK: SKY SPORTS F1 8K"),
+            match(4, "UK: SKY SPORTS F1 FHD"),
+        )
+        val out = ChannelDedup.dedupe(entries.map { it to 0 })
+        assertEquals(listOf("UK: SKY SPORTS F1 8K", "UK: SKY SPORTS F1 FHD"), out.map { it.channelName })
+    }
 
-        val reversed = ChannelDedup.dedupe(listOf(now4k to 3, nowHd to 1000))
-        // Same identity again — resolution rank decides inside the group, not arrival order.
-        assertEquals(listOf("NOW: Sky Sports Main Event 4K"), reversed.map { it.channelName })
+    @Test
+    fun fpsVariantsCollapseAndTheHigherFpsWinsWithinTheSameResolution() {
+        val entries = listOf(
+            match(1, "UK: SKY SPORTS F1 ᴿᴬᵂ ⁵⁰ FPS"),
+            match(2, "UK: SKY SPORTS F1"),
+            match(3, "UK: SKY SPORTS F1 50FPS"),
+        )
+        val out = ChannelDedup.dedupe(entries.map { it to 0 })
+        assertEquals(listOf("UK: SKY SPORTS F1 50FPS"), out.map { it.channelName })
+    }
+
+    @Test
+    fun dedupeOrderIsStableAnd4kComesBeforeTheLowerClass() {
+        val lower = match(1, "NOW: Sky Sports Main Event", score = 3)
+        val ultra = match(2, "NOW: Sky Sports Main Event 4K", score = 1000)
+        val forward = ChannelDedup.dedupe(listOf(ultra to 1000, lower to 3))
+        val reversed = ChannelDedup.dedupe(listOf(lower to 3, ultra to 1000))
+        // Same two rows either way, 4K first inside the identity, identity order preserved.
+        assertEquals(listOf("NOW: Sky Sports Main Event 4K", "NOW: Sky Sports Main Event"), forward.map { it.channelName })
+        assertEquals(listOf("NOW: Sky Sports Main Event 4K", "NOW: Sky Sports Main Event"), reversed.map { it.channelName })
     }
 
     @Test

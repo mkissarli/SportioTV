@@ -120,7 +120,6 @@ fun SportsScreen(
     val activeLeagues by vm.activeLeagues.collectAsStateWithLifecycle()
     val selectedLeagueId by vm.selectedLeagueId.collectAsStateWithLifecycle()
     val selectedFixture by vm.selectedFixture.collectAsStateWithLifecycle()
-    val guideBroadcasters by vm.guideBroadcasters.collectAsStateWithLifecycle()
     val matchesState by vm.matches.collectAsStateWithLifecycle()
     val standings by vm.standings.collectAsStateWithLifecycle()
     val standingsLoading by vm.standingsLoading.collectAsStateWithLifecycle()
@@ -132,6 +131,8 @@ fun SportsScreen(
     val effectivePreview = previewEnabled && livePreviewSetting
     val preferredLanguages by vm.preferredLanguages.collectAsStateWithLifecycle()
     val preferredCountry by vm.preferredCountry.collectAsStateWithLifecycle()
+    val preferredPlaylistId by vm.preferredPlaylistId.collectAsStateWithLifecycle()
+    val playlists by vm.playlists.collectAsStateWithLifecycle()
     val languageAsked by vm.languageAsked.collectAsStateWithLifecycle()
     val channelLimit by vm.channelLimit.collectAsStateWithLifecycle()
     val excludedLanguages by vm.excludedLanguages.collectAsStateWithLifecycle()
@@ -468,7 +469,6 @@ fun SportsScreen(
                     val zapTitle = fixtureZapTitle(fixture)
                     FixtureDetail(
                         fixture = fixture,
-                        guideBroadcasters = guideBroadcasters,
                         followedTeams = followedTeams,
                         followedPlayers = followedPlayers,
                         matchesState = matchesState,
@@ -546,6 +546,9 @@ fun SportsScreen(
                 onToggleExclude = { vm.toggleExcludedLanguage(it) },
                 preferCountry = preferredCountry,
                 onPreferCountry = { vm.setPreferredCountry(it) },
+                playlists = playlists,
+                preferredPlaylistId = preferredPlaylistId,
+                onPreferPlaylist = { vm.setPreferredPlaylist(it) },
                 onToggleLeague = { vm.toggleLeagueFollowed(it) },
                 previewOn = livePreviewSetting,
                 onTogglePreview = { liveVm.setLivePreviewEnabled(!livePreviewSetting) },
@@ -1107,8 +1110,6 @@ private fun fixtureZapTitle(fixture: Fixture): String {
 @Composable
 private fun FixtureDetail(
     fixture: Fixture,
-    /** The TV guide's own carriers for this fixture, shown above the channel list. */
-    guideBroadcasters: List<String>,
     followedTeams: Set<String>,
     followedPlayers: Set<String>,
     matchesState: SportsViewModel.MatchesState,
@@ -1188,16 +1189,6 @@ private fun FixtureDetail(
         liveVm.playPreview(entity)
     }
     Column(modifier = Modifier.fillMaxHeight()) {
-        if (guideBroadcasters.isNotEmpty()) {
-            Text(
-                stringResource(R.string.sport_tv_guide_line, guideBroadcasters.joinToString(", ")),
-                style = stageText(16, 600),
-                color = StageColors.Text,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(bottom = 4.mpx),
-            )
-        }
         if (previewEntity != null) {
             GuideVideo(
                 channel = previewEntity,
@@ -1506,11 +1497,8 @@ private fun EvidenceHeader(text: String) {
 private fun evidenceLine(match: ChannelMatch): String? {
     val tier = match.evidenceTier
     if (tier == null) {
-        val guide = if (match.guideConfirmed) stringResource(R.string.sport_evidence_guide) else null
-        val detail = match.epgTitle ?: match.aiReason
-        return listOfNotNull(guide, detail?.takeIf { it.isNotBlank() })
-            .joinToString(Separator)
-            .takeIf { it.isNotBlank() }
+        return (match.epgTitle ?: match.aiReason)
+            ?.takeIf { it.isNotBlank() }
     }
     val tierLabel = when (tier) {
         ChannelEvidenceTier.SUPPORTED -> stringResource(R.string.sport_evidence_supported)
@@ -1573,6 +1561,10 @@ private fun SportsSettingsDialog(
     /** Preferred channel country ("" = none); see [SportLanguages.preferredCountryOptions]. */
     preferCountry: String,
     onPreferCountry: (String) -> Unit,
+    /** Live playlists and the one whose channels rank first (0 = none). */
+    playlists: List<SportsViewModel.PlaylistOption>,
+    preferredPlaylistId: Long,
+    onPreferPlaylist: (Long) -> Unit,
     onToggleLeague: (String) -> Unit,
     /** In-pane preview switch (shared with Settings → video player). */
     previewOn: Boolean,
@@ -1723,6 +1715,46 @@ private fun SportsSettingsDialog(
                                 value = stringResource(if (previewOn) R.string.common_on else R.string.common_off),
                                 onClick = onTogglePreview,
                             )
+                            // A preferred playlist tops the classic list; everything else stays
+                            // listed below. Left/Right cycle, like the country switcher.
+                            if (playlists.isNotEmpty()) {
+                                val locale = androidx.compose.ui.text.intl.Locale.current.platformLocale
+                                StageGroupLabel(stringResource(R.string.sport_prefer_playlist_title).uppercase(locale))
+                                val playlistIndex = playlists.indexOfFirst { it.id == preferredPlaylistId }
+                                    .let { if (it >= 0) it + 1 else 0 }
+                                val playlistCount = playlists.size + 1
+                                fun pickPlaylist(index: Int) {
+                                    onPreferPlaylist(if (index == 0) 0L else playlists[index - 1].id)
+                                }
+                                StageMenuItem(
+                                    text = playlists.getOrNull(playlistIndex - 1)?.name
+                                        ?: stringResource(R.string.sport_prefer_none),
+                                    icon = OwnTVIcon.PLAYLIST,
+                                    value = stringResource(R.string.sport_region_cycler_value, (playlistIndex + 1).toString()),
+                                    onClick = { pickPlaylist((playlistIndex + 1) % playlistCount) },
+                                    modifier = Modifier.onPreviewKeyEvent { event ->
+                                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                                        when (event.key) {
+                                            Key.DirectionLeft -> {
+                                                pickPlaylist((playlistIndex + playlistCount - 1) % playlistCount)
+                                                true
+                                            }
+                                            Key.DirectionRight -> {
+                                                pickPlaylist((playlistIndex + 1) % playlistCount)
+                                                true
+                                            }
+                                            else -> false
+                                        }
+                                    },
+                                )
+                                Text(
+                                    stringResource(R.string.sport_prefer_playlist_hint),
+                                    style = stageText(15, 500),
+                                    color = StageColors.Dim,
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(start = 18.mpx, end = 18.mpx, top = 4.mpx),
+                                )
+                            }
                             // Channels per game as a slider: Left/Right adjust within
                             // SportsPrefs.Min/MaxChannelLimit, OK steps up; the value stays visible.
                             // (Replaces the former Fewer/More stepper rows; both callbacks are kept.)

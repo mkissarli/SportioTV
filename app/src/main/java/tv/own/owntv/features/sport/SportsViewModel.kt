@@ -109,6 +109,9 @@ class SportsViewModel(
         val loading: Boolean,
     )
 
+    /** One live playlist for the preferred-playlist picker. */
+    data class PlaylistOption(val id: Long, val name: String)
+
     /** Leagues the user activated (shown in the rail and loaded); default = the brand's starter set. */
     val activeLeagues: StateFlow<Set<String>> = prefs.followedLeagues
         .map { ids -> ids.filterTo(LinkedHashSet()) { sportsLeagueById(it) != null } }
@@ -132,6 +135,18 @@ class SportsViewModel(
     /** Country whose channels rank first ("" = none); see [SportsPrefs.preferredCountry]. */
     val preferredCountry: StateFlow<String> = prefs.preferredCountry
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SportsPrefs.DefaultPreferredCountry)
+
+    /** Playlist whose channels rank first in the classic list (0 = none). */
+    val preferredPlaylistId: StateFlow<Long> = prefs.preferredPlaylist
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
+
+    /** The profile's live playlists for the preferred-playlist picker. */
+    val playlists: StateFlow<List<PlaylistOption>> = settings.activeProfileId
+        .flatMapLatest { pid ->
+            if (pid < 0) flowOf(emptyList()) else sourceRepository.observeSources(pid)
+        }
+        .map { sources -> sources.filter { it.syncLive }.map { PlaylistOption(it.id, it.name) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** How many channels one fixture lists (5–50, default 20); changes apply without restart. */
     val channelLimit: StateFlow<Int> = prefs.channelLimit
@@ -211,15 +226,6 @@ class SportsViewModel(
 
     private val _selectedFixture = MutableStateFlow<Fixture?>(null)
     val selectedFixture: StateFlow<Fixture?> = _selectedFixture.asStateFlow()
-
-    /**
-     * The TV guide's own carriers for the selected fixture ("Sky Sports Main Event"), from the last
-     * scrape. Shown above the channel list so it is obvious what the guide said; re-read when a new
-     * snapshot lands.
-     */
-    val guideBroadcasters: StateFlow<List<String>> = combine(_selectedFixture, guideApi.version) { fixture, _ ->
-        fixture?.let { guideApi.confirmedBroadcasters(it) }.orEmpty()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Which bucket of the selected league's fixtures is shown (Live / Upcoming / Past). */
     private val _tab = MutableStateFlow(FixtureTab.UPCOMING)
@@ -389,11 +395,9 @@ class SportsViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     init {
-        // The TV guide is fetched once in the background: fixture selection must never wait on it.
+        // The TV guide is fetched once in the background: the DeepSeek board uses it as evidence,
+        // and fixture selection must never wait on it.
         viewModelScope.launch(Dispatchers.IO) { guideApi.refresh() }
-        // When that scrape lands, re-match the open fixture: the guide's own broadcaster list is
-        // the top of the list, and the user should not have to re-select to see it.
-        viewModelScope.launch { guideApi.version.drop(1).collect { reResolveSelected() } }
         // A new selection resets the tab to its default (Live if the view has live games, else
         // Upcoming). The boards arrive asynchronously, so re-apply until the user picks by hand.
         viewModelScope.launch {
@@ -842,10 +846,17 @@ class SportsViewModel(
         }
     }
 
+    /** Set the preferred playlist (0 = no preference); the selected fixture re-resolves. */
+    fun setPreferredPlaylist(sourceId: Long) {
+        viewModelScope.launch {
+            prefs.setPreferredPlaylist(sourceId)
+            reResolveSelected(matchOptions().copy(preferredSourceId = sourceId.takeIf { it > 0 }))
+        }
+    }
+
     /**
-     * The matcher's filter from the current prefs plus the independent evidence for the selected
-     * fixture: guide carriers, ranked priors (tie-break only) and any accepted full-playlist AI
-     * rows. All reads are cached — never a network call.
+     * The matcher's filter from the current prefs plus the ranked priors (tie-break only) and any
+     * accepted full-playlist AI rows. All reads are cached — never a network call.
      */
     private fun matchOptions(withAiEvidence: Boolean = _classicAiSelected.value): SportMatchOptions {
         val fixture = _selectedFixture.value
@@ -857,13 +868,9 @@ class SportsViewModel(
             limit = channelLimit.value,
             strict = languageFilterStrict.value,
             preferCountry = market,
-            // Classic keeps the original guide/EPG evidence. DeepSeek is only the accepted,
+            // The preferred playlist is a Classic ranking signal. DeepSeek is only the accepted,
             // evidence-tiered AI rows and never merges Classic output into its column.
-            confirmedBroadcasters = if (includeAi) {
-                emptyList()
-            } else {
-                fixture?.let { guideApi.confirmedBroadcasters(it) }.orEmpty()
-            },
+            preferredSourceId = if (includeAi) null else preferredPlaylistId.value.takeIf { it > 0 },
             priorCarriers = if (includeAi) {
                 emptyList()
             } else {

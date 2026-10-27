@@ -1,4 +1,4 @@
-# docs/SPORT-HUB.md — Einstieg (Stand: 2026-10-19)
+# docs/SPORT-HUB.md — Einstieg (Stand: 2026-10-27)
 
 > Zweck: Einstiegsseite für den Sports-Hub; Detailspecs bleiben in den
 > referenzierten Dateien, damit nichts doppelt gepflegt wird.
@@ -25,8 +25,8 @@
   Ort: im Matcher VOR dem Cap (`match(fixture, languages, limit)`). Exakte
   Event-Kanäle (Name nennt beide Teams/Spieler, `ChannelMatch.isExact`) passieren
   immer — sie sind das Event selbst, kein Fremd-Feed davon.
-- Web-Guide (Where's The Match, `BroadcastGuideApi`) ist **eine** unabhängige Quelle für
-  „wer zeigt das Spiel": ein Day-Window-Request
+- Web-Guide (Where's The Match, `BroadcastGuideApi`) ist die Web-Evidenz für den
+  **DeepSeek-Board-Abgleich**, nicht mehr für Classic: ein Day-Window-Request
   (`live-sport-on-tv/?showdatestart=…&showdateend=…`, 30-min-Cache, ein Retry;
   drei 3-Tage-Fenster ab **heute** — ein Start in der Vergangenheit lässt die Seite
   nur die Reste von heute liefern, gemessen 2026-10-25). Treffer: Teams/Duelle per
@@ -36,31 +36,28 @@
   ATP/WTA-Tour-Zeile pro Tag ist **kein** Beweis für ein einzelnes Match — sie geht
   nur als Kontext an die KI. Gated rows (`unlock-premier-listing`) sind fehlende
   Sender-Evidenz, kein „läuft nicht". Die gefundenen Sender werden gegen die Playlist
-  aufgelöst (Präfix/Suffix/Plural-tolerant), in Guide-Reihenfolge gezeigt und per
-  Regel-4-Identität dedupliziert (`ChannelDedup`: Länder-/Quellen-Tag bleibt Identität,
-  Auflösungs-/Codec-Wörter fliegen, beste Auflösung gewinnt, „Main Event" wird nie
-  gestrippt).
-- **Guide, EPG und KI werden unabhängig ausgewertet und vereinigt** (`SportsMatcher.
-  mergeEvidence`): ein nicht-leerer Guide unterdrückt weder die EPG-Suche noch eine
-  bestätigte Voll-Playlist-KI-Antwort. Evidenzklassen sortieren Guide > EPG/Name >
-  KI-only; Priors und Länderwunsch sind nur Tie-Breaker. Details: `AI-PLAYLIST.md`.
+  aufgelöst (Präfix/Suffix/Plural-tolerant) und per Regel-4-Identität dedupliziert
+  (`ChannelDedup`: Länder-/Quellen-Tag bleibt Identität, Auflösungs-/Codec-Wörter
+  fliegen, beste Auflösung gewinnt, „Main Event" wird nie gestrippt).
+- **EPG und KI werden unabhängig ausgewertet und vereinigt** (`SportsMatcher.
+  mergeEvidence`): eine bestätigte Voll-Playlist-KI-Antwort ergänzt die EPG-Suche,
+  ersetzt sie nicht. Evidenzklassen sortieren EPG/Name > KI-only; Priors, bevorzugte
+  Playlist und Länderwunsch sind Tie-Breaker. Details: `AI-PLAYLIST.md`.
 - **Standard-Landeseite (2026-10-25):** nach Login startet der Shell im **Sport-Hub**
   (`ShellViewModel` initial `MainSection.SPORT`), sofern die Sektion sichtbar ist; die
   Startup-Modi Last Channel/Favorites/Specific Channel behalten Vorrang.
-- **Drei Kanalspalten (2026-10-25):** **Classic** ist der ursprüngliche Guide-/EPG-Matcher
-  mit Guide-Carriern und Priors; **DeepSeek Match** ist der evidenzgeprüfte, AI-only
+- **Drei Kanalspalten (2026-10-25):** **Classic** ist der ursprüngliche EPG-/Name-Matcher
+  mit Priors, ohne Web-Guide; **DeepSeek Match** ist der evidenzgeprüfte, AI-only
   Abgleich; **AI Suggest** bleibt die separate DeepSeek-Empfehlung. Die KI-Spalten
   existieren nur bei eingeschalteten KI-Funktionen. DeepSeek-Zeilen werden nie in Classic
   gemischt und Classic-Zeilen nie in DeepSeek.
-- **Classic-Reihenfolge:** UK/NOW → US → FR → 4K/8K → alles andere, danach Evidenz und
-  Sprache. `ChannelDedup` fasst 4K/8K/UHD/FHD/HD/RAW-Varianten derselben Quelle zu einer
-  Zeile zusammen (beste Auflösung gewinnt); 8K/4320p sind ergänzt. Ein Playlist-Scan
-  versorgt Guide- und EPG-Matcher gemeinsam; auf 60k-Sendern statt zwei Scans pro Fixture.
-  Guide-Probes sind gekappt und laufen parallel; 48 sequenzielle EPG-`LIKE`-Scans waren der
-  lange Classic-Pfad.
-- **Guide-Sender sind sichtbar:** eine guide-bestätigte Zeile trägt das Label **TV guide**.
-  Der Abgleich toleriert Wortstellung/Plural („Sky Sports Premier League" gegen
-  „Premier League Sky Sports HD"), aber ein einzelnes Wort wie „ESPN" wird nie zu „ESPN2".
+- **Classic-Reihenfolge:** bevorzugte Playlist → UK/NOW → US → FR → 4K/8K → alles andere,
+  danach Evidenz und Sprache. Die Playlist ist eine Einstellung (0 = keine) und nur ein
+  Sortiersignal: Sender anderer Playlists bleiben gelistet. `ChannelDedup` fasst
+  4K/8K/UHD/FHD/HD/RAW-Varianten derselben Quelle zu einer Zeile zusammen (beste Auflösung
+  gewinnt); 8K/4320p sind ergänzt. Ein Playlist-Scan versorgt den Matcher; auf 60k-Sendern
+  statt einem Scan je Namensabfrage. EPG-Probes sind gekappt und laufen parallel; 48
+  sequenzielle EPG-`LIKE`-Scans waren der lange Classic-Pfad.
 - **DeepSeek Match (2026-10-25):** lazy pro geöffnetem Fixture. Phase 1 nennt Broadcaster;
   die lokale Suche nutzt die komplette Playlist/EPG; eine DeepSeek-Search-Anfrage plus
   Extraktor kann neue Kanalnamen ergänzen; Phase 2 bestätigt mit `Supported`/`Likely`/
@@ -87,10 +84,10 @@
   (hat „Coventry v Newcastle" auf 6 statt 12 Sender reduziert).
 - Discovery = rohe akzentbehaftete Tokens für SQL `LIKE`; Scoring = normalisierte
   Tokens in-memory. Nicht vermischen (verliert „München").
-- Der Kanalname-/EPG-Pfad läuft **nur**, wenn der Web-Guide für das Fixture
-  nichts liefert. Reine Events (F1/Golf) nehmen dort ihren Titel als
-  Wettbewerbs-Text (`united states grand prix` — kein fest kodierter Kanal-Hint
-  mehr). PGA/IRL haben keinen Hint.
+- Der Kanalname-/EPG-Pfad läuft **immer**; der Web-Guide wird in Classic nicht
+  befragt. Reine Events (F1/Golf) nehmen ihren Titel als Wettbewerbs-Text
+  (`united states grand prix` — kein fest kodierter Kanal-Hint mehr). PGA/IRL haben
+  keinen Hint.
 - Duelle (`VERSUS` mit 2 Entries, Tennis/MMA) laufen seit 2026-10-13 denselben
   Pfad mit Spielernamen: beide Athleten im Titel +10 / verteilt +3, ein Athlet
   mit Tennis-Kontext +2, Turnier allein +1. Doppel-Roster („A / B") liefert beide

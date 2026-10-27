@@ -151,12 +151,6 @@ data class ChannelMatch(
      * language filter: they are the event itself, not a foreign-language feed of it.
      */
     val isExact: Boolean = false,
-    /**
-     * The TV guide names this channel as the fixture's carrier. Kept even when the preferred-language
-     * filter would drop it: the guide is the authority on who shows the match, so a German-only
-     * language preference must not hide "Sky Sports Main Event" for a Premier League game.
-     */
-    val guideConfirmed: Boolean = false,
     /** One of the channel's EPG programmes around kickoff names this exact fixture. */
     val epgConfirmed: Boolean = false,
     /** The accepted full-playlist model answer selected this row (id-validated, then re-verified). */
@@ -164,7 +158,7 @@ data class ChannelMatch(
     /** The model's one-line rationale; diagnostics only, never the reason a row is playable. */
     val aiReason: String? = null,
     /**
-     * Evidence tier of the DeepSeek column. Classic/guide rows leave this null. It describes the
+     * Evidence tier of the DeepSeek column. Classic rows leave this null. It describes the
      * broadcast evidence only — never a promise that the row is playable in this region.
      */
     val evidenceTier: ChannelEvidenceTier? = null,

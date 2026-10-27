@@ -352,20 +352,21 @@ oder beide zusammen in einem EPG-Programm, das **den Anstoß überdeckt**.
 - Tests: `SportsMatcherTest` — Programm ohne Anstoß-Überdeckung zählt nicht, Pre-Match-Show
   zählt, PPV sortiert unter echte Sender (auch mit Länder-Präferenz).
 
-## 13. Qualifikation, Web-Guide und Regel-4-Dedup (2026-10-25)
+## 13. Qualifikation, Web-Guide (nur DeepSeek) und Regel-4-Dedup (2026-10-27)
 
-**Stand: 2026-10-25.** Zweck: die Drei-Ebenen-Regel des Lume-Modells fixieren.
+**Stand: 2026-10-27.** Zweck: die Drei-Ebenen-Regel des Lume-Modells fixieren.
 
 - **Qualifikation ist Beweis, Bonus ist kein Beweis.** Ein Kanal erscheint nur, wenn er
   echte Evidenz trägt: beim Duell beide Athleten im Namen oder ein EPG-Programm, das
   beide Teams nennt, `isExact`; oder — nur bei Fixtures **ohne** Teilnehmer (F1/Golf) —
   der Broadcast-/Hint-Name selbst. Mit Teilnehmern sind Broadcast-/Hint-Treffer reiner
   Bonus („NOW:" vs „FR:"); sie qualifizieren nie allein.
-- **Web-Guide zuerst.** Nennt Where's The Match Sender für das Fixture, ist diese Liste
-  die Antwort: `SportsMatcher.guideChannels` löst die Namen gegen die Playlist auf
-  (Phrasen-Treffer, Präfix/Suffix/Plural-tolerant), zeigt sie in Guide-Reihenfolge und
-  dedupliziert nach Regel 4. Kein EPG-Scoring in diesem Fall. Der EPG-Pfad läuft nur,
-  wenn der Guide nichts für das Fixture hat.
+- **Classic ohne Web-Guide (2026-10-27).** Die Classic-Spalte rankt ausschließlich aus
+  EPG/Name-Evidenz, Priors und der bevorzugten Playlist. `BroadcastGuideApi` liefert nur
+  noch Evidenz für den DeepSeek-Board-Abgleich (`AiBoardMatcher`), nie Zeilen für Classic.
+- **Bevorzugte Playlist.** `SportMatchOptions.preferredSourceId` gibt den Zeilen aus einer
+  Playlist einen eigenen Rang-Band (`PreferredSourceTier`) über allen anderen Signalen.
+  Nur ein Sortiersignal, keine Filterung; Regel-4-Dedup behält die Quelle als Identität.
 - **Web-Guide (Where's The Match) — Datenform und Matching:** `BroadcastGuideApi` holt
   drei 3-Tage-Fenster ab **heute** (`live-sport-on-tv/?showdatestart=…&showdateend=…`,
   siehe `SPORT-HUB.md`; ein Start in der Vergangenheit liefert nur die Reste von heute,
@@ -378,7 +379,7 @@ oder beide zusammen in einem EPG-Programm, das **den Anstoß überdeckt**.
   und kein `SeriesWords`-Wort) **plus gleiche Session** (ein Practice-Fixture erbt nie
   die Renn-Zeile). Gated Rows („Log in to view") fliegen raus, `[Not Televised]` nie in
   die Kanäle.
-- **Regel-4-Dedup (`ChannelDedup`, im `applyFilter` vor dem Ranking-Split):** Identität =
+- **Regel-4-Dedup (`ChannelDedup`, im `applyFilter` vor dem Sprachfilter):** Identität =
   (führendes Tag — `NOW:`/`UK|`/`FR:`/`VIP|` — bleibt Teil der Identität, gestrippte Basis
   ohne Auflösungs-/Codec-/Noise-Wörter). Auflösungen („4K", „FHD", „HD", „SD") bestimmen den
   Rang in der Gruppe; die beste Kopie bleibt. „Event" („Main Event") wird nie gestrippt.

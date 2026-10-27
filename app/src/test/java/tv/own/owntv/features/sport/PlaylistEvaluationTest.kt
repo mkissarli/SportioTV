@@ -14,7 +14,7 @@ import tv.own.owntv.core.database.entity.EpgProgrammeEntity
  * Labelled playlist-matching regression set.
  *
  * Every case carries its own expected playlist rows, including the empty ones. Two runs are
- * measured: deterministic evidence (guide + name/EPG) and the same run with a **stubbed perfect**
+ * measured: deterministic evidence (name/EPG) and the same run with a **stubbed perfect**
  * full-playlist model answer for the opaque feeds. The stub measures the merge/validation wiring —
  * it is not a claim about DeepSeek's live accuracy; that needs a real key and a manual run.
  */
@@ -54,7 +54,6 @@ class PlaylistEvaluationTest {
         val fixture: Fixture,
         val channels: List<ChannelEntity>,
         val programmes: List<EpgProgrammeEntity>,
-        val guideCarriers: List<String>,
         val expected: Set<Long>,
         val aiExpected: Set<Long>,
     )
@@ -103,23 +102,10 @@ class PlaylistEvaluationTest {
             )
         }
 
-        // 15 guide-confirmed football rows resolved against a real playlist row.
-        for (i in 1..15) {
-            val carrier = "Guide Sports $i"
-            out += case(
-                name = "football-guide-$i",
-                fixture = teamFixture(300 + i, "Eta$i FC", "Theta$i FC"),
-                channels = listOf(channel(4000L + i, "UK| GUIDE SPORTS $i HD")),
-                programmes = emptyList(),
-                guideCarriers = listOf(carrier),
-                expected = setOf(4000L + i),
-            )
-        }
-
-        // 10 gated guide listings: the row exists, carriers are hidden — no confirmation.
+        // 10 rows with no EPG evidence: a broadcaster-style channel name alone confirms nothing.
         for (i in 1..10) {
             out += case(
-                name = "football-gated-$i",
+                name = "football-name-only-$i",
                 fixture = teamFixture(400 + i, "Iota$i FC", "Kappa$i FC"),
                 channels = listOf(channel(5000L + i, "UK| SKY SPORTS MAIN EVENT $i")),
                 programmes = emptyList(),
@@ -192,10 +178,9 @@ class PlaylistEvaluationTest {
         fixture: Fixture,
         channels: List<ChannelEntity>,
         programmes: List<EpgProgrammeEntity>,
-        guideCarriers: List<String> = emptyList(),
         expected: Set<Long>,
         aiExpected: Set<Long> = emptySet(),
-    ) = EvalCase(name, fixture, channels, programmes, guideCarriers, expected, aiExpected)
+    ) = EvalCase(name, fixture, channels, programmes, expected, aiExpected)
 
     // --- one run --------------------------------------------------------------------------------
 
@@ -230,7 +215,6 @@ class PlaylistEvaluationTest {
                 case.fixture,
                 SportMatchOptions(
                     languages = emptySet(),
-                    confirmedBroadcasters = case.guideCarriers,
                     aiChannels = aiRows,
                 ),
             )

@@ -35,7 +35,6 @@
     <string name="sport_evidence_likely">Wahrscheinlich</string>
     <string name="sport_evidence_possible">Möglich</string>
     <string name="sport_evidence_conflicting">Quellen widersprüchlich</string>
-    <string name="sport_evidence_guide">TV-Guide</string>
     <string name="sport_evidence_search">Suche</string>
     <string name="sport_evidence_epg">EPG</string>
     <string name="sport_evidence_rights">Rechtewissen</string>
@@ -153,6 +152,8 @@
     <string name="sport_prefer_ar">Arabisch</string>
     <string name="sport_prefer_de">Deutschland</string>
     <string name="sport_prefer_hint">Diese Sender stehen oben; alles andere bleibt darunter. Links und rechts wechseln.</string>
+    <string name="sport_prefer_playlist_title">Bevorzugte Playlist</string>
+    <string name="sport_prefer_playlist_hint">Sender aus dieser Playlist stehen oben; alles andere bleibt darunter. Links und rechts wechseln.</string>
     <string name="live_language_title">Sprachen</string>
     <string name="live_language_subtitle">Welche Sprachen soll Live-TV anzeigen?</string>
     <string name="live_language_all">Alle Sprachen</string>

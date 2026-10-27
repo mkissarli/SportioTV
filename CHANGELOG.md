@@ -14,6 +14,15 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v0.2.22
+
+### ✨ New features
+- **Preferred playlist option for Classic channels**
+
+### 🐛 Fixes
+- **Classic channel ranking no longer uses the web TV guide**
+- **TV guide line and badge removed from Classic channel lists**
+
 ## v0.2.21
 
 ### 🐛 Fixes

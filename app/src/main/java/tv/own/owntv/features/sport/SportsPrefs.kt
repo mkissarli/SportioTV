@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -88,6 +89,13 @@ class SportsPrefs(private val context: Context) {
      */
     val preferredCountry: Flow<String> =
         context.sportsDataStore.data.map { it[PreferredCountryKey] ?: DefaultPreferredCountry }
+
+    /**
+     * The playlist whose channels rank first in a fixture's list (0 = no preference). A soft
+     * signal: other playlists stay listed, they just sort below.
+     */
+    val preferredPlaylist: Flow<Long> =
+        context.sportsDataStore.data.map { it[PreferredPlaylistKey] ?: 0L }
 
     /** DeepSeek API key for the AI recommendation; empty means "not configured". */
     val deepSeekApiKey: Flow<String> =
@@ -180,6 +188,11 @@ class SportsPrefs(private val context: Context) {
         context.sportsDataStore.edit { prefs -> prefs[PreferredCountryKey] = value }
     }
 
+    /** Set the preferred playlist; a non-positive id means "no preference". */
+    suspend fun setPreferredPlaylist(sourceId: Long) {
+        context.sportsDataStore.edit { prefs -> prefs[PreferredPlaylistKey] = sourceId.coerceAtLeast(0L) }
+    }
+
     /** Mark the language prompt as answered without changing the choice (dismissed first run). */
     suspend fun setLanguageAsked() {
         context.sportsDataStore.edit { prefs -> prefs[LanguageAskedKey] = true }
@@ -253,6 +266,7 @@ class SportsPrefs(private val context: Context) {
         private val LanguagesKey = stringSetPreferencesKey("preferred_languages")
         private val LanguageAskedKey = booleanPreferencesKey("language_asked")
         private val PreferredCountryKey = stringPreferencesKey("preferred_country")
+        private val PreferredPlaylistKey = longPreferencesKey("preferred_playlist")
         private val LiveExcludedKey = stringSetPreferencesKey("live_excluded_languages")
         private val LiveOtherKey = booleanPreferencesKey("live_show_other")
         private val ChannelLimitKey = intPreferencesKey("channel_limit")

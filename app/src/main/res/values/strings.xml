@@ -27,7 +27,6 @@
     <string name="sport_leagues">Leagues</string>
     <string name="sport_my_teams">My teams</string>
     <string name="sport_details">Details</string>
-    <string name="sport_tv_guide_line">TV guide: %1$s</string>
     <string name="sport_standings">Standings</string>
     <string name="sport_channels">Channels</string>
     <string name="sport_channels_classic">Classic</string>
@@ -36,7 +35,6 @@
     <string name="sport_evidence_likely">Likely</string>
     <string name="sport_evidence_possible">Possible</string>
     <string name="sport_evidence_conflicting">Conflicting sources</string>
-    <string name="sport_evidence_guide">TV guide</string>
     <string name="sport_evidence_search">Search</string>
     <string name="sport_evidence_epg">EPG</string>
     <string name="sport_evidence_rights">Rights knowledge</string>
@@ -154,6 +152,8 @@
     <string name="sport_prefer_ar">Arabic</string>
     <string name="sport_prefer_de">Germany</string>
     <string name="sport_prefer_hint">These channels sort first; everything else stays listed below. Left and right switch.</string>
+    <string name="sport_prefer_playlist_title">Preferred playlist</string>
+    <string name="sport_prefer_playlist_hint">Channels from this playlist sort first; everything else stays listed below. Left and right switch.</string>
     <string name="live_language_title">Languages</string>
     <string name="live_language_subtitle">Which languages should Live TV show?</string>
     <string name="live_language_all">All languages</string>

@@ -219,6 +219,11 @@ android {
         // the check fires ~90 times across the player, Home and Live code and carries no signal.
         // Opting in file-by-file would only move the same acknowledgement into ~12 annotations.
         disable += "UnsafeOptInUsageError"
+        // ...and its warning half. The detector itself crashes on SportsScreen.kt under Kotlin 2.4
+        // ("Unexpected owner function: null" in ExperimentalDetector) and takes the whole lint task
+        // down with it, so the check that remains only ever produces a tool crash, never a finding.
+        // Re-enable once the toolchain stops crashing; the opt-in habit is unchanged.
+        disable += "UnsafeOptInUsageWarning"
         // local.properties is developer-local and never committed (its Windows SDK path can't be
         // escaped without breaking the local tooling that writes it). CI has no such file at all.
         disable += "PropertyEscape"

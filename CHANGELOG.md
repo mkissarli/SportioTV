@@ -14,6 +14,22 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v1.1.0 — 2026-10-28
+
+### ✨ New features
+- **Sports Hub is the default screen: nav rail removed, the sport rail is the app rail**
+- **Settings moved into the sport rail, bottom item**
+- **Channel chip on live rows: best channel, its resolution and its evidence source (Guide / Name / AI)**
+- **OK on a Supported or Likely match starts playback, weak matches only select the row**
+
+### 🐛 Fixes
+- **One merged channel list by evidence strength instead of Classic, DeepSeek Match and AI Suggest**
+- **Per-strategy lists and every AI action behind one Inspect sources button**
+- **Live badge is red (#FF5A5F) as the brand guide requires**
+- **Removed: Sport headline, Add leagues coin, league title, header Settings and Retry, My teams, Past pill, AI hit counter, first-match language dialog**
+- **Refresh moved into the filter pill row**
+- **Playlist pill in the top-right cluster reachable again without the nav rail**
+
 ## v0.2.23
 
 ### ✨ New features

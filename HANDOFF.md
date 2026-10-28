@@ -36,6 +36,12 @@
 - v1.0.8 (2026-10-20): released — Core 1.0.71 (Maven + Release) und App v1.0.8 (APKs live).
   KI-Empfehlung und Provider-Import sind hinter dem KI-Schalter (Standard aus); Key in den
   Einstellungen oder am Handy. CI beider Repos grün.
+- v1.1.0 (2026-10-28): Einzel-Rail-Release. Globale Nav-Rail entfernt, Sport-Hub ist
+  das einzige Ziel (Sport-Rail mit Einstellungen unten = App-Rail). Kanal-Chip auf
+  Live-Zeilen, eine zusammengeführte Kanalliste statt drei Tabs (Einzellisten hinter
+  „Inspect sources"), Live-Badge rot, App-Einstellungen als Zeile im Sport-Dialog.
+  Offen: Profilwechsel nur noch über App-Einstellungen, Startup-Modi werden auf den
+  Hub umgeleitet, StageRail.kt liegt ungenutzt im Baum.
 - v1.0.9 (2026-10-20): released — App-only, Core-Pin bleibt 1.0.71. `CountryTags` liest
   Provider-Tags in Balkenform (`┃DE┃`) und gemischtes Vokabular; Badges und Live-Filter teilen
   dieselbe Deutung, 37 Sprachen dazu, „All languages" ist ein Schalter. APKs live, CI grün.

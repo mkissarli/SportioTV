@@ -192,6 +192,17 @@ class SportsViewModel(
     private val _aiBoardHits = MutableStateFlow<Map<String, Int>>(emptyMap())
     val aiBoardHits: StateFlow<Map<String, Int>> = _aiBoardHits.asStateFlow()
 
+    /**
+     * Best channel per live fixture, for the row chips. Filled lazily for LIVE fixtures only (at
+     * most [MaxLiveChips]); a missing fixture means "not checked yet", a null value "nothing
+     * matched". Recomputed when the fixture list or the live source set changes.
+     */
+    private val _liveMatches = MutableStateFlow<Map<String, ChannelMatch?>>(emptyMap())
+    val liveMatches: StateFlow<Map<String, ChannelMatch?>> = _liveMatches.asStateFlow()
+    private var liveChipIds: List<String> = emptyList()
+    private var liveChipToken = 0
+    private val liveChipGeneration = MutableStateFlow(0)
+
     /** Last countries picked in the AI dialog, in catalogue order. */
     val aiCountries: StateFlow<Set<AiCountry>> = prefs.aiCountries
         .map { codes ->
@@ -426,6 +437,26 @@ class SportsViewModel(
                 clearAiCache()
             }
         }
+        // Row chips: the best channel per live fixture, matched in the background. Bounded to the
+        // first live games, sequential (the matcher is IO-bound and cached per fixture) and
+        // cancelled as soon as the fixture set changes.
+        viewModelScope.launch {
+            combine(currentFixtures, liveChipGeneration) { fixtures, generation -> fixtures to generation }
+                .collectLatest { (fixtures, generation) ->
+                    val live = fixtures.filter { it.state == FixtureState.LIVE }.take(MaxLiveChips)
+                    val ids = live.map { it.id }
+                    if (ids == liveChipIds && generation == liveChipToken) return@collectLatest
+                    liveChipIds = ids
+                    liveChipToken = generation
+                    _liveMatches.value = emptyMap()
+                    live.forEach { fixture ->
+                        val found = runCatching {
+                            matcher.match(fixture, matchOptions(withAiEvidence = false, fixture = fixture))
+                        }.getOrDefault(emptyList()).firstOrNull()
+                        _liveMatches.value = _liveMatches.value + (fixture.id to found)
+                    }
+                }
+        }
         // DeepSeek matching is lazy: one search + one confirmation for the fixture the user opened
         // on the DeepSeek tab. The board itself is never sent through the paid phase-2 path, and the
         // matcher caches discovery, search and confirmation for that fixture.
@@ -465,6 +496,8 @@ class SportsViewModel(
         aiBoardByFixture.clear()
         _aiBoardHits.value = emptyMap()
         aiBoardGeneration.value++
+        // Cached channel rows are source-dependent: the row chips are rebuilt as well.
+        liveChipGeneration.value++
     }
 
     fun setTab(tab: FixtureTab) {
@@ -858,8 +891,10 @@ class SportsViewModel(
      * The matcher's filter from the current prefs plus the ranked priors (tie-break only) and any
      * accepted full-playlist AI rows. All reads are cached — never a network call.
      */
-    private fun matchOptions(withAiEvidence: Boolean = _classicAiSelected.value): SportMatchOptions {
-        val fixture = _selectedFixture.value
+    private fun matchOptions(
+        withAiEvidence: Boolean = _classicAiSelected.value,
+        fixture: Fixture? = _selectedFixture.value,
+    ): SportMatchOptions {
         val market = preferredCountry.value.takeIf { it.isNotBlank() }
         val includeAi = withAiEvidence && aiEnabled.value
         return SportMatchOptions(
@@ -1141,6 +1176,9 @@ class SportsViewModel(
 
         /** DeepSeek matching re-run debounce. */
         private const val BoardAiDebounceMs = 1_000L
+
+        /** How many live fixtures get a row chip at once (bounds the background matching). */
+        private const val MaxLiveChips = 6
 
         /** AI cache key separators (fixture id + country codes); technical, never displayed. */
         private const val AiKeySeparator = "|"

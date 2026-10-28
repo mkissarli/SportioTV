@@ -1,4 +1,4 @@
-# docs/SPORT-HUB.md — Einstieg (Stand: 2026-10-27)
+# docs/SPORT-HUB.md — Einstieg (Stand: 2026-10-28)
 
 > Zweck: Einstiegsseite für den Sports-Hub; Detailspecs bleiben in den
 > referenzierten Dateien, damit nichts doppelt gepflegt wird.
@@ -44,9 +44,10 @@
   ersetzt sie nicht. Evidenzklassen sortieren EPG/Name > KI-only; Priors, bevorzugte
   Playlist und Länderwunsch sind Tie-Breaker. Details: `AI-PLAYLIST.md`.
 - **Standard-Landeseite (2026-10-25):** nach Login startet der Shell im **Sport-Hub**
-  (`ShellViewModel` initial `MainSection.SPORT`), sofern die Sektion sichtbar ist; die
-  Startup-Modi Last Channel/Favorites/Specific Channel behalten Vorrang.
-- **Drei Kanalspalten (2026-10-25):** **Classic** ist der ursprüngliche EPG-/Name-Matcher
+  (`ShellViewModel` initial `MainSection.SPORT`). Details zur Umleitung der übrigen
+  Sektionen: Einzel-Rail-Eintrag unten.
+- **Drei Kanalspalten (2026-10-25, abgelöst 2026-10-28 durch die eine Kanalliste unten):**
+  **Classic** ist der ursprüngliche EPG-/Name-Matcher
   mit Priors, ohne Web-Guide; **DeepSeek Match** ist der evidenzgeprüfte, AI-only
   Abgleich; **AI Suggest** bleibt die separate DeepSeek-Empfehlung. Die KI-Spalten
   existieren nur bei eingeschalteten KI-Funktionen. DeepSeek-Zeilen werden nie in Classic
@@ -67,12 +68,28 @@
   Rechtewissen allein wird nie `Supported`. Schalter **KI-Senderabgleich für Sport**
   (Default an). Details: `AI-SPORTS-MATCHING.md`.
 - KI-Empfehlung: DeepSeek nennt Sender je gewähltem Land, `AiChannelMatcher`
-  prüft sie gegen die eigenen Live-Playlists. Der Kanäle-Bereich hat oben die Tabs
-  **Classic | DeepSeek Match | AI Suggest**; im AI-Suggest-Tab stehen die Treffer als
-  normale vertikale Liste, nach Land gruppiert und mit hartem Ländertag-Filter plus
+  prüft sie gegen die eigenen Live-Playlists. Der Kanäle-Bereich hat seit 2026-10-28
+  keine eigenen Tabs mehr; die Empfehlung steht in der einen Kanalliste bzw. hinter
+  **Inspect sources**, nach Land gruppiert und mit hartem Ländertag-Filter plus
   Qualitäts-/Dubletten-Ranking. Ein Fixture+Länder-Cache verhindert bezahlte
   Wiederholungen. API-Key (direkt oder per QR/Handy über `CompanionMode.AI_KEY`) und
-  Vorschlagszahl (Default 20) stehen im KI-Tab. Details: `SPORT-AI.md`.
+  Vorschlagszahl (Default 20) sind dort einstellbar. Details: `SPORT-AI.md`.
+- **Einzel-Rail und eine Kanalliste (2026-10-28):** die globale Navigations-Rail ist
+  entfernt, der Sport-Hub ist das einzige Ziel; seine Sport-Rail (Alle + gefolgte
+  Sportarten, Einstellungen unten) ist die App-Rail. Settings, Suche, Home, Live-TV, EPG,
+  Filme, Serien und Downloads sind aus der UI nicht mehr erreichbar; jede Sektion
+  ausser Hub und Settings wird beim Start auf den Hub umgeleitet (die Startup-Modi
+  Last Channel/Favorites/Specific Channel greifen damit nicht mehr). Die Playlist-Pille
+  oben rechts ist wieder erreichbar.
+- Eine **zusammengeführte, deduplizierte Kanalliste** nach Evidenzstärke ersetzt die
+  Tabs Classic | DeepSeek Match | AI Suggest; Einzellisten und alle KI-Aktionen liegen
+  hinter einem **Inspect sources**-Button.
+- Live-Zeilen tragen einen **Kanal-Chip**: bester Treffer mit Auflösung und Evidenzquelle
+  (Guide / Name / KI). OK startet bei `Supported`/`Likely` direkt, sonst wird nur selektiert.
+- **Live-Badge rot** `#FF5A5F` (Brand-Guide) statt Akzentgrün.
+- Entfernt: „Sport"-Überschrift, „+ Add leagues"-Coin, Ligen-Titel, Settings/Retry im
+  Header (Refresh in der Filter-Zeile), „My teams", Past-Pill, KI-Zähler, Sprachdialog.
+  Matching-Details: `AI-SPORTS-MATCHING.md`, `SPORT-AI.md`.
 
 ## Matching-Modell (Lume-Modell, Beide-Teams-Pflicht)
 

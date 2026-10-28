@@ -186,6 +186,14 @@ fun OwnTVShell(
     // Deep-link: the Guide's "Add EPG" button switches to Settings and opens EPG Sources → add.
     var openEpgAdd by remember { mutableStateOf(false) }
     // Setup's "Add a TV guide" (P10B-W9) lands on the same page once the shell is up.
+    LaunchedEffect(selectedSection) {
+        // Single-rail design: the hub is the only destination beside Settings. A startup mode, a deep
+        // link or a stale section that still asks for Home, Live TV, EPG, Movies, Series, Downloads or
+        // More lands on the hub — the rail that used to lead out of those screens no longer exists.
+        if (selectedSection != MainSection.SPORT && selectedSection != MainSection.SETTINGS) {
+            onSelectSection(MainSection.SPORT)
+        }
+    }
     LaunchedEffect(Unit) {
         if (PendingShellRequest.addEpg) {
             PendingShellRequest.addEpg = false
@@ -890,10 +898,12 @@ fun OwnTVShell(
             // the first press: the fallback below simply moved focus to the rail and nothing else
             // happened. Handled here as well so the answer is the same whichever handler fires; a
             // sub-screen of Settings still wins, because its handler is composed deeper than this.
-            selectedSection == MainSection.SETTINGS -> { restoreFocus = true; onSelectSection(MainSection.MORE) }
+            selectedSection == MainSection.SETTINGS -> { restoreFocus = true; onSelectSection(MainSection.SPORT) }
             // Reached from a Search result: Back returns to Search once, its query, tab and row kept.
             searchReturn == selectedSection && focusedLayer != ShellLayer.SIDEBAR -> returnToSearch()
             focusedLayer == ShellLayer.SIDEBAR -> showExit = true
+            // No rail to fall back to: Back at the hub's root opens the app menu (switch profile, exit).
+            selectedSection == MainSection.SPORT -> showExit = true
             else -> focusRail()
         }
     }
@@ -1124,12 +1134,10 @@ fun OwnTVShell(
                             // yet redrawn for Stage keep this top inset until their phase gives them the full canvas.
                             Modifier
                                 .padding(
-                                    start = when {
-                                        navStyle == tv.own.owntv.core.settings.SettingsRepository.NavStyle.DOCKED ->
-                                            tv.own.owntv.features.shell.components.railDockedReserve(navSize)
-                                        stageScreen -> 0.dp
-                                        else -> 6.dp
-                                    },
+                                    // No nav rail any more, so nothing is reserved on the left. Screens not
+                                    // yet redrawn for Stage keep this top inset until their phase gives them
+                                    // the full canvas.
+                                    start = if (stageScreen) 0.dp else 6.dp,
                                     top = if (stageScreen) 0.dp else tv.own.owntv.features.shell.components.StageContentTop,
                                 )
                                 // ◀ with nothing further left in the content goes back to the rail, however the
@@ -1184,9 +1192,9 @@ fun OwnTVShell(
                             fontCustomization = fontCustomization,
                             onSetFontCustomization = onSetFontCustomization,
                             onOpenPlaylist = { /* Phase 6: open setup/playlist */ },
-                            // Settings is reached through More now, so Back out of its root goes
-                            // back there rather than to the rail — one level out, not two.
-                            onBack = { restoreFocus = true; onSelectSection(MainSection.MORE) },
+                            // With no rail, there is no More screen to go back to: Back out of the
+                            // Settings root returns to the hub, which is the one entry that opened it.
+                            onBack = { restoreFocus = true; onSelectSection(MainSection.SPORT) },
                             openEpgAdd = openEpgAdd,
                             onEpgAddConsumed = { openEpgAdd = false },
                             start = settingsStart,
@@ -1326,7 +1334,10 @@ fun OwnTVShell(
                             restoreFocus = restoreFocus,
                             onRestored = { restoreFocus = false },
                             onContentScrolled = { contentScrolled = it },
-                            contentStart = if (navStyle == tv.own.owntv.core.settings.SettingsRepository.NavStyle.DOCKED) 64.mpx else 150.mpx,
+                            // No rail to reserve room for: the hub owns the full canvas and lays out
+                            // its own rail from the screen edge.
+                            contentStart = 0.mpx,
+                            onOpenAppSettings = { restoreFocus = true; onSelectSection(MainSection.SETTINGS) },
                             modifier = Modifier.fillMaxSize(),
                         )
 
@@ -1433,8 +1444,10 @@ fun OwnTVShell(
                 playlistLabel = playlistLabel,
                 playlistInteractive = playlists.size > 1,
                 onPlaylistClick = { showPlaylistPicker = true },
-                // Out of reach from deep in a list, as the old top bar was: from the rail or on Home only.
-                pillsFocusable = focusedLayer == ShellLayer.SIDEBAR || clusterFocused || selectedSection == MainSection.HOME,
+                // There is no nav rail any more, so the pills must be reachable from the hub itself:
+                // otherwise the last channel and the playlist switch would have no route at all.
+                pillsFocusable = focusedLayer == ShellLayer.SIDEBAR || clusterFocused ||
+                    selectedSection == MainSection.HOME || selectedSection == MainSection.SPORT,
                 weatherInfo = weatherInfo,
                 weatherFahrenheit = weatherFahrenheit,
                 clockColors = clockColors,
@@ -1442,35 +1455,8 @@ fun OwnTVShell(
                 onPlaylistPillBounds = { playlistPillBounds = it },
                 modifier = Modifier.align(Alignment.TopEnd).onFocusChanged { clusterFocused = it.hasFocus }.focusGroup(),
             )
-            tv.own.owntv.features.shell.components.StageRail(
-                state = railState,
-                size = railSize,
-                length = navLength,
-                selected = selectedSection,
-                visibleSections = visibleSections,
-                onSelect = selectFromNav,
-                count = { section -> railCounts[section]?.takeIf { it > 0 } },
-                detail = { section -> railDetail(section, railDetails) },
-                profileName = profileName.ifBlank { stringResource(R.string.common_own_tv_user) },
-                profileLine = stringResource(R.string.shell_rail_profile_line, playlistLabel),
-                onSwitchProfile = onSwitchProfile,
-                onPickAvatar = { showAvatarPicker = true },
-                avatarId = avatarId,
-                avatarPath = avatarPath,
-                selectedItemFocusRequester = sidebarFocus,
-                contentFocusRequester = contentAreaFocus,
-                enterContent = when (selectedSection) {
-                    MainSection.HOME -> homeEntry
-                    MainSection.EPG, MainSection.LIVE_TV -> guideEntry
-                    MainSection.MOVIES, MainSection.SERIES -> vodEntry
-                    MainSection.DOWNLOADS -> downloadsEntry
-                    MainSection.MORE -> moreEntry
-                    else -> null
-                },
-                onFocused = { focusedLayer = ShellLayer.SIDEBAR },
-                nowPlaying = nowPlayingRail,
-                onNowPlaying = enterNowPlaying,
-            )
+            // No StageRail here: the hub's own sport rail is the app's only rail (single-rail design,
+            // v1.1.0). Its Settings coin replaces every entry the global rail used to carry.
           }
         }
         // The solid-mode wizard aura is deliberately drawn after the opaque browse surfaces so it

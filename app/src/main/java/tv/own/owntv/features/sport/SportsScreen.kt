@@ -1,6 +1,11 @@
 package tv.own.owntv.features.sport
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
@@ -16,8 +21,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -50,7 +55,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.tv.material3.Text
@@ -63,6 +67,7 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import tv.own.owntv.R
 import tv.own.owntv.core.companion.CompanionLink
 import tv.own.owntv.core.companion.CompanionSelectItem
@@ -110,6 +115,8 @@ fun SportsScreen(
     onRestored: () -> Unit = {},
     onEntryHook: (((() -> Boolean)?) -> Unit)? = null,
     onContentScrolled: (Boolean) -> Unit = {},
+    /** Opens the app's own Settings (playlists, profile, EPG, updates) from the hub's settings dialog. */
+    onOpenAppSettings: () -> Unit = {},
     contentStart: Dp = 150.mpx,
     modifier: Modifier = Modifier,
 ) {
@@ -123,7 +130,7 @@ fun SportsScreen(
     val matchesState by vm.matches.collectAsStateWithLifecycle()
     val standings by vm.standings.collectAsStateWithLifecycle()
     val standingsLoading by vm.standingsLoading.collectAsStateWithLifecycle()
-    val myTeams by vm.myTeamFixtures.collectAsStateWithLifecycle()
+    val liveMatches by vm.liveMatches.collectAsStateWithLifecycle()
     val followedTeams by vm.followedTeams.collectAsStateWithLifecycle()
     val followedPlayers by vm.followedPlayers.collectAsStateWithLifecycle()
     val livePreviewSetting by liveVm.livePreviewEnabled.collectAsStateWithLifecycle()
@@ -133,7 +140,6 @@ fun SportsScreen(
     val preferredCountry by vm.preferredCountry.collectAsStateWithLifecycle()
     val preferredPlaylistId by vm.preferredPlaylistId.collectAsStateWithLifecycle()
     val playlists by vm.playlists.collectAsStateWithLifecycle()
-    val languageAsked by vm.languageAsked.collectAsStateWithLifecycle()
     val channelLimit by vm.channelLimit.collectAsStateWithLifecycle()
     val excludedLanguages by vm.excludedLanguages.collectAsStateWithLifecycle()
     val deepSeekApiKey by vm.deepSeekApiKey.collectAsStateWithLifecycle()
@@ -144,7 +150,6 @@ fun SportsScreen(
     val aiListSelected by vm.aiListSelected.collectAsStateWithLifecycle()
     val classicAiSelected by vm.classicAiSelected.collectAsStateWithLifecycle()
     val aiEnabled by vm.aiEnabled.collectAsStateWithLifecycle()
-    val aiBoardHits by vm.aiBoardHits.collectAsStateWithLifecycle()
     var showSettings by remember { mutableStateOf(false) }
     var settingsTab by remember { mutableIntStateOf(0) }
     var showLanguage by remember { mutableStateOf(false) }
@@ -199,7 +204,6 @@ fun SportsScreen(
     fun matchRequester(id: Long) = matchFocus.getOrPut(id) { FocusRequester() }
     val refreshFocus = remember { FocusRequester() }
     val settingsFocus = remember { FocusRequester() }
-    val addLeaguesFocus = remember { FocusRequester() }
     val listState = rememberLazyListState()
 
     suspend fun focusGame(id: String) {
@@ -258,13 +262,6 @@ fun SportsScreen(
         previewedFixtureId = id
     }
 
-    // The first time a fixture's channels are ready, ask which languages to show — before the list
-    // can be read. Choosing (or dismissing) records the answer, so this runs at most once.
-    LaunchedEffect(matchesState, languageAsked) {
-        val content = matchesState as? SportsViewModel.MatchesState.Content ?: return@LaunchedEffect
-        if (!languageAsked && content.matches.isNotEmpty()) showLanguage = true
-    }
-
     BoxWithConstraints(modifier.fillMaxSize().onFocusChanged { if (it.hasFocus) onChildFocused() }) {
         val screenW = maxWidth
         fun fx(px: Int) = screenW * (px / 1920f)
@@ -273,25 +270,16 @@ fun SportsScreen(
                 .padding(start = contentStart + 20.mpx, top = 52.mpx, end = 28.mpx)
                 .fillMaxSize(),
         ) {
-            // Sport rail (Matchday sidebar): one labelled coin per sport with followed leagues.
-            Column(Modifier.width(fx(112)).fillMaxHeight()) {
-                Text(
-                    stringResource(R.string.sport_title),
-                    style = stageText(32, 800),
-                    color = StageColors.Text,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            // Sport rail (Matchday sidebar): one labelled coin per sport with followed leagues, and
+            // Settings pinned below the scrolling coins so it is the last stop of the rail.
+            Column(Modifier.width(fx(112)).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Column(
-                    Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(top = 14.mpx),
+                    Modifier.weight(1f).verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.mpx),
                 ) {
                     // All: the explicit first coin — star glyph, "All" label, always leading.
                     SportCoin(
-                        coinKey = SportsViewModel.SportAllId,
                         label = stringResource(R.string.sport_all),
                         glyph = null,
                         selected = favouritesSelected && selectedSportId == SportsViewModel.SportAllId,
@@ -302,7 +290,6 @@ fun SportsScreen(
                     )
                     sportCoins.forEach { coin ->
                         SportCoin(
-                            coinKey = coin.espnSport,
                             label = sportCoinLabel(coin.espnSport),
                             glyph = sportGlyph(coin.espnSport),
                             selected = favouritesSelected && selectedSportId == coin.espnSport,
@@ -312,85 +299,29 @@ fun SportsScreen(
                             modifier = Modifier.focusRequester(sportRequester(coin.espnSport)),
                         )
                     }
-                    // Add leagues: a small + coin at the end of the rail.
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        StageSurface(
-                            onClick = { settingsTab = 0; showSettings = true },
-                            onLongClick = null,
-                            radius = CoinPx.mpx,
-                            modifier = Modifier.size(CoinPx.mpx).focusRequester(addLeaguesFocus),
-                        ) { focused ->
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                OwnTVIcon(
-                                    OwnTVIcon.ADD,
-                                    if (focused) stageAccent.onAccent else StageColors.NavText,
-                                    Modifier.size(24.mpx),
-                                )
-                            }
-                        }
-                        Text(
-                            stringResource(R.string.sport_add_leagues),
-                            style = stageText(13, 600),
-                            color = StageColors.Muted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 4.mpx),
-                        )
-                    }
+                    Spacer(Modifier.height(8.mpx))
                 }
+                // App settings: pinned to the bottom, focusable even when the rail holds no coins.
+                SportCoin(
+                    label = stringResource(R.string.sport_settings),
+                    glyph = null,
+                    icon = OwnTVIcon.SETTINGS,
+                    selected = false,
+                    liveCount = 0,
+                    onClick = {
+                        settingsTab = 0
+                        showSettings = true
+                    },
+                    onLongClick = null,
+                    modifier = Modifier.focusRequester(settingsFocus),
+                )
             }
             // Fixtures (extra top padding like the detail pane: shell clock/weather overlays the top).
             Column(Modifier.weight(1.35f).fillMaxHeight().padding(start = 20.mpx, end = 20.mpx, top = 64.mpx)) {
-                val leagueName = if (favouritesSelected) {
-                    stringResource(R.string.sport_favourites)
-                } else {
-                    leagueLabel(selectedLeagueId)
-                }
-                Text(leagueName, style = stageText(30, 700), color = StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth())
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.mpx), modifier = Modifier.fillMaxWidth().padding(top = 10.mpx)) {
-                    StageSurface(
-                        onClick = {
-                            settingsTab = 0
-                            showSettings = true
-                        },
-                        radius = 16.mpx,
-                        modifier = Modifier.focusRequester(settingsFocus),
-                    ) { focused ->
-                        Row(Modifier.padding(horizontal = 14.mpx, vertical = 8.mpx), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.mpx)) {
-                            OwnTVIcon(OwnTVIcon.SETTINGS, if (focused) stageAccent.onAccent else StageColors.Text, Modifier.size(20.mpx))
-                            Text(stringResource(R.string.sport_settings), style = stageText(17, 600), color = if (focused) stageAccent.onAccent else StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                    StageSurface(
-                        onClick = { vm.refreshSelected() },
-                        radius = 16.mpx,
-                        modifier = Modifier.focusRequester(refreshFocus),
-                    ) { focused ->
-                        Row(Modifier.padding(horizontal = 14.mpx, vertical = 8.mpx), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.mpx)) {
-                            OwnTVIcon(OwnTVIcon.REFRESH, if (focused) stageAccent.onAccent else StageColors.Text, Modifier.size(20.mpx))
-                            Text(stringResource(R.string.sport_retry), style = stageText(17, 600), color = if (focused) stageAccent.onAccent else StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
-                if (favouritesSelected && myTeams.isNotEmpty()) {
-                    Text(stringResource(R.string.sport_my_teams), style = stageText(20, 600), color = StageColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.mpx, bottom = 8.mpx))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.mpx), modifier = Modifier.fillMaxWidth()) {
-                        items(myTeams, key = { it.id }) { fixture ->
-                            StageSurface(
-                                onClick = { vm.selectFixture(fixture) },
-                                radius = 14.mpx,
-                                focusStyle = StageFocus.FX,
-                                modifier = Modifier.focusRequester(gameRequester(fixture.id)),
-                            ) { focused ->
-                                FixtureChip(fixture, followedTeams, focused)
-                            }
-                        }
-                    }
-                }
-                // All | Today | Live | Upcoming | Past — the pills filter the list right below them.
+                // Live | Today | Upcoming filter the list right below them; Refresh re-fetches the board.
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.mpx),
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.mpx),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     FixtureTabPill(stringResource(R.string.sport_tab_live), tab == SportsViewModel.FixtureTab.LIVE) {
                         vm.setTab(SportsViewModel.FixtureTab.LIVE)
@@ -401,9 +332,21 @@ fun SportsScreen(
                     FixtureTabPill(stringResource(R.string.sport_tab_upcoming), tab == SportsViewModel.FixtureTab.UPCOMING) {
                         vm.setTab(SportsViewModel.FixtureTab.UPCOMING)
                     }
-                    FixtureTabPill(stringResource(R.string.sport_tab_past), tab == SportsViewModel.FixtureTab.PAST) {
-                        vm.setTab(SportsViewModel.FixtureTab.PAST)
-                    }
+                    RefreshPill(
+                        onClick = { vm.refreshSelected() },
+                        modifier = Modifier.focusRequester(refreshFocus),
+                    )
+                }
+                // Games are shown without a playlist; only the channels need one. The strip never
+                // takes the only focus stop — the fixture rows below stay reachable.
+                if (playlists.isEmpty() && fixtures.isNotEmpty()) {
+                    NoPlaylistStrip(
+                        onAddPlaylist = {
+                            settingsTab = 1
+                            showSettings = true
+                        },
+                        modifier = Modifier.padding(top = 12.mpx),
+                    )
                 }
                 when {
                     boardLoading && fixtures.isEmpty() -> {
@@ -414,8 +357,15 @@ fun SportsScreen(
                     boardError && fixtures.isEmpty() -> {
                         Column(Modifier.fillMaxWidth().padding(top = 60.mpx), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.mpx)) {
                             Text(stringResource(R.string.sport_load_failed), style = stageText(22, 500), color = StageColors.Muted)
-                            StageSurface(onClick = { vm.refreshSelected() }, radius = 16.mpx) { focused ->
-                                Text(stringResource(R.string.sport_retry), style = stageText(19, 600), color = if (focused) stageAccent.onAccent else StageColors.Text, modifier = Modifier.padding(horizontal = 22.mpx, vertical = 10.mpx))
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.mpx)) {
+                                StagePill(stringResource(R.string.sport_retry), onClick = { vm.refreshSelected() }, tinted = true)
+                                StagePill(
+                                    stringResource(R.string.sport_action_open_settings),
+                                    onClick = {
+                                        settingsTab = 0
+                                        showSettings = true
+                                    },
+                                )
                             }
                         }
                     }
@@ -425,8 +375,17 @@ fun SportsScreen(
                         }
                     }
                     visibleFixtures.isEmpty() -> {
-                        Box(Modifier.fillMaxWidth().padding(top = 60.mpx), contentAlignment = Alignment.Center) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(top = 60.mpx),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.mpx),
+                        ) {
                             Text(stringResource(emptyTabLabel(tab)), style = stageText(22, 500), color = StageColors.Muted)
+                            StagePill(
+                                stringResource(R.string.sport_action_show_upcoming),
+                                onClick = { vm.setTab(SportsViewModel.FixtureTab.UPCOMING) },
+                                tinted = true,
+                            )
                         }
                     }
                     else -> {
@@ -437,8 +396,18 @@ fun SportsScreen(
                                     is HubItem.League -> LeagueBand(row) { foldedLeagues[row.leagueId] = row.folded.not() }
                                     is HubItem.Game -> {
                                         val selected = row.fixture.id == selectedFixture?.id
+                                        // A live game with a confident best match: OK starts that channel
+                                        // right away (no dialog); everything else only selects the game.
+                                        val chip = liveMatches[row.fixture.id]
+                                        val zapTitle = fixtureZapTitle(row.fixture)
                                         StageSurface(
-                                            onClick = { vm.selectFixture(row.fixture) },
+                                            onClick = {
+                                                if (chip != null && isPlayableMatch(chip)) {
+                                                    vm.playMatch(chip, listOf(chip)) { id, entities -> onPlayChannel(id, entities, zapTitle) }
+                                                } else {
+                                                    vm.selectFixture(row.fixture)
+                                                }
+                                            },
                                             radius = 18.mpx,
                                             modifier = Modifier.fillMaxWidth().focusRequester(gameRequester(row.fixture.id)),
                                             idle = if (selected) Modifier.background(stageAccent.accent.copy(alpha = 0.14f), RoundedCornerShape(18.mpx)) else Modifier,
@@ -448,7 +417,8 @@ fun SportsScreen(
                                                 followedTeams,
                                                 focused,
                                                 selected,
-                                                aiHits = aiBoardHits[row.fixture.id] ?: 0,
+                                                chip = chip,
+                                                chipChecked = liveMatches.containsKey(row.fixture.id),
                                             )
                                         }
                                     }
@@ -516,6 +486,7 @@ fun SportsScreen(
                                 onPlayChannel(id, entities, zapTitle)
                             }
                         },
+                        channelLimit = channelLimit,
                         sportsVm = vm,
                         liveVm = liveVm,
                         effectivePreview = effectivePreview,
@@ -567,6 +538,10 @@ fun SportsScreen(
                         phoneTeamGroup,
                         phonePlayerGroup,
                     )
+                },
+                onOpenAppSettings = {
+                    showSettings = false
+                    onOpenAppSettings()
                 },
                 onDismiss = { showSettings = false },
             )
@@ -774,10 +749,13 @@ private fun LeagueBand(item: HubItem.League, modifier: Modifier = Modifier, onTo
 private fun leagueLabel(leagueId: String): String =
     SportsLeagues.firstOrNull { it.id == leagueId }?.let { stringResource(it.labelRes) } ?: leagueId
 
-/** A sport coin (Matchday sidebar): round, emoji glyph (or the star for All), label below, live badge. */
+/**
+ * A rail coin (Matchday sidebar): round, emoji glyph (or the star for All, or [icon]), label below,
+ * live badge. A focused coin is filled with the accent; a selected-but-unfocused one keeps a 14 %
+ * accent fill and takes the accent colour for glyph and label.
+ */
 @Composable
 private fun SportCoin(
-    coinKey: String,
     label: String,
     glyph: String?,
     selected: Boolean,
@@ -785,31 +763,44 @@ private fun SportCoin(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    icon: OwnTVIcon? = null,
 ) {
     val accent = stageAccent
+    // Read here so the label outside the surface follows the same focus state as the fill.
+    var focused by remember { mutableStateOf(false) }
+    val markColor = when {
+        focused -> accent.onAccent
+        selected -> accent.accent
+        else -> StageColors.NavText
+    }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Box(contentAlignment = Alignment.TopEnd) {
             StageSurface(
                 onClick = onClick,
                 onLongClick = onLongClick,
                 radius = CoinPx.mpx,
-                idle = if (selected) Modifier.background(accent.accent, RoundedCornerShape(CoinPx.mpx)) else Modifier,
-            ) { focused ->
+                modifier = Modifier.onFocusChanged { focused = it.isFocused },
+                idle = if (selected) Modifier.background(accent.accent.copy(alpha = SelectedFillAlpha), RoundedCornerShape(CoinPx.mpx)) else Modifier,
+            ) { surfaceFocused ->
                 Box(
                     Modifier.size(CoinPx.mpx),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (glyph == null) {
-                        OwnTVIcon(
-                            OwnTVIcon.STAR,
-                            if (focused || selected) accent.onAccent else accent.accent,
+                    when {
+                        icon != null -> OwnTVIcon(
+                            icon,
+                            if (surfaceFocused) accent.onAccent else markColor,
                             Modifier.size(26.mpx),
                         )
-                    } else {
-                        Text(
+                        glyph == null -> OwnTVIcon(
+                            OwnTVIcon.STAR,
+                            if (surfaceFocused) accent.onAccent else markColor,
+                            Modifier.size(26.mpx),
+                        )
+                        else -> Text(
                             glyph,
                             style = stageText(CoinGlyphPx, 400),
-                            color = if (selected) accent.onAccent else StageColors.Text,
+                            color = if (surfaceFocused) accent.onAccent else markColor,
                         )
                     }
                 }
@@ -821,7 +812,11 @@ private fun SportCoin(
         Text(
             label,
             style = stageText(13, 600),
-            color = if (selected) accent.accent else StageColors.Muted,
+            color = when {
+                focused -> accent.onAccent
+                selected -> accent.accent
+                else -> StageColors.Muted
+            },
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 4.mpx),
@@ -869,6 +864,12 @@ private fun sportGlyph(espnSport: String): String = when (espnSport) {
 private const val CoinPx = 64
 private const val CoinGlyphPx = 28
 
+/** Brand red for "live now" (#FF5A5F); the accent green never marks a live state. */
+private val LiveRed = Color(0xFFFF5A5F)
+
+/** Idle fill of a selected-but-unfocused rail coin or row (accent at 14 %). */
+private const val SelectedFillAlpha = 0.14f
+
 /** One pill in the fixtures column: filled with the accent when selected (Matchday style). */
 @Composable
 private fun FixtureTabPill(label: String, selected: Boolean, onClick: () -> Unit) {
@@ -888,15 +889,78 @@ private fun FixtureTabPill(label: String, selected: Boolean, onClick: () -> Unit
     }
 }
 
+/** The refresh pill at the end of the filter row: Re-fetches the selected board. */
+@Composable
+private fun RefreshPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val accent = stageAccent
+    StageSurface(onClick = onClick, radius = 20.mpx, modifier = modifier) { focused ->
+        Row(
+            Modifier.padding(horizontal = 18.mpx, vertical = 9.mpx),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.mpx),
+        ) {
+            OwnTVIcon(OwnTVIcon.REFRESH, if (focused) accent.onAccent else StageColors.Text, Modifier.size(18.mpx))
+            Text(
+                stringResource(R.string.sport_refresh),
+                style = stageText(18, 500),
+                color = if (focused) accent.onAccent else StageColors.Text,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** The "no playlist yet" strip above the list: games still show, only the channels need a playlist. */
+@Composable
+private fun NoPlaylistStrip(onAddPlaylist: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .background(StageColors.ControlFill, RoundedCornerShape(14.mpx))
+            .padding(horizontal = 14.mpx, vertical = 10.mpx),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.mpx),
+    ) {
+        Text(
+            stringResource(R.string.sport_no_playlist),
+            style = stageText(16, 500),
+            color = StageColors.Muted,
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        StagePill(stringResource(R.string.sport_action_add_playlist), onClick = onAddPlaylist, tinted = true)
+    }
+}
+
+/**
+ * The live badge: brand red (#FF5A5F), white text and a 6 px dot. The dot pulses only with the
+ * animation level at FULL — the same setting the shell's ambient glow reads.
+ */
 @Composable
 private fun LiveDot(count: String) {
-    Box(
+    val animationLevel by koinInject<tv.own.owntv.core.settings.SettingsRepository>().animationLevel
+        .collectAsStateWithLifecycle(initialValue = tv.own.owntv.core.theme.AnimationLevel.FULL)
+    val transition = if (animationLevel == tv.own.owntv.core.theme.AnimationLevel.FULL) {
+        rememberInfiniteTransition()
+    } else {
+        null
+    }
+    val dotAlpha = transition
+        ?.animateFloat(
+            initialValue = 0.35f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        )
+        ?.value ?: 1f
+    Row(
         Modifier
-            .background(stageAccent.accent, RoundedCornerShape(12.mpx))
+            .background(LiveRed, RoundedCornerShape(12.mpx))
             .padding(horizontal = 10.mpx, vertical = 4.mpx),
-        contentAlignment = Alignment.Center,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.mpx),
     ) {
-        Text(count, style = stageText(15, 700), color = stageAccent.onAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Box(Modifier.size(6.mpx).background(Color.White.copy(alpha = dotAlpha), RoundedCornerShape(3.mpx)))
+        Text(count, style = stageText(15, 700), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -943,7 +1007,10 @@ private fun FixtureCard(
     followedTeams: Set<String>,
     focused: Boolean,
     selected: Boolean,
-    aiHits: Int = 0,
+    /** Best channel match of this fixture; null once checked means nothing matched. */
+    chip: ChannelMatch? = null,
+    /** The best-match lookup has already returned for this fixture (chip present or not). */
+    chipChecked: Boolean = false,
 ) {
     val accent = stageAccent
     val titleColor = if (focused) accent.onAccent else StageColors.Text
@@ -1032,24 +1099,28 @@ private fun FixtureCard(
                 )
             }
         }
-        if (aiHits > 0) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.mpx),
-            ) {
-                OwnTVIcon(
-                    OwnTVIcon.SPARKLE,
-                    if (focused) accent.onAccent else accent.accent,
-                    Modifier.size(16.mpx),
-                )
-                Text(
-                    aiHits.toString(),
-                    style = stageText(15, 700),
-                    color = if (focused) accent.onAccent else accent.accent,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+        // Best matched channel of a live game, right-aligned: name · resolution · source. While the
+        // per-fixture lookup runs the row says so; an empty result leaves the row without a chip.
+        when {
+            chipChecked && chip != null -> Text(
+                channelChipText(chip),
+                style = stageText(14, 600),
+                color = if (focused) accent.onAccent else accent.accent,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .widthIn(max = 260.mpx)
+                    .background(
+                        if (focused) Color.Transparent else accent.accent.copy(alpha = SelectedFillAlpha),
+                        RoundedCornerShape(10.mpx),
+                    )
+                    .padding(horizontal = 10.mpx, vertical = 4.mpx),
+            )
+            !chipChecked && fixture.state == FixtureState.LIVE -> Text(
+                stringResource(R.string.sport_chip_checking),
+                style = stageText(14, 500),
+                color = dimColor,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
         }
         if (selected && fixture.state != FixtureState.LIVE) {
             OwnTVIcon(OwnTVIcon.CHECK, accent.accent, Modifier.size(22.mpx))
@@ -1136,6 +1207,8 @@ private fun FixtureDetail(
     onRetryAi: () -> Unit,
     onOpenAiSettings: () -> Unit,
     onPlayAi: (AiSuggestion, List<AiSuggestion>) -> Unit,
+    /** How many channel rows the merged list shows (Sport settings). */
+    channelLimit: Int,
     sportsVm: SportsViewModel,
     liveVm: LiveViewModel,
     effectivePreview: Boolean,
@@ -1146,9 +1219,11 @@ private fun FixtureDetail(
     val matches = (matchesState as? SportsViewModel.MatchesState.Content)?.matches.orEmpty()
     val aiContent = aiState as? SportsViewModel.AiState.Content
     val aiSuggestions = aiContent?.suggestions.orEmpty()
-    // While the AI functions are switched off there is no AI list: the tab does not exist and
-    // nothing of the AI is on screen.
-    val aiVisible = aiEnabled && aiListSelected
+    // Channels header toggle: the merged list (default) or the three per-strategy lists.
+    var inspectSources by remember(fixture.id) { mutableStateOf(false) }
+    // While the AI functions are switched off there is no AI list, and the AI column only exists
+    // behind Inspect sources: it is not a view of its own any more.
+    val aiVisible = aiEnabled && aiListSelected && inspectSources
     var entities by remember(fixture.id) { mutableStateOf(emptyList<ChannelEntity>()) }
     var aiEntities by remember(fixture.id) { mutableStateOf(emptyList<ChannelEntity>()) }
     var focusedChannelId by remember(fixture.id) { mutableStateOf<Long?>(null) }
@@ -1308,7 +1383,9 @@ private fun FixtureDetail(
             Column(verticalArrangement = Arrangement.spacedBy(8.mpx), modifier = Modifier.padding(top = 8.mpx)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.mpx), modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.sport_channels), style = stageText(22, 700), color = StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    if (!aiVisible) {
+                    // The per-strategy lists (with their refresh) live behind Inspect sources; the
+                    // default view is the single merged list.
+                    if (inspectSources && !aiVisible) {
                         val refreshing = matchesState == SportsViewModel.MatchesState.Loading
                         StageSurface(
                             onClick = { sportsVm.refreshMatches() },
@@ -1321,42 +1398,57 @@ private fun FixtureDetail(
                             }
                         }
                     }
+                    StagePill(
+                        stringResource(R.string.sport_action_inspect),
+                        onClick = {
+                            // Leaving the inspection returns to the merged list: the strategy
+                            // choice is a property of the inspection, not of the fixture.
+                            if (inspectSources) {
+                                onAiListSelected(false)
+                                onClassicAiSelected(false)
+                            }
+                            inspectSources = !inspectSources
+                        },
+                        tinted = inspectSources,
+                    )
                 }
                 // Classic (original guide/EPG matcher), DeepSeek Match (evidence-tiered board
                 // pipeline) and AI Suggest (the older name-to-channel recommendation). The AI
                 // columns only exist while the AI functions are switched on.
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.mpx),
-                ) {
-                    StageTab(
-                        label = stringResource(R.string.sport_channels_classic),
-                        count = "",
-                        selected = !aiVisible && !classicAiSelected,
-                        onClick = {
-                            onClassicAiSelected(false)
-                            onAiListSelected(false)
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (aiEnabled) {
+                if (inspectSources) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.mpx),
+                    ) {
                         StageTab(
-                            label = stringResource(R.string.sport_channels_classic_ai),
+                            label = stringResource(R.string.sport_channels_classic),
                             count = "",
-                            selected = !aiVisible && classicAiSelected,
+                            selected = !aiVisible && !classicAiSelected,
                             onClick = {
-                                onClassicAiSelected(true)
+                                onClassicAiSelected(false)
                                 onAiListSelected(false)
                             },
                             modifier = Modifier.weight(1f),
                         )
-                        StageTab(
-                            label = stringResource(R.string.sport_ai_tab),
-                            count = "",
-                            selected = aiVisible,
-                            onClick = { onAiListSelected(true) },
-                            modifier = Modifier.weight(1f),
-                        )
+                        if (aiEnabled) {
+                            StageTab(
+                                label = stringResource(R.string.sport_channels_classic_ai),
+                                count = "",
+                                selected = !aiVisible && classicAiSelected,
+                                onClick = {
+                                    onClassicAiSelected(true)
+                                    onAiListSelected(false)
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                            StageTab(
+                                label = stringResource(R.string.sport_ai_tab),
+                                count = "",
+                                selected = aiVisible,
+                                onClick = { onAiListSelected(true) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                     }
                 }
                 if (aiVisible) {
@@ -1399,7 +1491,9 @@ private fun FixtureDetail(
                             )
                         }
                         is SportsViewModel.MatchesState.Content -> {
-                            val list = matches
+                            // Default: one merged, deduped list. Inspect sources: the chosen
+                            // strategy's own list, unchanged.
+                            val list = if (inspectSources) matches else mergeChannels(matches, channelLimit)
                             if (list.isEmpty()) {
                                 Text(stringResource(R.string.sport_no_channel), style = stageText(17, 500), color = StageColors.Dim)
                             } else {
@@ -1440,7 +1534,6 @@ private fun FixtureDetail(
                                                     Text(title, style = stageText(14, 500), color = if (focused) accent.onAccent.copy(alpha = 0.8f) else StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                 }
                                             }
-                                            Text(stringResource(R.string.sport_play), style = stageText(15, 600), color = if (focused) accent.onAccent else StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         }
                                     }
                                 }
@@ -1519,6 +1612,53 @@ private fun evidenceLine(match: ChannelMatch): String? {
 
 private const val Separator = " · "
 
+/** The row chip of a matched channel: "<channel> · <resolution> · <source>". */
+@Composable
+private fun channelChipText(match: ChannelMatch): String {
+    val source = when {
+        match.aiConfirmed || match.aiReason != null -> stringResource(R.string.sport_chip_source_ai)
+        match.epgConfirmed || match.epgTitle != null || match.evidenceSource == ChannelEvidenceSource.EPG ->
+            stringResource(R.string.sport_chip_source_guide)
+        else -> stringResource(R.string.sport_chip_source_name)
+    }
+    return listOf(match.channelName, qualityLabel(match.channelName), source).joinToString(Separator)
+}
+
+/** Resolution word of a channel name, from the matcher's own ranking. */
+@Composable
+private fun qualityLabel(channelName: String): String = stringResource(
+    when {
+        ChannelDedup.resolutionRank(channelName) >= 4 -> R.string.sport_quality_4k
+        ChannelDedup.resolutionRank(channelName) == 3 -> R.string.sport_quality_fhd
+        ChannelDedup.resolutionRank(channelName) == 2 -> R.string.sport_quality_hd
+        else -> R.string.sport_quality_sd
+    },
+)
+
+/**
+ * Whether a row's best match is confident enough to start on OK without asking. The evidence tier
+ * decides where the matcher produced one; a classic row (no tier) needs an exact name hit or EPG
+ * confirmation — a bare name resemblance only selects the game.
+ */
+private fun isPlayableMatch(match: ChannelMatch?): Boolean = when (match?.evidenceTier) {
+    ChannelEvidenceTier.SUPPORTED, ChannelEvidenceTier.LIKELY -> true
+    ChannelEvidenceTier.POSSIBLE, ChannelEvidenceTier.CONFLICTING -> false
+    null -> match != null && (match.isExact || match.epgConfirmed || match.aiConfirmed)
+}
+
+/**
+ * The default channel list: one row per channel, confident rows first (Supported and the classic
+ * guide/name rows), then Likely, then Possible/Conflicting — Classic order inside each group.
+ */
+private fun mergeChannels(matches: List<ChannelMatch>, limit: Int): List<ChannelMatch> {
+    fun group(match: ChannelMatch): Int = when (match.evidenceTier) {
+        ChannelEvidenceTier.LIKELY -> 1
+        ChannelEvidenceTier.POSSIBLE, ChannelEvidenceTier.CONFLICTING -> 2
+        ChannelEvidenceTier.SUPPORTED, null -> 0
+    }
+    return matches.distinctBy { it.channelId }.sortedBy { group(it) }.take(limit)
+}
+
 /** One "prefer channels from" option; [code] is a [SportLanguages.preferredCountryOptions] key, "" = none. */
 private data class CountryPreference(val code: String, @StringRes val labelRes: Int)
 
@@ -1571,6 +1711,8 @@ private fun SportsSettingsDialog(
     onTogglePreview: () -> Unit,
     onOpenLanguage: () -> Unit,
     onManageOnPhone: () -> Unit,
+    /** The app's own settings (playlists, profile, EPG, updates) — the nav rail used to carry this door. */
+    onOpenAppSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val firstFocus = remember { FocusRequester() }
@@ -1955,6 +2097,13 @@ private fun SportsSettingsDialog(
                             )
                         }
                     }
+                    // The one door to the app's own settings: playlists, profile, EPG, updates. The nav
+                    // rail used to carry it, and this dialog is the only settings surface left.
+                    StageMenuItem(
+                        text = stringResource(R.string.sport_settings_app),
+                        icon = OwnTVIcon.SETTINGS,
+                        onClick = onOpenAppSettings,
+                    )
                 }
             }
         }
@@ -2186,7 +2335,7 @@ private fun AiChannelsPanel(
                         maxLines = 2, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    AiActionButton(stringResource(R.string.common_cancel), onCancel)
+                    StagePill(stringResource(R.string.common_cancel), onCancel)
                 }
             }
             is SportsViewModel.AiState.Error -> {
@@ -2199,10 +2348,10 @@ private fun AiChannelsPanel(
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.mpx)) {
                         if (state.failure == AiFailure.NO_KEY) {
-                            AiActionButton(stringResource(R.string.sport_ai_open_settings), onOpenSettings, tinted = true)
+                            StagePill(stringResource(R.string.sport_ai_open_settings), onOpenSettings, tinted = true)
                         } else {
-                            AiActionButton(stringResource(R.string.common_retry), onRetry, tinted = true)
-                            AiActionButton(stringResource(R.string.sport_ai_change_countries), onOpenCountries)
+                            StagePill(stringResource(R.string.common_retry), onRetry, tinted = true)
+                            StagePill(stringResource(R.string.sport_ai_change_countries), onOpenCountries)
                         }
                     }
                 }
@@ -2292,18 +2441,20 @@ private fun AiChannelRow(
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text(
-                suggestion.qualityLabel ?: stringResource(R.string.sport_play),
-                style = stageText(15, 600),
-                color = if (focused) accent.onAccent else StageColors.Dim,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+            suggestion.qualityLabel?.let { quality ->
+                Text(
+                    quality,
+                    style = stageText(15, 600),
+                    color = if (focused) accent.onAccent else StageColors.Dim,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun AiActionButton(
+private fun StagePill(
     text: String,
     onClick: () -> Unit,
     tinted: Boolean = false,

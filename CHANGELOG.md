@@ -14,6 +14,17 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v1.1.1 — 2026-10-28
+
+### ✨ New features
+- **Settings coin opens the full app settings; a long press on any sport coin opens the sport settings**
+- **New Sport row in app settings opens the hub's league, language and AI settings**
+- **Sport rail drawn as one centred glass capsule, like the old sidebar**
+
+### 🐛 Fixes
+- **Top-right pills could trap focus on the hub: Down now returns to the rail**
+- **Leaving app settings could leave focus stuck on the pill row instead of a game**
+
 ## v1.1.0 — 2026-10-28
 
 ### ✨ New features

@@ -216,6 +216,8 @@ fun SettingsScreen(
     /** More › Settings (until P10 redraws this screen): open at a root group, or with search open. */
     start: SettingsStart? = null,
     onStartConsumed: () -> Unit = {},
+    /** Leaves Settings for the hub and opens the hub's own settings dialog there. */
+    onOpenSportSettings: () -> Unit = {},
 ) {
     // A cross-script language change recreates the Activity so Android can apply the new script's
     // shaping and font fallback. Keep the open settings sub-screen across that configuration change
@@ -284,6 +286,7 @@ fun SettingsScreen(
     val guideDaysRowFocus = remember { FocusRequester() }
     val animationsRowFocus = remember { FocusRequester() }
     val liveLayoutRowFocus = remember { FocusRequester() }
+    val sportRowFocus = remember { FocusRequester() }
     val startupRowFocus = remember { FocusRequester() }
     val livePreviewQuickFocus = remember { FocusRequester() }
     val ambientGlowRowFocus = remember { FocusRequester() }
@@ -672,6 +675,13 @@ fun SettingsScreen(
             focus = rowFocus.getValue(SettingsTab.WEATHER),
             onClick = { open(SettingsTab.WEATHER) },
         ),
+        RootRow(
+            "sport_settings", TileTone.PRIMARY, OwnTVIcon.SPORT,
+            title = stringResource(R.string.sport_settings_root),
+            desc = stringResource(R.string.sport_settings_root_desc),
+            focus = sportRowFocus,
+            onClick = onOpenSportSettings,
+        ),
         RootGroup("group_layout", stringResource(R.string.settings_group_layout), OwnTVIcon.LIST_GRID, stringResource(R.string.settings_group_summary_layout)),
         liveLayoutRootRow(settingsVm, liveLayoutRowFocus) { saveScroll(); dialogReturn = liveLayoutRowFocus; showLiveLayout = true },
         *stageLayoutRows(settingsVm, stageSettings) { saveScroll(); dialogReturn = it }.toTypedArray(),
@@ -984,6 +994,7 @@ fun SettingsScreen(
                 chip = pluralStringResource(R.plurals.settings_epg_guide_days_value, guideDays, guideDays), chipTone = TileTone.PRIMARY) { saveScroll(); dialogReturn = searchFieldFocus; showGuideDays = true },
             SettingsSearchEntry(stringResource(R.string.settings_group_sources), stringResource(R.string.settings_search_guide_logos), stringResource(R.string.settings_search_keywords_logos), OwnTVIcon.EPG, TileTone.SECONDARY) { open(SettingsTab.EPG) },
             SettingsSearchEntry(stringResource(R.string.settings_group_content_metadata), stringResource(R.string.settings_customize), stringResource(R.string.settings_search_keywords_customize), OwnTVIcon.SORT, TileTone.PRIMARY) { open(SettingsTab.CUSTOMIZE) },
+            SettingsSearchEntry(stringResource(R.string.settings_group_app), stringResource(R.string.sport_settings_root), stringResource(R.string.sport_settings_root_desc), OwnTVIcon.SPORT, TileTone.PRIMARY) { onOpenSportSettings() },
             liveLayoutSearchEntry(settingsVm) { saveScroll(); dialogReturn = searchFieldFocus; showLiveLayout = true },
             SettingsSearchEntry(stringResource(R.string.settings_group_layout), stringResource(R.string.settings_live_opens_in), stringResource(R.string.settings_search_keywords_live_opens_in), OwnTVIcon.LIVE_TV, TileTone.PRIMARY) { saveScroll(); dialogReturn = searchFieldFocus; stageSettings.open = StageSettingsDialog.LIVE_OPENS_IN },
             SettingsSearchEntry(stringResource(R.string.settings_group_sources), stringResource(R.string.settings_reminders), stringResource(R.string.settings_search_keywords_reminders), OwnTVIcon.BELL, TileTone.SECONDARY) { saveScroll(); dialogReturn = searchFieldFocus; stageSettings.open = StageSettingsDialog.REMINDERS },

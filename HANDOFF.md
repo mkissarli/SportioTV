@@ -36,6 +36,11 @@
 - v1.0.8 (2026-10-20): released — Core 1.0.71 (Maven + Release) und App v1.0.8 (APKs live).
   KI-Empfehlung und Provider-Import sind hinter dem KI-Schalter (Standard aus); Key in den
   Einstellungen oder am Handy. CI beider Repos grün.
+- v1.1.1 (2026-10-28): Settings-Zugang geradegezogen. Settings-Coin öffnet die vollen
+  App-Einstellungen (Langdruck auf einen Sport-Coin = Sport-Settings), neuer Sport-Row
+  in den App-Einstellungen führt zurück in den Hub-Dialog. Sport-Rail als zentrierte
+  Glas-Kapsel. Fix: die Pillen oben rechts (Recents/Playlist) fingen den Fokus — Down
+  führt jetzt zurück in die Rail.
 - v1.1.0 (2026-10-28): Einzel-Rail-Release. Globale Nav-Rail entfernt, Sport-Hub ist
   das einzige Ziel (Sport-Rail mit Einstellungen unten = App-Rail). Kanal-Chip auf
   Live-Zeilen, eine zusammengeführte Kanalliste statt drei Tabs (Einzellisten hinter

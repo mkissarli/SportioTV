@@ -49,6 +49,8 @@
     <string name="sport_refresh_channels">Refresh channels</string>
     <string name="sport_refresh">Refresh</string>
     <string name="sport_settings_app">App settings</string>
+    <string name="sport_settings_root">Sport</string>
+    <string name="sport_settings_root_desc">Leagues, languages, channels per game, AI</string>
     <string name="sport_action_inspect">Inspect sources</string>
     <string name="sport_action_show_upcoming">Show upcoming</string>
     <string name="sport_action_open_settings">Open settings</string>

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -91,6 +92,7 @@ import tv.own.owntv.ui.stage.StagePopup
 import tv.own.owntv.ui.stage.StagePopupIcon
 import tv.own.owntv.ui.stage.StagePopupOption
 import tv.own.owntv.ui.stage.StageSurface
+import tv.own.owntv.ui.stage.stageGlass
 import tv.own.owntv.ui.stage.StageTab
 import tv.own.owntv.core.theme.GlassSurface
 import tv.own.owntv.core.theme.SportioPalette
@@ -117,6 +119,11 @@ fun SportsScreen(
     onContentScrolled: (Boolean) -> Unit = {},
     /** Opens the app's own Settings (playlists, profile, EPG, updates) from the hub's settings dialog. */
     onOpenAppSettings: () -> Unit = {},
+    /** Focus target for the top-right cluster's Down key, so the pills always have a way back in. */
+    entryFocusRequester: FocusRequester? = null,
+    /** Opened by Settings › Sport: show the sport settings dialog as soon as the hub is on screen. */
+    openSettingsOnStart: Boolean = false,
+    onSettingsOpened: () -> Unit = {},
     contentStart: Dp = 150.mpx,
     modifier: Modifier = Modifier,
 ) {
@@ -211,7 +218,10 @@ fun SportsScreen(
         val index = hubRows.indexOfFirst { it is HubItem.Game && it.fixture.id == id }
         if (index >= 0) runCatching { listState.scrollToItem(index) }
         withFrameNanos { }
-        runCatching { gameRequester(id).requestFocus() }
+        // Coming back from Settings the board may still be loading, so the row can genuinely not exist
+        // yet: land on the rail instead of leaving focus wherever it was, or nowhere at all.
+        if (runCatching { gameRequester(id).requestFocus() }.isSuccess) return
+        runCatching { sportRequester(SportsViewModel.SportAllId).requestFocus() }
     }
 
     val entry: () -> Boolean = {
@@ -247,6 +257,16 @@ fun SportsScreen(
         onRestored()
     }
 
+    // Settings › Sport leaves the settings screen and lands here with the dialog already open, so the
+    // league/language/AI rows are one press from the settings root instead of a long press on a coin.
+    LaunchedEffect(openSettingsOnStart) {
+        if (openSettingsOnStart) {
+            settingsTab = 0
+            showSettings = true
+            onSettingsOpened()
+        }
+    }
+
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 24 } }
     LaunchedEffect(scrolled) { onContentScrolled(scrolled) }
 
@@ -270,51 +290,69 @@ fun SportsScreen(
                 .padding(start = contentStart + 20.mpx, top = 52.mpx, end = 28.mpx)
                 .fillMaxSize(),
         ) {
-            // Sport rail (Matchday sidebar): one labelled coin per sport with followed leagues, and
-            // Settings pinned below the scrolling coins so it is the last stop of the rail.
-            Column(Modifier.width(fx(112)).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+            // Sport rail: the app's only rail, drawn like the old Stage capsule — one centred glass
+            // column off the screen edge, coins scrolling inside it, Settings pinned at its foot.
+            Box(
+                Modifier.width(fx(120)).fillMaxHeight(),
+                contentAlignment = Alignment.CenterStart,
+            ) {
                 Column(
-                    Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                    Modifier
+                        .width(fx(96))
+                        .heightIn(max = 880.mpx)
+                        .stageGlass(42.mpx, overContent = true)
+                        .padding(vertical = 12.mpx, horizontal = 6.mpx),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.mpx),
                 ) {
-                    // All: the explicit first coin — star glyph, "All" label, always leading.
-                    SportCoin(
-                        label = stringResource(R.string.sport_all),
-                        glyph = null,
-                        selected = favouritesSelected && selectedSportId == SportsViewModel.SportAllId,
-                        liveCount = 0,
-                        onClick = { vm.selectSport(SportsViewModel.SportAllId) },
-                        onLongClick = { settingsTab = 0; showSettings = true },
-                        modifier = Modifier.focusRequester(sportRequester(SportsViewModel.SportAllId)),
-                    )
-                    sportCoins.forEach { coin ->
+                    Column(
+                        Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.mpx),
+                    ) {
+                        // All: the explicit first coin — star glyph, "All" label, always leading.
                         SportCoin(
-                            label = sportCoinLabel(coin.espnSport),
-                            glyph = sportGlyph(coin.espnSport),
-                            selected = favouritesSelected && selectedSportId == coin.espnSport,
-                            liveCount = coin.liveCount,
-                            onClick = { vm.selectSport(coin.espnSport) },
+                            label = stringResource(R.string.sport_all),
+                            glyph = null,
+                            selected = favouritesSelected && selectedSportId == SportsViewModel.SportAllId,
+                            liveCount = 0,
+                            onClick = { vm.selectSport(SportsViewModel.SportAllId) },
                             onLongClick = { settingsTab = 0; showSettings = true },
-                            modifier = Modifier.focusRequester(sportRequester(coin.espnSport)),
+                            modifier = Modifier
+                                .focusRequester(sportRequester(SportsViewModel.SportAllId))
+                                .then(if (entryFocusRequester != null) Modifier.focusRequester(entryFocusRequester) else Modifier),
                         )
+                        sportCoins.forEach { coin ->
+                            SportCoin(
+                                label = sportCoinLabel(coin.espnSport),
+                                glyph = sportGlyph(coin.espnSport),
+                                selected = favouritesSelected && selectedSportId == coin.espnSport,
+                                liveCount = coin.liveCount,
+                                onClick = { vm.selectSport(coin.espnSport) },
+                                onLongClick = { settingsTab = 0; showSettings = true },
+                                modifier = Modifier.focusRequester(sportRequester(coin.espnSport)),
+                            )
+                        }
                     }
-                    Spacer(Modifier.height(8.mpx))
+                    Box(
+                        Modifier
+                            .padding(vertical = 10.mpx)
+                            .width(34.mpx)
+                            .height(1.mpx)
+                            .background(StageColors.Ink.copy(alpha = 0.12f)),
+                    )
+                    // Settings: pinned to the capsule's foot, focusable even when it holds no coins.
+                    // OK opens the app's full settings; a long press opens the sport settings.
+                    SportCoin(
+                        label = stringResource(R.string.sport_settings),
+                        glyph = null,
+                        icon = OwnTVIcon.SETTINGS,
+                        selected = false,
+                        liveCount = 0,
+                        onClick = { onOpenAppSettings() },
+                        onLongClick = { settingsTab = 0; showSettings = true },
+                        modifier = Modifier.focusRequester(settingsFocus),
+                    )
                 }
-                // App settings: pinned to the bottom, focusable even when the rail holds no coins.
-                SportCoin(
-                    label = stringResource(R.string.sport_settings),
-                    glyph = null,
-                    icon = OwnTVIcon.SETTINGS,
-                    selected = false,
-                    liveCount = 0,
-                    onClick = {
-                        settingsTab = 0
-                        showSettings = true
-                    },
-                    onLongClick = null,
-                    modifier = Modifier.focusRequester(settingsFocus),
-                )
             }
             // Fixtures (extra top padding like the detail pane: shell clock/weather overlays the top).
             Column(Modifier.weight(1.35f).fillMaxHeight().padding(start = 20.mpx, end = 20.mpx, top = 64.mpx)) {

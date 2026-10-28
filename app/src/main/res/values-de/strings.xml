@@ -49,6 +49,8 @@
     <string name="sport_refresh_channels">Kanäle aktualisieren</string>
     <string name="sport_refresh">Aktualisieren</string>
     <string name="sport_settings_app">App-Einstellungen</string>
+    <string name="sport_settings_root">Sport</string>
+    <string name="sport_settings_root_desc">Ligen, Sprachen, Sender pro Spiel, KI</string>
     <string name="sport_action_inspect">Quellen prüfen</string>
     <string name="sport_action_show_upcoming">Kommende Spiele anzeigen</string>
     <string name="sport_action_open_settings">Einstellungen öffnen</string>

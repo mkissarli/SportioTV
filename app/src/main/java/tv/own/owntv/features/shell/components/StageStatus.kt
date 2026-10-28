@@ -91,7 +91,10 @@ fun StageStatusCluster(
                     icon = continuePill.icon,
                     iconFilled = continuePill.iconFilled,
                     onClick = continuePill.onClick,
-                    modifier = Modifier.focusProperties { canFocus = pillsFocusable },
+                    modifier = Modifier.focusProperties {
+                        canFocus = pillsFocusable
+                        if (playlistDownFocusRequester != null) down = playlistDownFocusRequester
+                    },
                 )
             }
             StagePill(

@@ -172,6 +172,10 @@ fun OwnTVShell(
     val contentFocusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val contentLtr = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Ltr
     val homeFirstRowFocus = remember { FocusRequester() }
+    // The hub's rail coin: the top-right pills send Down here, so they are not a dead end on a screen
+    // that has no rail of its own to fall back into.
+    val sportEntryFocus = remember { FocusRequester() }
+    var sportSettingsOnStart by remember { mutableStateOf(false) }
     var focusedLayer by remember { mutableStateOf(ShellLayer.SIDEBAR) }
     var showExit by remember { mutableStateOf(false) }
     var showAvatarPicker by remember { mutableStateOf(false) }
@@ -1199,6 +1203,13 @@ fun OwnTVShell(
                             onEpgAddConsumed = { openEpgAdd = false },
                             start = settingsStart,
                             onStartConsumed = { settingsStart = null },
+                            onOpenSportSettings = {
+                                // Back into the hub with its own settings dialog open: leagues, languages
+                                // and the AI rows live there, not in this screen.
+                                sportSettingsOnStart = true
+                                restoreFocus = false
+                                onSelectSection(MainSection.SPORT)
+                            },
                             modifier = Modifier
                                 .fillMaxSize()
                                 .onFocusChanged { if (it.hasFocus) focusedLayer = ShellLayer.CONTENT }
@@ -1338,6 +1349,9 @@ fun OwnTVShell(
                             // its own rail from the screen edge.
                             contentStart = 0.mpx,
                             onOpenAppSettings = { restoreFocus = true; onSelectSection(MainSection.SETTINGS) },
+                            entryFocusRequester = sportEntryFocus,
+                            openSettingsOnStart = sportSettingsOnStart,
+                            onSettingsOpened = { sportSettingsOnStart = false },
                             modifier = Modifier.fillMaxSize(),
                         )
 
@@ -1451,7 +1465,13 @@ fun OwnTVShell(
                 weatherInfo = weatherInfo,
                 weatherFahrenheit = weatherFahrenheit,
                 clockColors = clockColors,
-                playlistDownFocusRequester = homeFirstRowFocus.takeIf { selectedSection == MainSection.HOME },
+                playlistDownFocusRequester = when (selectedSection) {
+                    MainSection.HOME -> homeFirstRowFocus
+                    // Without this, Down on a pill is a spatial search from the top-right corner that
+                    // finds nothing, and the pills become a trap on the only screen the app has.
+                    MainSection.SPORT -> sportEntryFocus
+                    else -> null
+                },
                 onPlaylistPillBounds = { playlistPillBounds = it },
                 modifier = Modifier.align(Alignment.TopEnd).onFocusChanged { clusterFocused = it.hasFocus }.focusGroup(),
             )

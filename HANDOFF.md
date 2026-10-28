@@ -36,6 +36,10 @@
 - v1.0.8 (2026-10-20): released — Core 1.0.71 (Maven + Release) und App v1.0.8 (APKs live).
   KI-Empfehlung und Provider-Import sind hinter dem KI-Schalter (Standard aus); Key in den
   Einstellungen oder am Handy. CI beider Repos grün.
+- v1.1.2 (2026-10-28): Settings-Gruppen als zwei Chip-Reihen (Quick ist kein Sackgassen-
+  Start mehr, im Emulator geprüft), Chips liegen in der Fokus-Reihenfolge der Liste.
+  Sport-Rail breiter/höher, Label bleibt beim Fokus lesbar, Settings-Label klebt nicht
+  mehr an der Kapselkante.
 - v1.1.1 (2026-10-28): Settings-Zugang geradegezogen. Settings-Coin öffnet die vollen
   App-Einstellungen (Langdruck auf einen Sport-Coin = Sport-Settings), neuer Sport-Row
   in den App-Einstellungen führt zurück in den Hub-Dialog. Sport-Rail als zentrierte

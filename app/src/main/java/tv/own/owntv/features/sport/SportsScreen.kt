@@ -293,15 +293,15 @@ fun SportsScreen(
             // Sport rail: the app's only rail, drawn like the old Stage capsule — one centred glass
             // column off the screen edge, coins scrolling inside it, Settings pinned at its foot.
             Box(
-                Modifier.width(fx(120)).fillMaxHeight(),
+                Modifier.width(fx(164)).fillMaxHeight(),
                 contentAlignment = Alignment.CenterStart,
             ) {
                 Column(
                     Modifier
-                        .width(fx(96))
-                        .heightIn(max = 880.mpx)
+                        .width(fx(140))
+                        .heightIn(max = 940.mpx)
                         .stageGlass(42.mpx, overContent = true)
-                        .padding(vertical = 12.mpx, horizontal = 6.mpx),
+                        .padding(start = 6.mpx, end = 6.mpx, top = 14.mpx, bottom = 20.mpx),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Column(
@@ -849,9 +849,11 @@ private fun SportCoin(
         }
         Text(
             label,
-            style = stageText(13, 600),
+            style = stageText(15, 600),
             color = when {
-                focused -> accent.onAccent
+                // The label sits UNDER the tile, outside the focused fill: onAccent would paint it
+                // dark on the dark backdrop. Light text there, accent only for the selected state.
+                focused -> StageColors.Text
                 selected -> accent.accent
                 else -> StageColors.Muted
             },

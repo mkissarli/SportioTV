@@ -14,6 +14,16 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v1.1.2 — 2026-10-28
+
+### ✨ New features
+- **Settings lists every group as a two-row chip strip: Quick is no longer a dead end**
+- **Sport rail tiles keep a readable label while focused**
+
+### 🐛 Fixes
+- **Group chips sit inside the settings row list, so Up and Down reach them**
+- **Sport rail is wider and taller; the Settings label no longer touches the capsule edge**
+
 ## v1.1.1 — 2026-10-28
 
 ### ✨ New features

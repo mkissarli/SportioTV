@@ -1,6 +1,7 @@
 package tv.own.owntv.features.shell.components
 
 import tv.own.owntv.ui.theme.StageColors
+import tv.own.owntv.ui.stage.StagePill
 import tv.own.owntv.features.settings.SettingValue
 import tv.own.owntv.features.settings.labelRes
 import tv.own.owntv.ui.theme.mpx
@@ -39,6 +40,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -1206,6 +1208,28 @@ fun SettingsScreen(
             searchAutoEdit = searchAutoEdit,
             panelTop = if (group == SettingsGroup.APPEARANCE && !searching) ({ tv.own.owntv.features.settings.SettingsLivePreview() }) else null,
         ) {
+            // Without the nav rail, Settings opened on Quick and there was nowhere to go from there.
+            // The chips live inside the rows column so Up/Down reaches them like any other row; two
+            // compact lines hold every group, so none hides behind an invisible horizontal scroll.
+            if (!searching) {
+                categories.chunked(6).forEachIndexed { line, rowGroups ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = if (line == 0) 0.mpx else 6.mpx),
+                        horizontalArrangement = Arrangement.spacedBy(8.mpx),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        rowGroups.forEach { (settingsGroup, _) ->
+                            val index = categories.indexOfFirst { it.first.key == settingsGroup.key }
+                            SettingsGroupChip(
+                                text = settingsGroup.label,
+                                selected = index == selectedGroup,
+                                onClick = { selectedGroup = index },
+                            )
+                        }
+                    }
+                }
+                Box(Modifier.fillMaxWidth().height(10.mpx))
+            }
             when {
                 searching && searchQuery.isBlank() -> Unit
                 searching && searchResults.isEmpty() -> StageSettingsNote(stringResource(R.string.settings_no_settings_match, searchQuery.trim()), null)
@@ -1500,6 +1524,26 @@ private fun startupLabel(mode: tv.own.owntv.core.settings.StartupMode): String =
     },
 )
 
+
+/** One settings group in the root's chip rows: the only route to a group that is not Quick. */
+@Composable
+private fun SettingsGroupChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    val accent = tv.own.owntv.ui.theme.stageAccent
+    tv.own.owntv.ui.stage.StageSurface(
+        onClick = onClick,
+        radius = 12.mpx,
+        idle = if (selected) Modifier.background(accent.accent.copy(alpha = 0.14f), RoundedCornerShape(12.mpx)) else Modifier,
+    ) { focused ->
+        Text(
+            text,
+            style = tv.own.owntv.ui.theme.stageText(16, 600),
+            color = if (focused) accent.onAccent else if (selected) accent.accent else StageColors.Text,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 14.mpx, vertical = 7.mpx),
+        )
+    }
+}
 
 /** The Layout group's Live TV layout row (Stage P4): Stage, or Separate panels. */
 @Composable

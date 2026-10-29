@@ -885,7 +885,7 @@ private fun sportCoinLabel(espnSport: String): String = stringResource(
         "baseball" -> R.string.sport_coin_baseball
         "hockey" -> R.string.sport_coin_hockey
         "racing" -> R.string.sport_coin_racing
-        "mma" -> R.string.sport_coin_mma
+        "mma" -> R.string.sport_coin_fights
         "boxing" -> R.string.sport_coin_boxing
         "cycling" -> R.string.sport_coin_cycling
         "athletics" -> R.string.sport_coin_athletics

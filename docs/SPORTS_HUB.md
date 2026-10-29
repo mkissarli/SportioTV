@@ -134,8 +134,9 @@ switches to it by league id, the same way F1 uses `F1ScheduleApi`. Standings sta
 `CalendarEvents` merges the two: a guide row naming the same event within 8 h adds its channels to the
 calendar entry, and a guide row no calendar covers becomes an entry of its own — an extra row beats a
 missing event. Rows carry the catalogue's pseudo slug `espnLeague = "wtm"` (`GuideBoard` maps
-league → sport page). Limits: Wikipedia gives dates but no start times (entries sit at noon UTC and
-show no clock), and FightNights only lists scheduled cards, not results.
+league → sport page). Boxing shares `espnSport = "mma"` with UFC on purpose: both show under the one
+**Fights** coin. Limits: Wikipedia gives dates but no start times (entries sit at noon UTC and show no
+clock), and FightNights only lists scheduled cards, not results.
 
 **Display names are not hardcoded** — they come from ESPN's `leagues[0].name`. Before the first load
 (and if the name is blank) the UI falls back to the raw id.

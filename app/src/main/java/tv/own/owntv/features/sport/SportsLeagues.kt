@@ -607,8 +607,9 @@ val SportsLeagues: List<SportLeague> = listOf(
         defaultActive = true,
     ),
     SportLeague(
+        // Shares the "Fights" ball with UFC: one sidebar item for combat sports.
         id = "boxing.world",
-        espnSport = "boxing",
+        espnSport = "mma",
         espnLeague = "wtm",
         labelRes = R.string.sport_league_boxing_world,
         region = LeagueRegion.INTERNATIONAL,

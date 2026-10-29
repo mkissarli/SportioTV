@@ -10,9 +10,10 @@ package tv.own.owntv.features.sport
  */
 object GuideBoard {
 
-    /** League id → guide sport page slug. */
+    /** League id → guide sport page slug (the league's own prefix: `boxing.world` → `boxing`). */
     val sports: Map<String, String> =
-        SportsLeagues.filter { it.espnLeague == WtmLeagueSlug }.associate { it.id to it.espnSport }
+        SportsLeagues.filter { it.espnLeague == WtmLeagueSlug }
+            .associate { it.id to it.id.substringBefore('.') }
 
     /** The distinct sport pages one guide refresh has to fetch. */
     val sportPages: List<String> = sports.values.distinct()

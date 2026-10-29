@@ -14,6 +14,11 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v1.2.1 — 2026-10-29
+
+### ✨ New features
+- **Boxing and UFC share one Fights section in the rail**
+
 ## v1.2.0 — 2026-10-29
 
 ### ✨ New features

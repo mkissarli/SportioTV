@@ -14,6 +14,18 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v1.2.0 — 2026-10-29
+
+### ✨ New features
+- **Cycling, athletics and boxing are separate sports in the hub**
+- **Boxing lists worldwide fight cards, not only UK televised ones**
+- **Cycling and athletics list the full season calendar**
+- **MotoGP added with its official calendar**
+- **Every league ranked by viewership in the All and per-sport views**
+
+### 🐛 Fixes
+- **League bands inside a sport follow the league ranking instead of the day's first kickoff**
+
 ## v1.1.2 — 2026-10-28
 
 ### ✨ New features

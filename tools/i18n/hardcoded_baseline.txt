@@ -33,9 +33,7 @@
 1	app/src/main/java/tv/own/owntv/features/settings/VideoPlayerSettingsScreen.kt	#BDBDBD
 1	app/src/main/java/tv/own/owntv/features/settings/VideoPlayerSettingsScreen.kt	#FFEB3B
 2	app/src/main/java/tv/own/owntv/features/settings/VideoPlayerSettingsScreen.kt	#FFFFFF
-1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	&showdateend=
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	<td class="channel-details"
-1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	?showdatestart=
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	Log in to view
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	Not Televised
 1	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	ac
@@ -135,9 +133,12 @@
 1	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	live_show_other
 1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	$versus
 1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	${home.abbreviation} $versus ${away.abbreviation}
+2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	athletics
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	baseball
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	basketball
+2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	boxing
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	cricket
+2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	cycling
 1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	end-spacer
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	football
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	golf
@@ -149,7 +150,13 @@
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	soccer
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	tennis
 2	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	volleyball
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	🏃
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	🚴
+1	app/src/main/java/tv/own/owntv/features/sport/SportsScreen.kt	🥊
 1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	__sport_all__
+1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	athletics
+1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	boxing
+1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	cycling
 1	app/src/main/java/tv/own/owntv/features/sport/SportsViewModel.kt	playlist ai candidates=
 1	app/src/main/java/tv/own/owntv/ui/components/ColorPicker.kt	#%06X
 1	app/src/main/java/tv/own/owntv/ui/components/TextInputDialog.kt	\0

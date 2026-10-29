@@ -17,7 +17,11 @@
     <string name="sport_league_tennis_atp" translatable="false">ATP</string>
     <string name="sport_league_tennis_wta" translatable="false">WTA</string>
     <string name="sport_league_racing_f1" translatable="false">Formula 1</string>
+    <string name="sport_league_racing_motogp" translatable="false">MotoGP</string>
     <string name="sport_league_racing_irl" translatable="false">IndyCar</string>
+    <string name="sport_league_cycling_uci" translatable="false">Cycling</string>
+    <string name="sport_league_athletics_world" translatable="false">Athletics</string>
+    <string name="sport_league_boxing_world" translatable="false">Boxing</string>
     <string name="sport_league_mma_ufc" translatable="false">UFC</string>
     <string name="sport_league_golf_pga" translatable="false">PGA Tour</string>
     <string name="sport_league_soccer_ger_2" translatable="false">2. Bundesliga</string>

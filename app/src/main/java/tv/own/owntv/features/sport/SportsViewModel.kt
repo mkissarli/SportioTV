@@ -43,6 +43,9 @@ class SportsViewModel(
     private val prefs: SportsPrefs,
     private val api: EspnApi,
     private val f1Api: F1ScheduleApi,
+    private val motoGpApi: MotoGpScheduleApi,
+    private val boxingApi: FightNightsApi,
+    private val wikiApi: WikipediaCalendarApi,
     private val guideApi: BroadcastGuideApi,
     private val matcher: SportsMatcher,
     private val aiClient: DeepSeekClient,
@@ -340,7 +343,8 @@ class SportsViewModel(
     /** Hub coin order (soccer first, …); anything unlisted falls to the end, alphabetical. */
     private val sportOrder = listOf(
         "soccer", "tennis", "basketball", "golf", "football", "baseball", "hockey", "racing",
-        "mma", "cricket", "volleyball", "rugby", "rugby-league", "australian-football",
+        "mma", "boxing", "cycling", "athletics", "cricket", "volleyball", "rugby", "rugby-league",
+        "australian-football",
     )
 
     /** The rail's sport coins: every ESPN sport that has at least one followed league. */
@@ -409,6 +413,15 @@ class SportsViewModel(
         // The TV guide is fetched once in the background: the DeepSeek board uses it as evidence,
         // and fixture selection must never wait on it.
         viewModelScope.launch(Dispatchers.IO) { guideApi.refresh() }
+        // Cycling/athletics/boxing have no fixtures API — their board is the guide's own rows. Reload
+        // them when a snapshot lands, so the first open is not an empty board until the 15-min TTL.
+        viewModelScope.launch {
+            guideApi.version.drop(1).collect {
+                GuideBoard.sports.keys.filter { it in activeLeagues.value }
+                    .mapNotNull { sportsLeagueById(it) }
+                    .forEach { loadBoard(it, force = true) }
+            }
+        }
         // A new selection resets the tab to its default (Live if the view has live games, else
         // Upcoming). The boards arrive asynchronously, so re-apply until the user picks by hand.
         viewModelScope.launch {
@@ -1126,9 +1139,34 @@ class SportsViewModel(
         }
         boards.value = boards.value + (league.id to BoardState.Loading)
         // ESPN's racing scoreboard only carries the most recent event (already `post` during the
-        // weekend), so F1 boards come from Jolpica's session calendar instead.
+        // weekend) and has no MotoGP league at all, so both boards come from their own calendar.
         val result = runCatching {
-            if (league.id == F1Schedule.F1LeagueId) f1Api.scoreboard() else api.scoreboard(league)
+            val guideSport = GuideBoard.sports[league.id]
+            when {
+                league.id == F1Schedule.F1LeagueId -> f1Api.scoreboard()
+                league.id == MotoGpSchedule.MotoGpLeagueId -> motoGpApi.scoreboard()
+                // Boxing: world-wide cards from FightNights, the guide's UK rows merged in.
+                league.id == BoxingSchedule.BoxingLeagueId -> board(
+                    league,
+                    CalendarEvents.merge(boxingApi.cards(), guideApi.entriesFor(guideSport.orEmpty())),
+                    now,
+                    BoxingSchedule.CardDurationMs,
+                )
+                // Cycling/athletics: the Wikipedia season calendar, the guide's rows merged in.
+                league.id == WikiCalendar.CyclingLeagueId -> board(
+                    league,
+                    CalendarEvents.merge(wikiApi.cycling(WikiCalendar.currentYear()), guideApi.entriesFor(guideSport.orEmpty())),
+                    now,
+                    CalendarDurationMs,
+                )
+                league.id == WikiCalendar.AthleticsLeagueId -> board(
+                    league,
+                    CalendarEvents.merge(wikiApi.athletics(WikiCalendar.currentYear()), guideApi.entriesFor(guideSport.orEmpty())),
+                    now,
+                    CalendarDurationMs,
+                )
+                else -> api.scoreboard(league)
+            }
         }
         result.onFailure { android.util.Log.w("SportsHub", "board failed " + league.id, it) }
         result.onSuccess { android.util.Log.d("SportsHub", "board ok " + league.id + " fixtures=" + it.fixtures.size) }
@@ -1148,13 +1186,25 @@ class SportsViewModel(
             )
     }
 
-    private suspend fun loadStandings(league: SportLeague) {
-        standingsCache[league.id]?.let {
+    /** A board built from calendar entries (no ESPN league exists for these sports). */
+    private fun board(league: SportLeague, events: List<CalendarEvent>, nowMs: Long, durationMs: Long): EspnApi.Scoreboard =
+        EspnApi.Scoreboard(league.id, CalendarEvents.fixtures(league.id, events, nowMs, durationMs))
+
+    private suspend fun loadStandings(league: SportLeague) {        standingsCache[league.id]?.let {
             _standings.value = it
             return
         }
         _standingsLoading.value = true
-        val tables = runCatching { api.standings(league) }.getOrDefault(emptyList())
+        // MotoGP has no ESPN league, so a standings call there would only ever 400.
+        val tables = if (
+            league.id == MotoGpSchedule.MotoGpLeagueId ||
+            league.id == BoxingSchedule.BoxingLeagueId ||
+            league.id in GuideBoard.sports
+        ) {
+            emptyList()
+        } else {
+            runCatching { api.standings(league) }.getOrDefault(emptyList())
+        }
         standingsCache[league.id] = tables
         _standings.value = tables
         _standingsLoading.value = false
@@ -1179,6 +1229,9 @@ class SportsViewModel(
 
         /** How many live fixtures get a row chip at once (bounds the background matching). */
         private const val MaxLiveChips = 6
+
+        /** A race or meeting fit inside this window; boxing cards use their own, longer one. */
+        private const val CalendarDurationMs = 3L * 60L * 60L * 1000L
 
         /** AI cache key separators (fixture id + country codes); technical, never displayed. */
         private const val AiKeySeparator = "|"

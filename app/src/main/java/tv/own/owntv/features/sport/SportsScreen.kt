@@ -685,6 +685,13 @@ private fun hubRowKey(item: HubItem): String = when (item) {
 }
 
 /**
+ * Catalogue rank per league id: the league-band order inside a day follows `SportsLeagues`
+ * (viewership), never the day's first kickoff.
+ */
+private val LeagueOrder: Map<String, Int> =
+    SportsLeagues.withIndex().associate { (index, league) -> league.id to index }
+
+/**
  * The fixtures list rebuilt as Matchday-style rows: date bands (Today / Tomorrow / dated), inside
  * an aggregate one LeagueBand per league (with fold state), games at their start times otherwise.
  */
@@ -701,12 +708,14 @@ private fun buildHubRows(
         val live = dayGames.count { it.state == FixtureState.LIVE }
         rows.add(HubItem.Day(day, live, dayGames.size))
         if (aggregate) {
-            dayGames.groupBy { it.leagueId }.forEach { (leagueId, games) ->
-                rows.add(HubItem.League(leagueId, day, games.count { it.state == FixtureState.LIVE }, games.size, folded[leagueId] == true))
-                if (folded[leagueId] != true) {
-                    games.sortedBy { it.dateMs }.forEach { rows.add(HubItem.Game(it)) }
+            dayGames.groupBy { it.leagueId }.entries
+                .sortedBy { LeagueOrder[it.key] ?: Int.MAX_VALUE }
+                .forEach { (leagueId, games) ->
+                    rows.add(HubItem.League(leagueId, day, games.count { it.state == FixtureState.LIVE }, games.size, folded[leagueId] == true))
+                    if (folded[leagueId] != true) {
+                        games.sortedBy { it.dateMs }.forEach { rows.add(HubItem.Game(it)) }
+                    }
                 }
-            }
         } else {
             dayGames.sortedBy { it.dateMs }.forEach { rows.add(HubItem.Game(it)) }
         }
@@ -877,6 +886,9 @@ private fun sportCoinLabel(espnSport: String): String = stringResource(
         "hockey" -> R.string.sport_coin_hockey
         "racing" -> R.string.sport_coin_racing
         "mma" -> R.string.sport_coin_mma
+        "boxing" -> R.string.sport_coin_boxing
+        "cycling" -> R.string.sport_coin_cycling
+        "athletics" -> R.string.sport_coin_athletics
         "cricket" -> R.string.sport_coin_cricket
         "volleyball" -> R.string.sport_coin_volleyball
         "rugby", "rugby-league", "australian-football" -> R.string.sport_coin_rugby
@@ -895,6 +907,9 @@ private fun sportGlyph(espnSport: String): String = when (espnSport) {
     "hockey" -> "🏒"
     "racing" -> "🏎️"
     "mma" -> "🥊"
+    "boxing" -> "🥊"
+    "cycling" -> "🚴"
+    "athletics" -> "🏃"
     "cricket" -> "🏏"
     "volleyball" -> "🏐"
     "rugby", "rugby-league", "australian-football" -> "🏉"

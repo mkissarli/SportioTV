@@ -36,13 +36,16 @@ import tv.own.owntv.features.sport.BroadcastGuideApi
 import tv.own.owntv.features.sport.DeepSeekClient
 import tv.own.owntv.features.sport.EspnApi
 import tv.own.owntv.features.sport.F1ScheduleApi
+import tv.own.owntv.features.sport.FightNightsApi
 import tv.own.owntv.features.sport.LiveSourceIdsProvider
+import tv.own.owntv.features.sport.MotoGpScheduleApi
 import tv.own.owntv.features.sport.ProfileLiveSourceIdsProvider
 import tv.own.owntv.features.sport.SportsMatcher
 import tv.own.owntv.features.sport.SportsPrefs
 import tv.own.owntv.features.sport.SportsPriors
 import tv.own.owntv.features.sport.SportsViewModel
 import tv.own.owntv.features.sport.SportsVocab
+import tv.own.owntv.features.sport.WikipediaCalendarApi
 import tv.own.owntv.features.sport.sportsLeagueById
 import tv.own.owntv.features.settings.OpenSubtitlesViewModel
 import tv.own.owntv.features.settings.SettingsViewModel
@@ -211,6 +214,9 @@ val appModule = module {
     // Sports hub (Lume-style): ESPN fixtures/scores/standings matched to the user's channels.
     singleOf(::EspnApi)
     singleOf(::F1ScheduleApi)
+    singleOf(::MotoGpScheduleApi)
+    singleOf(::FightNightsApi)
+    singleOf(::WikipediaCalendarApi)
     singleOf(::BroadcastGuideApi)
     // AI recommendation: DeepSeek names broadcasters, the local matcher resolves them against the
     // user's own playlists. The model never sees a channel id or a stream URL.

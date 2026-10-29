@@ -1201,6 +1201,7 @@ class SportsMatcher(
         private val SportsChannelWords = listOf(
             "sport", "sports", "football", "soccer", "futbol", "fussball", "calcio", "tennis",
             "golf", "cricket", "rugby", "racing", "motorsport", "boxing", "mma", "ufc", "wwe",
+            "cycling", "cyclocross", "athletics",
             "nfl", "nba", "mlb", "nhl", "f1", "espn", "dazn", "eurosport", "tsn",
         )
         /**

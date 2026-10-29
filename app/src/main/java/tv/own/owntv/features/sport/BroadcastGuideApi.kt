@@ -52,6 +52,11 @@ object GuideWindows {
  * per-sport pages, so one fetch duplicates nothing. The rows carry an exact UTC kickoff
  * (`<time datetime="…Z">`) used directly for epoch matching — never the BST display text.
  *
+ * The per-sport pages (cycling, athletics, boxing) are fetched as well: those sports have no ESPN
+ * league, so their board is built from these rows ([GuideBoard]). They are *not* a subset of the
+ * all-sports page — measured 2026-10-29, the cycling page carried 5 rows for a week where the
+ * all-sports page showed 2.
+ *
  * ESPN's own "broadcast" field is US-centric, so a Premier League game would never name Sky
  * Sports; these rows do. The confirmed broadcaster names ("Sky Sports F1") are probed against the
  * user's channel catalogue — evidence from an independent source, unlike name-only signals which
@@ -66,6 +71,10 @@ class BroadcastGuideApi(private val client: OkHttpClient) {
     /** The last successful guide snapshot — read synchronously, refreshed in the background. */
     @Volatile
     private var entries: List<GuideEntry> = emptyList()
+
+    /** The per-sport snapshots (cycling, athletics, boxing), keyed by the sport page slug. */
+    @Volatile
+    private var sportEntries: Map<String, List<GuideEntry>> = emptyMap()
     private var refreshedAtMs = 0L
     private val refreshing = java.util.concurrent.atomic.AtomicBoolean(false)
 
@@ -78,12 +87,17 @@ class BroadcastGuideApi(private val client: OkHttpClient) {
     fun isStale(nowMs: Long = System.currentTimeMillis()): Boolean =
         nowMs - refreshedAtMs >= CacheTtlMs
 
-    /**
-     * The guide channels that (probably) carry [fixture]. Never fetches: reads the last snapshot,
+    /** The guide channels that (probably) carry [fixture]. Never fetches: reads the last snapshot,
      * so fixture selection is instant whether or not a refresh has finished yet.
      */
     fun confirmedBroadcasters(fixture: Fixture): List<String> =
         GuideMatch.confirmedBroadcasters(entries, fixture)
+
+    /**
+     * The rows of one per-sport page (cycling, athletics, boxing). Those sports have no ESPN league,
+     * so their board is built from these rows ([GuideBoard]) instead of a fixtures API.
+     */
+    fun entriesFor(sport: String): List<GuideEntry> = sportEntries[sport].orEmpty()
 
     /**
      * The rows plausibly related to [fixture] (including gated and tour-level rows) for the AI
@@ -111,33 +125,58 @@ class BroadcastGuideApi(private val client: OkHttpClient) {
      * days, so 3-day chunks stay well inside the site's limit.
      */
     private suspend fun refreshOnce() {
-        val merged = withContext(Dispatchers.IO) {
+        val (merged, extras) = withContext(Dispatchers.IO) {
             val found = ArrayList<GuideEntry>()
             for ((start, end) in GuideWindows.forDay(LocalDate.now())) {
-                runCatching { get(dayWindowUrl(start, end)) }.getOrNull()?.let { html ->
-                    runCatching { GuideParsers.wtm(html) }.getOrNull()?.let { found += it }
-                }
+                fetchInto(found, dayWindowUrl(start, end))
             }
-            found.groupBy { Triple(it.dateMs, it.league, it.teams) }
-                .map { (key, group) ->
-                    GuideEntry(
-                        dateMs = key.first,
-                        league = key.second,
-                        teams = key.third,
-                        channels = group.flatMap { it.channels }.distinct(),
-                        gated = group.all { it.gated },
-                    )
+            val sportRows = GuideBoard.sportPages.associateWith { sport ->
+                val rows = ArrayList<GuideEntry>()
+                for ((start, end) in GuideWindows.forDay(LocalDate.now())) {
+                    fetchInto(rows, sportWindowUrl(sport, start, end))
                 }
+                merge(rows)
+            }
+            merge(found) to sportRows
         }
         if (merged.isNotEmpty()) {
             entries = merged
             refreshedAtMs = System.currentTimeMillis()
-            _version.value++
+        }
+        // A sport page with no rows this week keeps its previous snapshot: an empty page is not
+        // proof that the competition has no televised events. A changed page must bump the version,
+        // or the guide-backed boards would never pick it up.
+        val next = extras.filterValues { it.isNotEmpty() }
+        val changed = next.any { (sport, rows) -> sportEntries[sport] != rows }
+        sportEntries = sportEntries + next
+        if (merged.isNotEmpty() || changed) _version.value++
+    }
+
+    private fun fetchInto(out: MutableList<GuideEntry>, url: String) {
+        runCatching { get(url) }.getOrNull()?.let { html ->
+            runCatching { GuideParsers.wtm(html) }.getOrNull()?.let { out += it }
         }
     }
 
+    /** One row per (start, competition, fixture text), carriers merged. */
+    private fun merge(raw: List<GuideEntry>): List<GuideEntry> =
+        raw.groupBy { Triple(it.dateMs, it.league, it.teams) }
+            .map { (key, group) ->
+                GuideEntry(
+                    dateMs = key.first,
+                    league = key.second,
+                    teams = key.third,
+                    channels = group.flatMap { it.channels }.distinct(),
+                    gated = group.all { it.gated },
+                )
+            }
+
     private fun dayWindowUrl(start: LocalDate, end: LocalDate): String =
         AllSportsUrl + "?showdatestart=" + start.format(BasicIsoDate) + "&showdateend=" + end.format(BasicIsoDate)
+
+    private fun sportWindowUrl(sport: String, start: LocalDate, end: LocalDate): String =
+        SportPageBase + sport + SportPageSuffix + "?showdatestart=" +
+            start.format(BasicIsoDate) + "&showdateend=" + end.format(BasicIsoDate)
 
     private fun get(url: String): String {
         return try {
@@ -170,6 +209,8 @@ class BroadcastGuideApi(private val client: OkHttpClient) {
 
     private companion object {
         const val AllSportsUrl = "https://www.wheresthematch.com/live-sport-on-tv/"
+        const val SportPageBase = "https://www.wheresthematch.com/live-"
+        const val SportPageSuffix = "-on-tv/"
         const val UserAgentHeader = "User-Agent"
         const val UserAgentValue = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Matchday/1"
         const val AcceptLanguageHeader = "Accept-Language"

@@ -16,6 +16,7 @@ Site API** — there is no account, no key, no backend of ours.
 | File | Responsibility |
 |---|---|
 | `SportsLeagues.kt` | The 16 leagues (id → ESPN sport/league slug). 27 lines. |
+| `GuideBoard.kt` | League → Where's The Match sport page (carrier rows for the non-ESPN sports). |
 | `SportsModels.kt` | `SportLeague`, `SportTeam`, `Fixture`, `FixtureState`, `StandingRow`, `LeagueTable`, `ChannelMatch`. |
 | `EspnApi.kt` | OkHttp + `org.json` client: scoreboard + standings, parsing, the date normaliser. **No new dependencies.** |
 | `SportsMatcher.kt` | Scores the user's channels against a fixture; returns the best matches. |
@@ -95,7 +96,7 @@ fix is a regex that inserts `:00` before the zone. An event whose date still fai
 
 ---
 
-## 3. The 16 leagues (`SportsLeagues.kt`)
+## 3. The default leagues (`SportsLeagues.kt`)
 
 | id (follow key) | ESPN path |
 |---|---|
@@ -113,14 +114,41 @@ fix is a regex that inserts `:00` before the zone. An event whose date still fai
 | `tennis.atp` | tennis/atp |
 | `tennis.wta` | tennis/wta |
 | `racing.f1` | racing/f1 |
+| `racing.motogp` | **not ESPN** — pulselive events calendar (see below) |
+| `cycling.uci` / `athletics.world` / `boxing.world` | **not ESPN** — Where's The Match sport page (see below) |
 | `mma.ufc` | mma/ufc |
 | `golf.pga` | golf/pga |
+
+**MotoGP** has no ESPN league (`racing/motogp` answers 400), so `MotoGpScheduleApi` reads the
+official keyless calendar (`api.motogp.pulselive.com/motogp/v1/events?seasonYear=…`) and turns each
+`kind = GP` weekend into one EVENT fixture, dated on its last schedule day (race day). `loadBoard`
+switches to it by league id, the same way F1 uses `F1ScheduleApi`. Standings stay empty (no source).
+
+**Cycling, athletics and boxing** have no ESPN league either. Each board merges two sources:
+- fixtures from a real calendar — boxing from FightNights (`fightnights.com/upcoming-boxing-schedule`,
+  worldwide cards with quoted US/UK times) and cycling/athletics from the Wikipedia season pages
+  (`<year> UCI World Tour`, `<year> Diamond League`) via `WikipediaCalendarApi` + `WikiCalendar`;
+- carrier evidence from the Where's The Match per-sport pages (`live-<sport>-on-tv/`), fetched by
+  `BroadcastGuideApi` next to the all-sports page.
+
+`CalendarEvents` merges the two: a guide row naming the same event within 8 h adds its channels to the
+calendar entry, and a guide row no calendar covers becomes an entry of its own — an extra row beats a
+missing event. Rows carry the catalogue's pseudo slug `espnLeague = "wtm"` (`GuideBoard` maps
+league → sport page). Limits: Wikipedia gives dates but no start times (entries sit at noon UTC and
+show no clock), and FightNights only lists scheduled cards, not results.
 
 **Display names are not hardcoded** — they come from ESPN's `leagues[0].name`. Before the first load
 (and if the name is blank) the UI falls back to the raw id.
 
 **Adding a league:** append one `SportLeague(id, espnSport, espnLeague)` to the list. Nothing else is
-required — boards, standings, follows and the rail are all driven off the list. Verify the slug
+required — boards, standings, follows and the rail are all driven off the list. **The list order is
+the hub's display order** (the league bands inside a sport and in "All" follow it, not the kickoff
+time): F1 and MotoGP first, then football (World Cup, Euros, Champions League, then the domestic
+leagues by average attendance — Premier League, La Liga, Bundesliga, Serie A, Ligue 1 — with the FA
+Cup and EFL Cup right behind the Europa League, then the other cups, women's leagues, the smaller
+leagues and continental club competitions), then tennis, UFC, IndyCar
+and the remaining sports. Put a new league where it belongs in that ranking, not at the end.
+Verify the slug
 against `https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/scoreboard` first, and note
 that non-team sports do not work yet (§8).
 

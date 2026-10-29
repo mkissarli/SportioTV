@@ -23,6 +23,9 @@
     <string name="sport_coin_cricket">Cricket</string>
     <string name="sport_coin_volleyball">Volleyball</string>
     <string name="sport_coin_rugby">Rugby</string>
+    <string name="sport_coin_cycling">Radsport</string>
+    <string name="sport_coin_athletics">Leichtathletik</string>
+    <string name="sport_coin_boxing">Boxen</string>
     <string name="sport_coin_other">Andere</string>
     <string name="sport_leagues">Ligen</string>
     <string name="sport_my_teams">Meine Teams</string>

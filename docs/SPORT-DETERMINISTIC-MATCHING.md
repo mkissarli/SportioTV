@@ -1,65 +1,66 @@
-# docs/SPORT-DETERMINISTIC-MATCHING.md — EPG-unabhängiges Sender-Matching (Stand: 2026-11-01)
+# docs/SPORT-DETERMINISTIC-MATCHING.md — EPG-independent channel matching (as of 2026-11-01)
 
-> Zweck: deterministische Sender-Identität, externe Broadcast-Evidenz, Tier-/Konfliktregeln
-> und Messwerte des neuen Sport-Hub-Matchings. Kein KI-Pfad.
+> Purpose: deterministic channel identity, external broadcast evidence, tier/conflict rules and
+> measurements for the Sports Hub matching path. No AI path.
 
-## 1. Ausgangslage
+## 1. Starting point
 
-Vorher gab es zwei getrennte Wege:
+Previously there were two separate paths:
 
-- **Classic** (`SportsMatcher`): Kanalname + EPG (`EpgDao.searchTitles`/`searchGuide`) +
-  Ligen-Hints/Priors. Ohne brauchbares EPG blieb oft nur ein Name-Treffer oder gar nichts.
-- **DeepSeek-Match** (`AiBoardMatcher`): nutzte den Web-Guide (`BroadcastGuideApi`) als
-  Evidenz, war aber an KI-Schalter und API-Key gebunden.
+- **Classic** (`SportsMatcher`): channel name + EPG (`EpgDao.searchTitles`/`searchGuide`) +
+  league hints/priors. Without usable EPG it often produced only a name hit or nothing.
+- **DeepSeek match** (`AiBoardMatcher`): used the web guide (`BroadcastGuideApi`) as evidence,
+  but required the AI switch and an API key.
 
-Der Web-Guide wurde also bereits geladen (30-min-Snapshot, Hintergrund-Refresh), aber
-**nicht** vom deterministischen Matcher verwendet. Genau dort setzt diese Änderung an:
-dieselbe, bereits vorhandene, keylose Quelle wird jetzt auch ohne KI und ohne EPG
-ausgewertet.
+The web guide was already being fetched (30-minute snapshot, background refresh) but was **not**
+used by the deterministic matcher. This change closes that gap: the same existing, keyless source
+is now evaluated without AI and without EPG.
 
-Core bleibt unverändert (`tv.own.owntv:core` 1.0.71, `SportsMatcher` liegt in der App).
-Keine neuen Tabellen, keine Migration, keine neue Bibliothek.
+Core is unchanged (`tv.own.owntv:core` 1.0.71, `SportsMatcher` lives in the app).
+No new tables, no migration, no new library.
 
 ## 2. Pipeline
 
 ```
 Fixture
   │
-  ├─ A  Kandidaten-Discovery (bestehend)
-  │     Kanalname (FTS, ein Scan) + EPG-Titel/Beschreibung (SQL, Zeitfenster)
+  ├─ A  Candidate discovery (existing)
+  │     Channel name (FTS; full scan only when the FTS table is unavailable)
+  │     + EPG title/description (SQL, time window)
   │
-  ├─ B  Externe Broadcast-Listings (neu, deterministisch)
-  │     BroadcastGuideApi-Snapshot → BroadcastListing
-  │     → ChannelIdentityResolver (Playlist-Zeile ↔ Listing-Kanal)
-  │     → BroadcastEvidence pro Treffer
+  ├─ B  External broadcast listings (deterministic)
+  │     BroadcastGuideApi snapshot + BroadcastSourceHub (FootTV, Foot Mercato,
+  │     Live Football, Sky Tennis, Sport-TV Tennis) → BroadcastListing
+  │     → BroadcastListingMatch (fixture relevance)
+  │     → ChannelIdentityResolver (playlist row ↔ listing channel)
+  │     → BroadcastEvidence per hit
   │
   ├─ C  Fusion
-  │     EPG/Name-Kandidaten + externe Evidenz + akzeptierte KI-Zeilen
-  │     → Evidenz-Tier (Supported/Likely/Possible/Conflicting)
-  │     → Score, Dedup, Sprach-/Länderfilter, Cap
+  │     EPG/name candidates + external evidence + accepted AI rows
+  │     → evidence tier (Supported/Likely/Possible/Conflicting)
+  │     → score, dedup, language/country filter, cap
   │
-  └─ D  Fallback (nur wenn C leer ist)
-        Specialist-Channel → Possible (nie Supported, nur Teamsport)
+  └─ D  Fallback (only when C is empty)
+        Specialist channel → Possible (never Supported, team sports only)
 ```
 
-Der Netzwerkzugriff bleibt vollständig im bestehenden `BroadcastGuideApi.refresh()`.
-`match()` liest nur den letzten Snapshot: **kein Netzwerk auf dem UI-Pfad**, keine
-Wartezeit beim Öffnen eines Fixtures. Ein neuer Snapshot bumpt `version`; der
-`SportsViewModel` matcht das offene Fixture dann erneut.
+Network access stays entirely inside the existing `BroadcastGuideApi.refresh()`. `match()` only
+reads the last snapshot: **no network on the UI path**, no wait when opening a fixture. A new
+snapshot bumps `version`; `SportsViewModel` then re-matches the open fixture.
 
-## 3. Kanal-Identität (`ChannelIdentity.kt`)
+## 3. Channel identity (`ChannelIdentity.kt`)
 
-`ChannelIdentityResolver.resolve(name)` liefert:
+`ChannelIdentityResolver.resolve(name)` returns:
 
-- `key` (`broadcaster|channel` oder `channel:<channel>`),
-- kanonischen Broadcaster und Kanal,
-- Territorium (führendes Tag oder Länder-Suffix),
+- `key` (`broadcaster|channel` or `channel:<channel>`),
+- canonical broadcaster and channel,
+- territory (leading tag or country suffix),
 - `SportClass`, `specialist`, `ChannelType` (Linear/PPV/Event/Regional),
-- `IdentityBasis` (`EXACT`/`ALIAS`) und einen kurzen Grund.
+- `IdentityBasis` (`EXACT`/`ALIAS`) and a short reason.
 
-Beispiele:
+Examples:
 
-| Provider-Name | Key |
+| Provider name | Key |
 |---|---|
 | `SKY SPORTS MAIN EVENT HD` | `sky\|main event` |
 | `Sky Main Event` | `sky\|main event` |
@@ -70,183 +71,211 @@ Beispiele:
 | `Sky Sports News` | `sky sports\|news` |
 | `Sky News` | `sky\|news` |
 | `Sky Sports Football` | `sky\|football` |
+| `Ligue 1+ 2 HD` | `ligue 1 plus\|2` |
+| `Ligue 1+` | `ligue 1 plus\|network` |
 
-Regeln:
+Rules:
 
-- Unicode-/Akzent-/Case-Faltung und das bestehende `ChannelDedup` entfernen Qualität,
-  fps, Codec und Provider-Tags.
-- Broadcaster werden als ganze Tokens erkannt (`BT Sport` → `TNT`), inkl. Phrasen
+- Unicode/accent/case folding and the existing `ChannelDedup` remove quality, fps, codec and
+  provider tags.
+- Broadcasters are recognised as whole tokens (`BT Sport` → `TNT`), including phrases
   (`Premier Sports`, `Prime Video`, `Canal Plus`).
-- `+` bleibt ein Token (`Sky Sports+` ≠ `Sky Sports`).
-- `sports` unterscheidet nur bei Sky/TNT die mehrdeutigen Namen (`News`, Nummern);
-  bei eindeutigen Sportnamen (`Main Event`, `F1`, `Football`) ist es Kürzel.
-- Keine Substring-/Präfix-Fuzzy-Regel: `Sky Sports 1` matcht nie `Sky Sports 2`.
-- Ein Netzwerkname (`Sky Sports` → `sky|network`) matcht nie einen Einzelkanal.
-- Fehlt einer Seite der Broadcaster, ist die Beziehung `INFERRED` — aber nur für
-  eine explizite Liste eindeutiger Sportnamen (`Main Event`, `F1`, `Football`, …).
-  `Arena`, `Mix`, `Premier`, `Plus` und Nummern werden **nicht** inferiert, und
-  brandlose Namen aus verschiedenen Territorien (`UK: MAIN EVENT` vs.
-  `US: MAIN EVENT`) werden nie zusammengeführt.
+- `+` stays a token (`Sky Sports+` ≠ `Sky Sports`).
+- Service and channel are separate: `Ligue 1+ 2 HD` → `ligue 1 plus|2`, `Ligue 1+` →
+  `ligue 1 plus|network`. `Ligue1+ 2` (glued provider spelling) is expanded to `ligue 1 plus`
+  before the phrase match. A network name never confirms a numbered feed; `Ligue 1+ 2` matches
+  `Ligue 1+ 2 HD` but not `Ligue 1+ 1 HD`.
+- Quality/codec/FPS words do not change identity; `Sky Sports Ultra HDR` stays a separate feed
+  next to `Sky Sports Main Event`.
+- Broadcaster aliases are explicit and tested (`BT Sport` → `TNT`, `Canal+` → `canal`,
+  `Ligue 1+` → `ligue 1 plus`). No substring rule for numbers.
+- `sports` only separates ambiguous Sky/TNT names (`News`, numbers); for unambiguous sports
+  names (`Main Event`, `F1`, `Football`) it is shorthand.
+- No substring/prefix fuzzy rule: `Sky Sports 1` never matches `Sky Sports 2`.
+- A network name (`Sky Sports` → `sky|network`) never matches an individual channel.
+- If one side omits the broadcaster, the relation is `INFERRED` — but only for an explicit list
+  of unambiguous sports names (`Main Event`, `F1`, `Football`, …). `Arena`, `Mix`, `Premier`,
+  `Plus` and numbers are **not** inferred, and brandless names from different territories
+  (`UK: MAIN EVENT` vs `US: MAIN EVENT`) are never merged.
 
-Listenings werden über dieselbe Identität aufgelöst. Zuerst exakte Keys aus einem
-kleinen In-Memory-Index (nur ≤ 8.000 Kandidatenzeilen), dann eine begrenzte
-FTS-Abfrage pro Listing und immer die Identitätsprüfung. Ein Listing kann damit
-keinen fremden Sender „borgen“.
+Listings are resolved through the same identity. First exact keys from a small in-memory index
+(only ≤ 8,000 candidate rows), then one bounded FTS query per listing, and always the identity
+check. A listing therefore cannot borrow an unrelated channel. For names containing `+`, the raw
+token phrase is probed as well (`Ligue 1+ 2` → `"ligue 1 2"`), because FTS treats `+` as a
+separator and the canonical phrase `"ligue 1 plus"` would not reach the playlist row on large
+playlists.
 
-## 4. Broadcast-Listings und Evidenz
+## 4. Broadcast listings and evidence
 
-`BroadcastListing` (normalisiert): Event, Sport, Wettbewerb, Teilnehmer, Event- und
-Coverage-Zeit, Broadcaster/Kanal, Territorium, Sprache, `CoverageType`, Quelle,
-Abrufzeit, Confidence, `direct`. Fehlende Felder sind fehlende Evidenz, kein Match.
+`BroadcastListing` (normalised): event, sport, competition, participants, event and coverage
+time, broadcaster/channel, territory, language, `CoverageType`, source, retrieval time,
+confidence, `direct`. Missing fields are missing evidence, not a match.
 
-`CoverageType` trennt:
+`CoverageType` separates scope from channel specificity:
 
-- `FIXTURE`/`SESSION`/`EVENT_CARD` → direkt,
-- `TOURNAMENT` → nie direkt (ATP/WTA-Tageszeile).
+- `FIXTURE`/`SESSION`/`EVENT_CARD` → event-scoped; only `FIXTURE` can be direct.
+- `TOURNAMENT` → never direct (ATP/WTA day row or tournament row).
+- `SERVICE` → only the service/broadcaster, not a linear feed (e.g. `DAZN`, `Ligue 1+`).
+- `CHANNEL` → only a channel without event context; also never direct.
+- `UNKNOWN` → insufficient.
 
-`BroadcastEvidence` trägt zusätzlich `underlyingKey`. Damit wird dieselbe
-Broadcast-Information aus zwei Feeds oder abgeleiteten Pfaden nur einmal gezählt.
+`BroadcastEvidence` also carries `sourceFamily` and `underlyingKey`. The same broadcast
+information from two feeds **of the same provenance family**, or from derived paths, is counted
+once. The key contains family, event ID, channel key and `CoverageType`; start time and repeated
+rows do not increase the score. A service listing and an exact feed remain different evidence.
 
-### Tier-Regeln (`EvidenceFusion`)
+### Tier rules (`EvidenceFusion`)
 
-| Evidenz | Tier |
+| Evidence | Tier |
 |---|---|
-| frisches, direktes Fixture-/Session-Listing (≤ 30 min) | `Supported` |
-| direktes Listing, aber älter als 30 min | `Likely` |
-| Turnier-Ebene + Specialist-Kanal | `Likely` |
-| Turnier-Ebene + allgemeiner Kanal | `Possible` |
-| Specialist-Identität, Rechte-Prior, Playlist-Kontext allein | `Possible` |
-| zwei direkte Quellen, gleicher Kanal, verschiedene Events, überlappende Zeit | `Conflicting` |
+| fresh, direct fixture listing (≤ 30 min) | `Supported` |
+| direct listing, but older than 30 min | `Likely` |
+| session listing (specific broadcast window) | `Likely` |
+| tournament level + specialist channel | `Likely` |
+| tournament level + general channel | `Possible` |
+| service/rights row, specialist identity, playlist context alone | `Possible` |
+| two direct sources, same channel, different events, overlapping time | `Conflicting` |
 
-Ein Broadcaster-Recht oder eine Specialist-Klassifikation erreicht **nie**
-`Supported`. Directe externe Evidenz kann ohne EPG `Supported` werden. Die Grenze
-ist strikt: 30 min = fresh, 30 min + 1 ms = aged → `Likely`; 2 h + 1 ms = stale.
-Stale Evidenz überschreibt keine frische direkte Evidenz; beide bleiben im Datensatz
-und der Konflikt wird erklärt (`EvidenceFusion.explain`).
+A broadcaster right or a specialist classification **never** reaches `Supported`. Direct external
+evidence can reach `Supported` without EPG. The boundary is strict: 30 min = fresh,
+30 min + 1 ms = aged → `Likely`; 2 h + 1 ms = stale. Stale evidence does not overwrite fresh
+direct evidence; both remain in the data set and the conflict is explained
+(`EvidenceFusion.explain`).
 
-`Conflicting` ist bewusst **klein** gehalten: Der aktuelle Integrationspfad hat nur
-eine externe Quelle (WTM) und übergibt dieselbe Fixture-ID, daher kann er noch
-keinen echten Konflikt zweier Veranstaltungen erzeugen. Die Fusion selbst ist
-getestet; sobald ein zweiter unabhängiger Quellen-Adapter Listings mit eigenen
-Event-IDs liefert, greift die Regel. Ein einmal erkannter Konflikt bleibt beim
-Merge mit stärkerer Evidenz bestehen (`strongerTier`).
+`Conflicting` stays deliberately **small**: two direct sources must name the same channel with
+different event IDs in an overlapping time window. A service listing and an exact feed are not a
+conflict, but different specificity. Once detected, a conflict survives merging with stronger
+evidence (`strongerTier`).
 
-Score = Summe der Evidenzstärken × Freshness, dedupliziert, auf 300 begrenzt.
-Nutzerpräferenzen (Land, Sprache, Playlist) kommen erst danach als Sortier-/Filter-
-Signale dazu und erzeugen keine Match-Confidence. Eine **direkte externe** Zeile
-(`directEvidence`) überlebt den bevorzugten Sprachfilter — eine Präferenz darf einen
-Sender, der das Event nachweislich zeigt, nicht verstecken. Für EPG/Name-Zeilen
-bleibt die bisherige Sprachfilter-Regel unverändert (bestehende Tests).
+Score = sum of evidence strengths × freshness, deduplicated, capped at 300. User preferences
+(country, language, playlist) are applied afterwards as sorting/filtering signals and do not
+manufacture match confidence. A **direct external** row (`directEvidence`) survives the preferred
+language filter — a preference must not hide a channel that demonstrably carries the event. For
+EPG/name rows the existing language-filter rule is unchanged (existing tests).
 
-### Deterministische EPG/Name-Tiers
+### Deterministic EPG/name tiers
 
-- Beide Teams/Athleten im EPG-Titel oder verteilt in einem Programm → `Supported`.
-- Beide im Kanalnamen (`isExact`) oder nur Turnier/Ein-Athlet-Kontext im EPG →
+- Both teams/athletes in the EPG title, or split across one programme → `Supported`.
+- Both in the channel name (`isExact`), or only tournament/single-athlete context in EPG →
   `Likely`.
-- Event-Hint allein (F1/Golf) → `Possible`.
-- Diese Tiers geben **keinen** zusätzlichen Klassen-Bonus; die historische
-  Score-Reihenfolge (Name 4 vor Beschreibungs-EPG 3) bleibt erhalten. Nur externe
-  Guide-Zeilen und akzeptierte KI-Zeilen bekommen den Evidenz-Bonus.
+- Event hint alone (F1/golf) → `Possible`.
+- These tiers give **no** extra class bonus; the historical score order (name 4 before
+  description EPG 3) is preserved. Only external guide rows and accepted AI rows get the
+  evidence bonus.
 
-## 5. Sport-spezifisches Verhalten
+## 5. Sport-specific behaviour
 
-- **Teamsport** (Fußball, NFL/College, NBA, MLB, NHL, Rugby, Cricket): externe
-  Zeile muss beide Seiten nennen (`GuideMatch.bothSidesInRow`), Zeitfenster 90 min.
-- **Tennis/Duelle**: beide Athleten in einer Zeile → direkt. Die ATP/WTA-Tageszeile
-  ist `TOURNAMENT`, also höchstens `Likely` (Specialist) und nie `Supported`.
-- **F1**: Session-Wörter müssen passen; ein Practice-Fixture erbt nie die Renn-Zeile.
-  Sky-Sports-F1-Identität bleibt Specialist.
-- **Golf**: Event-Titel-Token; Turnier-/Rundenzeilen bleiben von Einzelgruppen
-  getrennt (keine Gruppen-Fantasie).
-- **UFC/Boxing**: Event-Card, PPV bleibt PPV (kein Team-PPV-Demote).
-- **Andere Sportarten**: `SportClass` deckt Cricket, Rugby, Cycling, Athletics,
-  MotoGP ab; neue Sportarten brauchen nur eine Liga-Zuordnung und ggf. Suchbegriffe.
+- **Team sports** (football, NFL/college, NBA, MLB, NHL, rugby, cricket): the external row must
+  name both sides (`GuideMatch.bothSidesInRow`), 90-minute window.
+- **Tennis/duels**: both athletes in one row → direct. The ATP/WTA day row is `TOURNAMENT`,
+  so at most `Likely` (specialist) and never `Supported`.
+- **F1**: session words must match; a practice fixture never inherits the race row. Sky Sports F1
+  identity stays specialist.
+- **Golf**: event title tokens; tournament/round rows stay separate from individual groups (no
+  group fantasy).
+- **UFC/boxing**: event card, PPV stays PPV (no team-PPV demotion).
+- **Other sports**: `SportClass` covers cricket, rugby, cycling, athletics, MotoGP; new sports
+  only need a league mapping and optionally search terms.
 
-## 6. Externe Quellen: Bewertung
+## 6. External sources
 
-| Quelle | Status | Begründung |
-|---|---|---|
-| Where's The Match (`BroadcastGuideApi`) | **integriert** | keylos, ein Seitenabruf für alle Sportarten, exakte UTC-Zeiten, Senderzeilen, 30-min-Cache, defensiver Parser |
-| Live Football On TV | nicht integriert | keine strukturierte Schnittstelle, gleiche Abdeckung wie WTM für Fußball, zusätzlicher Scraper ohne Messvorteil |
-| Offizielle Broadcaster-Pläne | nicht integriert | pro Sender eigene HTML-Struktur, Terms/Rate-Limits, hoher Wartungsaufwand; nur als späterer, quellenspezifischer Adapter sinnvoll |
-| Jolpica/F1-Kalender | bereits vorhanden (`F1ScheduleApi`) | liefert Fixtures, keine Sender; bleibt getrennt |
-| Paid APIs/API-Keys | abgelehnt | nicht erforderlich, widerspricht den Projektregeln |
+Full list, accessibility/robots check, specificity and rejection reasons:
+`docs/BROADCAST-SOURCES.md`.
 
-Der Snapshot wird bei Fehlern **nicht** geleert: ein alter Snapshot ist bessere,
-klar als stale markierte Evidenz als „kein Sender“. Gated WTM-Zeilen sind fehlende
-Sender-Evidenz, kein „läuft nicht“.
+Integrated: FootTV (French football including numbered Ligue 1+ feeds), Foot Mercato
+(French-language European football, fixture rows and numbered feeds), Live Football on TV
+(UK football), Sky Sports Tennis (UK tennis, tournament rows) and Sport-TV.fr (French tennis,
+session rows) — in addition to the existing Where's The Match. Each source has its own parser,
+family and TTL; the hub refreshes them in the existing background refresh. A source failure does
+not empty its snapshot, it marks it stale. Gated/empty pages are missing channel evidence, not
+"not televised".
 
-## 7. Performance und Fire TV
+## 7. Performance and Fire TV
 
-- Kein neuer Voll-Scan pro Fixture: Kandidaten kommen aus FTS/EPG; externe Listings
-  werden per FTS + Identitätsprüfung aufgelöst (Cap: 12 Listings, 120 Kanäle).
-- Die FTS-Suche probiert zuerst die selektive Kanal-Phrase (`"main event"`) und
-  erst bei leerem Treffer die breite OR-Abfrage; das Ergebnis-Cap liegt bei 1.000
-  Zeilen, damit die richtige Zeile nicht hinter hunderten breiten Treffern liegt.
-- Der In-Memory-Identitätsindex wird nur für ≤ 8.000 Kandidatenzeilen gebaut.
-- Der bestehende 30-s-Scan-Cache (≤ 20.000 Zeilen) bleibt unverändert; größere
-  Playlists werden bewusst nicht im RAM gehalten.
-- Kein neues DB-Schema, keine neue DB-Engine, keine Bildverarbeitung, kein
-  Hintergrund-Polling.
-- Guide-Netzwerk läuft weiterhin nur im vorhandenen Hintergrund-Refresh.
+- No full scan per fixture: candidates come from FTS/EPG. If the FTS query succeeds with an empty
+  result, the whole playlist is not scanned as well; only an unavailable FTS table (null) falls
+  back to the scan.
+- External listings are resolved by FTS + identity check (cap: 32 listings, 120 channels; direct
+  rows first, so the numbered feed is not pushed out of the cap by service rows).
+- The FTS search first probes the selective channel phrase (`"main event"`, for `+` the raw token
+  phrase `"ligue 1 2"`) and only falls back to the broad OR query when nothing matched; the
+  result cap is 1,000 rows.
+- The in-memory identity index is built only for ≤ 8,000 candidate rows.
+- The existing 30 s scan cache (≤ 20,000 rows) is unchanged; larger playlists are deliberately
+  not kept in RAM.
+- No new DB schema, no new DB engine, no image processing, no background polling.
+- Source networking runs only in the existing background refresh; parsers run in the
+  `Dispatchers.IO` context of the hub call.
 
-JVM-Smoke-Benchmark (`DeterministicMatchingBenchmarkTest`, Windows-Desktop, kein
-Fire-TV-Gerät):
+JVM smoke benchmark (`DeterministicMatchingBenchmarkTest`, Windows desktop, no Fire TV device):
 
-| Fall | Messwert |
+| Case | Measurement |
 |---|---|
-| 10.000 Namen identifizieren | 83–156 ms |
-| 30.000 Namen identifizieren | 157–196 ms |
-| 60.000 Namen identifizieren | 232–273 ms |
-| 1.000 Identitäts-Lookups (60k-Set) | 4–6 ms |
-| Fixture-Match, 30.000 Kanäle, Guide-Treffer | 53–200 ms |
-| 60k-Playlist, richtige Zeile hinter 300 breiten Treffern | 244–275 ms, gefunden |
+| Identify 10,000 names | 88–390 ms |
+| Identify 30,000 names | 186–462 ms |
+| Identify 60,000 names | 257–759 ms |
+| 1,000 identity lookups (60k set) | 4–20 ms |
+| Fixture match, 30,000 channels, guide hit | 25–57 ms |
+| 60k playlist, correct row behind 300 broad hits | 133–197 ms, found |
+| 60k playlist, exact `Ligue 1+ 2` feed next to `Ligue 1+ 1` | 66–138 ms, only feed 2 |
 
-Das sind JVM-/CI-Zahlen, **keine** Gerätezahlen. Die geforderten P95-Budgets
-(< 250 ms cached match, < 10 ms Identitäts-Lookup, < 500 ms erste Darstellung)
-sind auf dem Desktop eingehalten; ein Lauf auf Fire TV Stick / 4K Max steht aus
-(kein Gerät in dieser Umgebung). `minSdk` ist 26, keine neuen Abhängigkeiten.
+These are JVM/CI numbers, **not** device numbers. The required P95 budgets (< 250 ms cached
+match, < 10 ms identity lookup, < 500 ms first render) hold on desktop; a run on Fire TV Stick /
+4K Max is still pending (no device in this environment). `minSdk` is 26, no new dependencies.
 
 ## 8. Tests
 
-- `ChannelIdentityTest` — Beispielnamen, `Sky Sports+`/Nummern/News-Abgrenzung,
-  generische Wörter, Territorium/Sport/PPV, Rebrandings, Suchterme.
-- `BroadcastEvidenceTest` — Tier-Regeln, Stale-Downgrade, Konflikt, Dedup,
-  Score-Deckel.
-- `SportsMatcherTest` — Guide ohne EPG → `Supported`; Tennis-Turnierzeile →
-  `Likely`; allgemeiner Kanal → `Possible`; EPG+Guide-Merge; kein Borrowing;
-  Länderpräferenz versteckt starke Evidenz nicht; Fallback nur `Possible`.
-- `DeterministicMatchingBenchmarkTest` — 10k/30k/60k-Identitäten und 30k-Match.
-- `SportMatchingQualityTest` — 16 gelabelte Szenarien (EPG, Guide ohne EPG,
-  Specialist-Fallback, Tennis-Turnierzeile, Sprachfilter, F1-Rennen/Practice,
-  Ein-Team-EPG, Provider-Tags, TNT/Canal/ESPN-Nummern, Combat-PPV, mehrdeutige
-  brandlose Namen, Territorium-Kollision): **Precision@1 12/12**,
-  **No-Result 4/4**. Der Vergleich zum alten Pfad ist dort direkt sichtbar: ohne
-  Guide/EPG liefert „direct guide without EPG“ früher nichts, jetzt den richtigen
-  Sender; Practice und die beiden Kollisionsfälle bleiben bewusst leer.
+- `ChannelIdentityTest` — example names, `Sky Sports+`/number/news separation, Ligue 1+ service
+  vs channel (`ligue 1 plus|2` vs `network`), generic words, territory/sport/PPV, rebrands,
+  search terms.
+- `BroadcastEvidenceTest` — tier rules, fresh/aged/stale boundary (30 min, 30 min + 1 ms,
+  2 h + 1 ms), session/service evidence, conflict, family dedup, score cap.
+- `BroadcastSourceTest` — parsers for FootTV, Foot Mercato, Live Football, Sky tennis and
+  Sport-TV tennis (fixture/service/tournament/session rows, missing channels, missing times,
+  quality/accent variants), plus fixture relevance (both teams in either order, wrong
+  tournament/wrong day).
+- `BroadcastSourceHubTest` — a failed refresh keeps rows and marks them stale; an empty successful
+  page does not delete the old snapshot.
+- `BroadcastGuideTest` — existing WTM parser/match rules plus explicit club aliases
+  (Manchester City/United, PSG/Paris FC, Lyon/Marseille).
+- `SportsMatcherTest` — guide without EPG → `Supported`; numbered Ligue 1+ feed matches only its
+  number; network row stays `Possible`; tennis tournament row → `Likely` (specialist) /
+  `Possible` (general); EPG+guide merge; no borrowing; country preference does not hide strong
+  evidence; fallback only `Possible`.
+- `DeterministicMatchingBenchmarkTest` — 10k/30k/60k identities, 30k match, 60k recall behind
+  300 hits, 60k exact numbered feed.
+- `SportMatchingQualityTest` — 25 labelled scenarios (18 with an expectation, 7 deliberately
+  without), including UK/FR football, Ligue 1+ numbers, service-only, tennis session/tournament,
+  wrong number and language filter. Measured: **Precision@1 18/18**, **Precision@5 18/18**,
+  **known-carrier recall 18/18**, **no-result 7/7**, **false positives 0**,
+  **exact-channel 12/18**, **service-only 3/18**. The 18 expectation cases deliberately include
+  `Likely`/`Possible` rows; "exact channel" counts only `Supported`.
 
-Ausführen:
+Run:
 
 ```
 ./gradlew :app:testStandardDebugUnitTest
 ```
 
-## 9. Grenzen und Follow-up
+## 9. Limits and follow-up
 
-- **Nur eine externe Quelle.** Weitere Quellen erst nach messbarem Precision-Gewinn
-  und mit quellenspezifischem Adapter; keine unkontrollierten Scraper.
-- **Playlist-Clustering** (Nachbarschaft, Gruppe, Logo, Sequenz) ist bewusst nicht
-  implementiert: schwache Signale, kein belegter Precision-Gewinn, teils teure
-  Bildverarbeitung. Die Identitäts-Key-Idee ist die Voraussetzung dafür.
-- **Historisches Feedback** ist nicht verdrahtet. „Stream geöffnet“ ist kein Beweis;
-  nur eine explizite Nutzerbestätigung dürfte Evidenz erzeugen. Der Datenspeicher
-  dafür gehört in die bestehende `SportsPrefs`-DataStore-Datei (Backup-kompatibel).
-- **Fire-TV-Hardwaremessung** und ein echter Precision-/Recall-Lauf gegen mehrere
-  reale Provider stehen aus. Der Benchmark ist deterministisch, aber synthetisch.
-- **Konflikt-Erkennung** ist implementiert und getestet, aber im aktuellen
-  Ein-Quellen-Pfad (WTM) noch nicht produktiv auslösbar: alle Listings tragen die
-  Fixture-ID. Ein EPG-Programm, das eine andere Veranstaltung nennt, wird noch nicht
-  als Konflikt modelliert (nur als fehlende EPG-Evidenz). `Conflicting` ist daher
-  heute eine reservierte, korrekt getestete Stufe für einen zweiten Adapter.
-- **Kein UI-Umbau.** Die bestehende Evidenzzeile zeigt jetzt zusätzlich
-  `TV guide`/`Channel identity`; D-Pad-Navigation und Layout sind unverändert.
+- **Four new sources, but different coverage.** UK/FR football is fixture-accurate; tennis stays
+  tournament/session-accurate. A single tennis match is never `Supported` from these sources.
+- **Tennis tournament names** are linked by token overlap (ESPN English vs FootTV/Sport-TV
+  French). Different names can miss a match; deliberately conservative rather than a false
+  confirmation.
+- **Team aliases** are a fixed, tested list. Exotic leagues, women's/U21 suffixes outside the
+  list, or new club names can be missed.
+- **Playlist clustering** (neighbourhood, group, logo, sequence) is deliberately not implemented:
+  weak signals, no proven precision gain, partly expensive image processing. The identity-key
+  idea is the prerequisite for it.
+- **Historical feedback** is not wired. "Stream opened" is not proof; only an explicit user
+  confirmation should create evidence. The data store for that belongs in the existing
+  `SportsPrefs` DataStore file (backup-compatible).
+- **Fire TV hardware measurement** and a real precision/recall run against multiple real
+  providers are still pending. The benchmark is deterministic but synthetic.
+- **Source failure is silent**: the old snapshot stays stale, the UI shows no "source broken"
+  warning. `BroadcastSourceHub.status()` exists for diagnostics.
+- **No UI redesign.** The existing evidence line still shows tier + source; `evidenceDetail` now
+  also contains the provenance family (e.g. `foottv · Ligue 1 · Lyon - Angers`). D-pad
+  navigation and layout are unchanged.

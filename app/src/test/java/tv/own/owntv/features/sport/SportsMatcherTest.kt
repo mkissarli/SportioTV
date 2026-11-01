@@ -1186,6 +1186,77 @@ class SportsMatcherTest {
         sportWords = setOf("football", "soccer", "fussball"),
     )
 
+    // --- external sources: numbered feeds, service rows, tennis specificity -----------------
+
+    @Test
+    fun aNumberedLigueOnePlusFeedMatchesOnlyItsOwnNumber() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(
+                channel(1, "FR: LIGUE 1+ 1 HD"),
+                channel(2, "FR: LIGUE 1+ 2 HD"),
+                channel(3, "FR: LIGUE 1+ 3 FHD"),
+            ),
+            programmes = emptyList(),
+        )
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("Ligue 1+ 2"))),
+        )
+        assertEquals(listOf("FR: LIGUE 1+ 2 HD"), matches.map { it.channelName })
+        assertEquals(ChannelEvidenceTier.SUPPORTED, matches.single().evidenceTier)
+    }
+
+    @Test
+    fun aLigueOnePlusNetworkRowNeverConfirmsANumberedFeed() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(channel(1, "FR: LIGUE 1+"), channel(2, "FR: LIGUE 1+ 2 HD")),
+            programmes = emptyList(),
+        )
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(
+                languages = emptySet(),
+                guideListings = listOf(listing("Ligue 1+", direct = false, coverage = CoverageType.SERVICE)),
+            ),
+        )
+        assertEquals(listOf("FR: LIGUE 1+"), matches.map { it.channelName })
+        assertEquals(ChannelEvidenceTier.POSSIBLE, matches.single().evidenceTier)
+    }
+
+    @Test
+    fun aTennisTournamentRowIsLikelyOnlyOnTheSpecialistChannel() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(channel(1, "UK| SKY SPORTS TENNIS"), channel(2, "UK| SKY SPORTS MAIN EVENT")),
+            programmes = emptyList(),
+        )
+        val matches = matcher(store).match(
+            duelFixture(tournament = "Paris Masters"),
+            SportMatchOptions(
+                languages = emptySet(),
+                guideListings = listOf(
+                    listing("Sky Sports Tennis", direct = false, coverage = CoverageType.TOURNAMENT, sport = SportClass.TENNIS),
+                    listing("Sky Sports Main Event", direct = false, coverage = CoverageType.TOURNAMENT, sport = SportClass.TENNIS),
+                ),
+            ),
+        )
+        val tiers = matches.associate { it.channelName to it.evidenceTier }
+        assertEquals(ChannelEvidenceTier.LIKELY, tiers["UK| SKY SPORTS TENNIS"])
+        assertEquals(ChannelEvidenceTier.POSSIBLE, tiers["UK| SKY SPORTS MAIN EVENT"])
+    }
+
+    @Test
+    fun twoIndependentSourcesConfirmingTheSameFixtureAreNotAConflict() = runBlocking {
+        val store = FakeStore(channels = listOf(channel(1, "UK| SKY SPORTS MAIN EVENT")), programmes = emptyList())
+        val first = listing("Sky Sports Main Event", true)
+        val second = first.copy(sourceId = "foottv", sourceFamily = "foottv", eventId = "source-local-row")
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(languages = emptySet(), guideListings = listOf(first, second)),
+        )
+        assertEquals(listOf("UK| SKY SPORTS MAIN EVENT"), matches.map { it.channelName })
+        assertEquals(ChannelEvidenceTier.SUPPORTED, matches.single().evidenceTier)
+    }
+
     private fun matcher(store: FakeStore, vocab: SportsVocab = this.vocab) = SportsMatcher(
         channelDao = store.channelDao,
         epgDao = store.epgDao,
@@ -1331,7 +1402,9 @@ private class FakeStore(
                     .map { it.groupValues[1].lowercase() }
                     .toList()
                 channels.filter { channel ->
-                    terms.any { channel.name.lowercase().contains(it) }
+                    val name = channel.name.lowercase().replace("+", " ")
+                        .replace(Regex("\\s+"), " ")
+                    terms.any { name.contains(it) }
                 }.map { ChannelSearchResult(it, "") }
             }
             "allForSources" -> channels

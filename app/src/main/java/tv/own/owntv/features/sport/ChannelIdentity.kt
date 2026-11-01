@@ -119,7 +119,7 @@ object ChannelIdentityResolver {
         var territory = tag.takeIf { it in CountryTags }?.uppercase(Locale.ROOT)
             ?: SportLanguages.countryCodeOf(trimmed)
 
-        var tokens = base.split(' ').filter { it.isNotBlank() }
+        var tokens = base.split(' ').filter { it.isNotBlank() }.flatMap(::expandToken)
         if (tokens.isEmpty()) return null
         // A trailing country/region word ("SKY SPORT MAIN EVENT UK") is not part of the channel.
         if (tokens.size > 1 && tokens.last() in CountryTags) {
@@ -238,6 +238,17 @@ object ChannelIdentityResolver {
     fun searchTerms(name: String): List<String> {
         val identity = resolve(name) ?: return emptyList()
         val out = LinkedHashSet<String>()
+        // A provider spells the same feed "Ligue 1+ 2" and "Ligue 1 Plus 2"; FTS sees the raw '+'
+        // as a separator, so the canonical "plus" phrase would never reach the row on a large
+        // playlist. The raw-token phrase ("ligue 1 2") does, and is still selective.
+        if ('+' in name) {
+            val raw = SportNameMatch.normalize(name.replace("+", " ")).trim().split(' ')
+                .filter { it.isNotBlank() }
+                .flatMap(::expandToken)
+                .filter { it !in GenericChannelWords }
+                .joinToString(" ")
+            if (raw.contains(' ')) out += raw
+        }
         if (identity.channel != NetworkChannel && identity.channel.isNotBlank()) {
             out += identity.channel
             out += identity.channel.split(' ').filter { it.length >= MinTermLength }
@@ -303,6 +314,16 @@ object ChannelIdentityResolver {
             if (subList(i, i + part.size) == part) return i
         }
         return 0
+    }
+
+    /**
+     * Provider spellings that glue a service name into one token. The expansion happens before the
+     * broadcaster phrase match, so `Ligue1+ 2` gets the same service/channel split as `Ligue 1+ 2`.
+     */
+    private fun expandToken(token: String): List<String> = when (token) {
+        "ligue1" -> listOf("ligue", "1")
+        "ligue1plus" -> listOf("ligue", "1", "plus")
+        else -> listOf(token)
     }
 
     private const val KeySeparator = "|"
@@ -389,6 +410,7 @@ object ChannelIdentityResolver {
 
     /** Multi-word brands, longest first. A phrase match beats a single-token match. */
     private val BroadcasterPhrases: List<Pair<List<String>, String>> = listOf(
+        listOf("ligue", "1", "plus") to "ligue 1 plus",
         listOf("canal", "plus") to "canal",
         listOf("premier", "sports") to "premier sports",
         listOf("prime", "video") to "prime video",

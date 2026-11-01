@@ -18,28 +18,52 @@ import tv.own.owntv.core.database.entity.EpgProgrammeEntity
 class SportMatchingQualityTest {
 
     @Test
-    fun theLabelledScenariosKeepTheirExpectedTopOne() = runBlocking {
-        var correct = 0
+    fun theLabelledScenariosKeepTheirExpectedMetrics() = runBlocking {
+        var p1 = 0
+        var p5 = 0
         var expected = 0
+        var knownCarriers = 0
+        var matchedCarriers = 0
         var noResultCorrect = 0
         var noResultCases = 0
+        var falsePositives = 0
+        var supported = 0
+        var possible = 0
 
         for (case in cases()) {
             val matches = matcher(case.store).match(case.fixture, case.options)
             val top = matches.firstOrNull()?.channelName
             if (case.expected == null) {
                 noResultCases++
-                if (matches.isEmpty()) noResultCorrect++
+                if (matches.isEmpty()) noResultCorrect++ else falsePositives++
             } else {
                 expected++
-                if (top == case.expected) correct++
+                if (top == case.expected) p1++
+                if (matches.take(5).any { it.channelName == case.expected }) p5++
+                knownCarriers += case.known.size
+                matchedCarriers += case.known.count { name -> matches.any { it.channelName == name } }
+                when (matches.firstOrNull()?.evidenceTier) {
+                    ChannelEvidenceTier.SUPPORTED -> supported++
+                    ChannelEvidenceTier.POSSIBLE -> possible++
+                    else -> Unit
+                }
             }
             assertEquals(case.name, case.expected, top)
+            if (case.expectedTier != null) {
+                assertEquals(case.name, case.expectedTier, matches.firstOrNull()?.evidenceTier)
+            }
         }
 
-        println("precision@1: $correct/$expected, no-result accuracy: $noResultCorrect/$noResultCases")
-        assertEquals(expected, correct)
+        println(
+            "precision@1: $p1/$expected, precision@5: $p5/$expected, " +
+                "known-carrier recall: $matchedCarriers/$knownCarriers, " +
+                "no-result accuracy: $noResultCorrect/$noResultCases, false positives: $falsePositives, " +
+                "exact-channel rate: $supported/$expected, service-only rate: $possible/$expected",
+        )
+        assertEquals(expected, p1)
+        assertEquals(expected, p5)
         assertEquals(noResultCases, noResultCorrect)
+        assertEquals(knownCarriers, matchedCarriers)
     }
 
     private fun cases(): List<QualityCase> {
@@ -201,6 +225,121 @@ class SportMatchingQualityTest {
                 SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("UK: MAIN EVENT", true))),
                 null,
             ),
+            QualityCase(
+                "FootTV numbered Ligue 1+ feed",
+                store(
+                    channels = listOf(
+                        channel(17, "FR: LIGUE 1+ 1 HD"),
+                        channel(18, "FR: LIGUE 1+ 2 HD"),
+                        channel(19, "FR: LIGUE 1+ 3 FHD"),
+                    ),
+                    programmes = emptyList(),
+                ),
+                fixture(),
+                SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("Ligue 1+ 2", true))),
+                "FR: LIGUE 1+ 2 HD",
+                expectedTier = ChannelEvidenceTier.SUPPORTED,
+            ),
+            QualityCase(
+                "Ligue 1+ network row is service-level only",
+                store(channels = listOf(channel(21, "FR: LIGUE 1+"), channel(22, "FR: LIGUE 1+ 2 HD")), programmes = emptyList()),
+                fixture(),
+                SportMatchOptions(
+                    languages = emptySet(),
+                    guideListings = listOf(listing("Ligue 1+", direct = false, coverage = CoverageType.SERVICE)),
+                ),
+                "FR: LIGUE 1+",
+                expectedTier = ChannelEvidenceTier.POSSIBLE,
+            ),
+            QualityCase(
+                "DAZN service row never confirms a numbered feed",
+                store(channels = listOf(channel(23, "FR: DAZN 1 HD")), programmes = emptyList()),
+                fixture(),
+                SportMatchOptions(
+                    languages = emptySet(),
+                    guideListings = listOf(listing("DAZN", direct = false, coverage = CoverageType.SERVICE)),
+                ),
+                null,
+            ),
+            QualityCase(
+                "wrong TNT number is not the fixture",
+                store(channels = listOf(channel(24, "UK| TNT SPORTS 1 HD")), programmes = emptyList()),
+                fixture(),
+                SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("TNT Sports 2", true))),
+                null,
+            ),
+            QualityCase(
+                "French football on a linear channel",
+                store(channels = listOf(channel(25, "FR: CANAL+ FOOT")), programmes = emptyList()),
+                fixture(),
+                SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("Canal+ Foot", true))),
+                "FR: CANAL+ FOOT",
+                expectedTier = ChannelEvidenceTier.SUPPORTED,
+            ),
+            QualityCase(
+                "Sport-TV tennis session on Eurosport",
+                store(channels = listOf(channel(26, "FR: EUROSPORT 1 HD")), programmes = emptyList()),
+                tennisFixture(),
+                SportMatchOptions(
+                    languages = emptySet(),
+                    guideListings = listOf(
+                        listing(
+                            "Eurosport 1",
+                            direct = false,
+                            coverage = CoverageType.SESSION,
+                            sport = SportClass.TENNIS,
+                        ),
+                    ),
+                ),
+                "FR: EUROSPORT 1 HD",
+                expectedTier = ChannelEvidenceTier.LIKELY,
+            ),
+            QualityCase(
+                "tennis tournament on a general channel stays possible",
+                store(channels = listOf(channel(27, "UK| SKY SPORTS MAIN EVENT")), programmes = emptyList()),
+                tennisFixture(),
+                SportMatchOptions(
+                    languages = emptySet(),
+                    guideListings = listOf(
+                        listing(
+                            "Sky Sports Main Event",
+                            direct = false,
+                            coverage = CoverageType.TOURNAMENT,
+                            sport = SportClass.TENNIS,
+                        ),
+                    ),
+                ),
+                "UK| SKY SPORTS MAIN EVENT",
+                expectedTier = ChannelEvidenceTier.POSSIBLE,
+            ),
+            QualityCase(
+                "wrong tennis channel number is not the session",
+                store(channels = listOf(channel(28, "FR: EUROSPORT 1 HD")), programmes = emptyList()),
+                tennisFixture(),
+                SportMatchOptions(
+                    languages = emptySet(),
+                    guideListings = listOf(
+                        listing(
+                            "Eurosport 2",
+                            direct = false,
+                            coverage = CoverageType.SESSION,
+                            sport = SportClass.TENNIS,
+                        ),
+                    ),
+                ),
+                null,
+            ),
+            QualityCase(
+                "direct French feed survives a language preference",
+                store(channels = listOf(channel(29, "FR: LIGUE 1+ 2 HD")), programmes = emptyList()),
+                fixture(),
+                SportMatchOptions(
+                    languages = setOf(SportLanguage.ENGLISH),
+                    guideListings = listOf(listing("Ligue 1+ 2", true)),
+                ),
+                "FR: LIGUE 1+ 2 HD",
+                expectedTier = ChannelEvidenceTier.SUPPORTED,
+            ),
         )
     }
 
@@ -210,6 +349,10 @@ class SportMatchingQualityTest {
         val fixture: Fixture,
         val options: SportMatchOptions,
         val expected: String?,
+        /** The tier the top row must carry, when the scenario is about evidence specificity. */
+        val expectedTier: ChannelEvidenceTier? = null,
+        /** Known carriers for recall; defaults to the single expected row. */
+        val known: Set<String> = setOfNotNull(expected),
     )
 
     private fun fixture() = Fixture(

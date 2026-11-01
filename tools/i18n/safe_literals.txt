@@ -1199,44 +1199,243 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	Mozilla/5.0 (Windows NT 10.0; Win64; x64) Matchday/1
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	User-Agent
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	\\s+
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	angers
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	angers sco
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	aria-label="[^"]*TV coverage on ([^"]+)"
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	as nancy lorraine
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	athletic
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	atp
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	brest
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	bristol city
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	bristol rovers
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	championship
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	championships
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	city
 2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	club
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	cup
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	derby
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	derby county
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	en-GB,en;q=0.9
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	fc sochaux montbeliard
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	final
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	finals
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	grand
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	havre
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	heat
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	https://www.wheresthematch.com/live-
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	le havre ac
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	lille
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	lille osc
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	losc
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	losc lille
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	lyon
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	man city
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	man united
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	man utd
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	manchester city
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	manchester united
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	marseille
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	masters
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	milton keynes dons
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	mk dons
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	montpellier
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	montpellier hsc
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	nancy
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	nott m forest
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	nottingham forest
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	olympique de marseille
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	olympique lyonnais
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	olympique marseille
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	open
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	paris fc
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	paris saint germain
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	paris sg
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	plymouth
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	plymouth argyle
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	practice
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	preston
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	preston north end
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	prix
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	psg
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	qpr
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	qualifying
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	quarterfinal
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	queens park rangers
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	race
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	rc strasbourg alsace
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	reims
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	rennes
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	rovers
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	sco angers
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	semifinal
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	series
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	sheffield united
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	sheffield utd
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	sheffield wed
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	sheffield wednesday
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	sheffield weds
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	sochaux
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	sporting
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	sports
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	sprint
+3	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	stade brestois
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	stade brestois 29
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	stade de reims
+3	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	stade rennais
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	stade rennais fc
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	strasbourg
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	tour
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	town
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	trophy
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	united
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	wanderers
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	warm
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	west brom
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	west bromwich albion
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	wheresthematch
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	wolverhampton
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	wolverhampton wanderers
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	wolves
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	world
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	wta
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	|
 1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastGuideApi.kt	·
+12	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	\0
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	"
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	$1
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	$local - $away
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	&
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	&#(?:x([0-9a-fA-F]+)|(\\d+));
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	&([a-zA-Z]+);
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	'
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	(.+?)\\s*\\((\\d{1,2}:\\d{2})\\)
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	(\\d+)(?:st|nd|rd|th)
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	(\\d{1,2})(?:st|nd|rd|th)?\\s+([A-Za-z]+)
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	(\\d{1,2})([a-z]{3})
+4	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	-
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	.atp
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	.wta
+11	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	:
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	:failed
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<[^>]*>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<a[^>]*>(.*?)</a>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<div class="(fixture-date|fixture)">
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<div class="event-group[^"]*"[^>]*>(.*?)</div>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<div class="matchFull"[^>]*>(.*?)</a>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<div class="match[^"]*">(.*?)<span class="match-channel">(.*?)</span>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<h3 class="text-h4[^"]*"[^>]*>(.*?)</h3>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<img[^>]*class="matchFull__broadcastImage"[^>]*>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<li([^>]*)>(.*?)</li>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<p class="event-detail[^"]*"[^>]*>(.*?)</p>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<section class="day-section[^"]*" data-day="([^"]+)">(.*?)</section>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<span class="channel-pill"[^>]*>(.*?)</span>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<span class="matchTeam__name">(.*?)</span>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<span[^>]*\\stitle="([^"]+)"
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<strong>(.*?)</strong>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<time[^>]*datetime="([^"]+)"
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<tr[^>]*>(.*?)</tr>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	<ul class="listaCanales">(.*?)</ul>
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	>
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	Accept-Language
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	Agrave
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	EEEE d MMMM yyyy
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	Eacute
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	Egrave
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	Europe/London
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	Europe/Paris
+3	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	FR
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	H:mm
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	HTTP
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	Mozilla/5.0 (Windows NT 10.0; Win64; x64) Matchday/1
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	T(?:(\\d+)H)?(?:(\\d+)M)?
+2	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	UK
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	User-Agent
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	Voir en direct
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	\\s+
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	\\s+v\\s+
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	^Logo\\s+
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	acirc
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	aelig
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	agrave
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	alt="([^"]+)"
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	amp
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	apos
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	apr
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	atp
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	aug
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	awin1.com
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	cabeceraCompericion
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	ccedil
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	class="$cssClass[^"]*"[^>]*>(.*?)</td>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	class="canales"
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	dec
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	eacute
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	ecirc
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	egrave
+2	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	en
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	en-GB,en;q=0.9,fr;q=0.8
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	feb
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	fixture-date
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	fixture__competition">(.*?)</div>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	fixture__teams">(.*?)</div>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	fixture__time">([^<]*)<
+3	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	footmercato
+3	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	foottv
+3	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	fr
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	gt
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	https://sport-tv.fr/tennis/
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	https://www.footmercato.net/programme-tv/
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	https://www.foottv.fr/
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	https://www.live-footballontv.com/
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	https://www.skysports.com/watch/tennis-on-sky
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	icirc
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	itemprop="duration"\\s+content="([^"]+)"
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	itemprop="startDate"\\s+content="([^"]+)"
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	jan
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	jul
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	jun
+3	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	livefootballontv
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	local
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	lt
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	mar
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	match-teams">(.*?)</div>
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	match-time">([^<]*)<
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	may
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	nbsp
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	nov
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	ocirc
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	oct
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	oelig
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	page too large
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	quot
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	sep
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	sky
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	skysports-tennis
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	sport-tv
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	sport-tv-tennis
+1	regex	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	title="([^"]+)"
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	ucirc
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	ugrave
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	visitante
+1	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	wta
+2	technical	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	|
+4	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	·
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	À
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	È
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	É
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	à
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	â
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	æ
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	ç
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	è
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	é
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	ê
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	î
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	ô
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	ù
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	û
+1	empty	app/src/main/java/tv/own/owntv/features/sport/BroadcastSources.kt	œ
 1	technical	app/src/main/java/tv/own/owntv/features/sport/CalendarEvent.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/features/sport/CalendarEvent.kt	-
 1	technical	app/src/main/java/tv/own/owntv/features/sport/CalendarEvent.kt	HH:mm
@@ -1264,10 +1463,10 @@
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	4320p
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	8k
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelDedup.kt	fps
-4	empty	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	\0
+6	empty	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	$it
-1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	+
-1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	1
+2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	+
+4	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	1
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	2
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	3
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	4k
@@ -1378,8 +1577,11 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	kr
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	kw
 4	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	laliga
-2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ligue
+5	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ligue
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ligue 1
+1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ligue 1 plus
+1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ligue1
+1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ligue1plus
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	live
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	lk
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	local
@@ -1422,7 +1624,7 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ph
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	pk
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	pl
-4	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	plus
+6	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	plus
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	polsat
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ppv
 3	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	premier
@@ -2182,6 +2384,7 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	warm
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	wta
 4	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	|
+1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsMatcher.kt	·
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	UK
 1	preference-key	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	ai_countries

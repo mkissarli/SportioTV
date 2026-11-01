@@ -2,6 +2,7 @@ package tv.own.owntv.features.sport
 
 import java.lang.reflect.Proxy
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.own.owntv.core.database.dao.ChannelDao
@@ -173,6 +174,73 @@ class DeterministicMatchingBenchmarkTest {
         assertTrue(matches.any { it.channelName == "UK| SKY SPORTS MAIN EVENT HD" })
     }
 
+    @Test
+    fun sixtyThousandPlaylistResolvesTheExactNumberedFeed() = runBlocking {
+        val correct = ChannelEntity(
+            id = 900_001L,
+            sourceId = 1L,
+            name = "FR: LIGUE 1+ 2 HD",
+            streamUrl = "http://provider.invalid/correct.ts",
+        )
+        val wrong = ChannelEntity(
+            id = 900_002L,
+            sourceId = 1L,
+            name = "FR: LIGUE 1+ 1 HD",
+            streamUrl = "http://provider.invalid/wrong.ts",
+        )
+        val filler = (0 until 59_998).map { index ->
+            ChannelEntity(
+                id = 1_000_000L + index,
+                sourceId = 1L,
+                name = "FR: FILLER CHANNEL $index HD",
+                streamUrl = "http://provider.invalid/filler$index.ts",
+            )
+        }
+        val store = BenchmarkStore(filler + wrong + correct)
+        val matcher = SportsMatcher(
+            channelDao = store.channelDao,
+            epgDao = store.epgDao,
+            vocab = SportsVocab.EMPTY,
+            sources = { listOf(1L) },
+        )
+        val fixture = Fixture(
+            id = "ligue-bench",
+            leagueId = "soccer.fra.1",
+            dateMs = System.currentTimeMillis(),
+            state = FixtureState.LIVE,
+            statusLine = "LIVE",
+            home = SportTeam("1", "Lyon", "LYO", null, null, "0", false, "home"),
+            away = SportTeam("2", "Angers", "ANG", null, null, "0", false, "away"),
+            broadcasts = emptyList(),
+            venue = null,
+        )
+        val listing = BroadcastListing(
+            eventId = "ligue-bench",
+            sport = SportClass.FOOTBALL,
+            competition = "Ligue 1",
+            participants = listOf("Lyon", "Angers"),
+            eventStartTimeMs = fixture.dateMs,
+            coverageStartTimeMs = fixture.dateMs,
+            coverageEndTimeMs = fixture.dateMs + 2 * 60 * 60 * 1000,
+            broadcaster = "Ligue 1+ 2",
+            channel = "Ligue 1+ 2",
+            territory = "FR",
+            language = "fr",
+            coverageType = CoverageType.FIXTURE,
+            sourceId = "foottv",
+            retrievedAtMs = System.currentTimeMillis(),
+            confidence = 90,
+            direct = true,
+            sourceFamily = "foottv",
+        )
+        val start = System.nanoTime()
+        val matches = matcher.match(fixture, SportMatchOptions(languages = emptySet(), guideListings = listOf(listing)))
+        val elapsedMs = (System.nanoTime() - start) / 1_000_000
+        println("60k numbered feed: ${elapsedMs}ms, ${matches.size} rows")
+        assertEquals(listOf("FR: LIGUE 1+ 2 HD"), matches.map { it.channelName })
+        assertTrue("numbered feed lookup too slow: ${elapsedMs}ms", elapsedMs < 10_000)
+    }
+
     private class BenchmarkStore(channels: List<ChannelEntity>) {
         val channelDao: ChannelDao = proxy(ChannelDao::class.java) { name, args ->
             when (name) {
@@ -183,7 +251,11 @@ class DeterministicMatchingBenchmarkTest {
                     val terms = Regex("\"([^\"]+)\"").findAll(query)
                         .map { it.groupValues[1].lowercase() }
                         .toList()
-                    channels.filter { channel -> terms.any { channel.name.lowercase().contains(it) } }
+                    channels.filter { channel ->
+                        val name = channel.name.lowercase().replace("+", " ")
+                            .replace(Regex("\\s+"), " ")
+                        terms.any { name.contains(it) }
+                    }
                         .take(limit)
                         .map { ChannelSearchResult(it, "") }
                 }

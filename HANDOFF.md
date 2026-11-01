@@ -58,3 +58,7 @@
   alle Sportarten), Beide-Teams-/Eventtitel-Matching, Broadcast-/Hint-Wörter nur noch Bonus,
   Regel-4-Dedup (`ChannelDedup`). F1-Hint („Sky Sports Main Event") entfernt — Kanäle kommen
   dynamisch aus Guide + Eventtitel. Details: `docs/SPORT-HUB.md`, `docs/sport-channel-matching.md` §13.
+- Broadcast-Quellen (2026-11-01): FootTV, Live Football on TV, Sky Sports Tennis und
+  Sport-TV.fr sind als Adapter im Hintergrund-Refresh; nummerierte Ligue 1+-Feeds sind
+  getrennte Identitäten. Inventar: `docs/BROADCAST-SOURCES.md`, Matching:
+  `docs/SPORT-DETERMINISTIC-MATCHING.md`.

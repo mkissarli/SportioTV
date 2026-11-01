@@ -115,6 +115,38 @@ class BroadcastGuideTest {
     // --- the teams case ---------------------------------------------------------------------
 
     @Test
+    fun clubAliasesKeepManchesterAndParisSidesApart() {
+        val unitedRow = SportNameMatch.normalize("Manchester United v Arsenal Premier League")
+        assertTrue(GuideMatch.bothSidesInRow(unitedRow, "Manchester United", "Arsenal"))
+        assertFalse(GuideMatch.bothSidesInRow(unitedRow, "Manchester City", "Arsenal"))
+        assertTrue(GuideMatch.bothSidesInRow(SportNameMatch.normalize("Man Utd v Arsenal"), "Manchester United", "Arsenal"))
+        assertTrue(GuideMatch.bothSidesInRow(SportNameMatch.normalize("Man United v Arsenal"), "Manchester United", "Arsenal"))
+
+        val psgRow = SportNameMatch.normalize("Paris Saint-Germain v Nantes Ligue 1")
+        assertTrue(GuideMatch.bothSidesInRow(psgRow, "Paris Saint Germain", "Nantes"))
+        assertFalse(GuideMatch.bothSidesInRow(psgRow, "Paris FC", "Nantes"))
+        assertTrue(GuideMatch.bothSidesInRow(SportNameMatch.normalize("Paris FC v Monaco"), "Paris FC", "Monaco"))
+    }
+
+    @Test
+    fun frenchClubSpellingsMeetTheirEspnNames() {
+        assertTrue(
+            GuideMatch.bothSidesInRow(
+                SportNameMatch.normalize("Lyon - Angers Ligue 1"),
+                "Olympique Lyonnais",
+                "Angers SCO",
+            ),
+        )
+        assertTrue(
+            GuideMatch.bothSidesInRow(
+                SportNameMatch.normalize("Marseille v Toulouse Ligue 1"),
+                "Olympique de Marseille",
+                "Toulouse FC",
+            ),
+        )
+    }
+
+    @Test
     fun footballTeamsCaseRequiresBothSidesTokenOverlap() {
         val rowNorm = SportNameMatch.normalize(chelseaRow.teams + " " + chelseaRow.league)
         assertTrue(GuideMatch.bothSidesInRow(rowNorm, "Chelsea", "Tottenham Hotspur"))

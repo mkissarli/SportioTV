@@ -107,15 +107,45 @@ class BroadcastEvidenceTest {
         assertEquals(300, EvidenceFusion.score(capped, now))
     }
 
+    @Test
+    fun aSessionListingIsLikelyEvenOnAGeneralChannel() {
+        val now = 1_000_000L
+        val session = evidence(EvidenceKind.SESSION_SCHEDULE, now, direct = false, event = "tennis-1")
+        assertEquals(ChannelEvidenceTier.LIKELY, EvidenceFusion.tier(listOf(session), now, specialistChannel = false))
+        val tournament = evidence(EvidenceKind.TOURNAMENT_SCHEDULE, now, direct = false, event = "tennis-1")
+        assertEquals(ChannelEvidenceTier.POSSIBLE, EvidenceFusion.tier(listOf(tournament), now, specialistChannel = false))
+    }
+
+    @Test
+    fun aServiceRowNeverReachesSupported() {
+        val now = 1_000_000L
+        val service = evidence(EvidenceKind.BROADCASTER_RIGHTS, now, direct = false, event = "fixture-1")
+        assertEquals(ChannelEvidenceTier.POSSIBLE, EvidenceFusion.tier(listOf(service), now, specialistChannel = true))
+    }
+
+    @Test
+    fun twoSitesOfTheSameFamilyAreOneConfirmation() {
+        val now = 1_000_000L
+        val first = evidence(
+            EvidenceKind.EXTERNAL_FIXTURE, now, direct = true, event = "fixture-1",
+            underlying = "family|fixture-1|ligue 1 plus|2|FIXTURE", family = "foottv",
+        )
+        val syndicated = first.copy(sourceId = "other-site", sourceFamily = "foottv")
+        assertEquals(1, EvidenceFusion.dedupe(listOf(first, syndicated), now).size)
+        assertEquals(EvidenceFusion.score(listOf(first), now), EvidenceFusion.score(listOf(first, syndicated), now))
+    }
+
     private fun evidence(
         kind: EvidenceKind,
         retrievedAtMs: Long,
         direct: Boolean,
         event: String?,
         underlying: String = "u1",
+        family: String = "test",
     ): BroadcastEvidence = BroadcastEvidence(
         kind = kind,
         sourceId = "test",
+        sourceFamily = family,
         eventId = event,
         channelIdentity = "sky|main event",
         channelName = "Sky Sports Main Event",

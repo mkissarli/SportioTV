@@ -555,20 +555,25 @@ class SportsMatcher(
         }
         val evidenceByChannel = LinkedHashMap<Long, MutableList<BroadcastEvidence>>()
         val channels = LinkedHashMap<Long, ChannelEntity>()
-        for (listing in listings.take(GuideListingCap)) {
+        // Direct rows first: the bounded cap must never push the exact numbered feed out behind
+        // ten service-level rows from other sources.
+        val ordered = listings.sortedWith(
+            compareByDescending<BroadcastListing> { it.direct }.thenBy { it.coverageType.ordinal },
+        )
+        for (listing in ordered.take(GuideListingCap)) {
             val sourceIdentity = ChannelIdentityResolver.resolve(listing.channel) ?: continue
             val candidates = resolveListingCandidates(listing, sourceIdentity, sourceIds, byKey, byChannel)
-            val kind = when (listing.sourceId) {
-                OfficialSourceId -> EvidenceKind.OFFICIAL_SCHEDULE
-                else -> if (listing.direct) EvidenceKind.EXTERNAL_FIXTURE else EvidenceKind.TOURNAMENT_SCHEDULE
-            }
+            val kind = evidenceKind(listing)
             for (row in candidates) {
                 val rowIdentity = ChannelIdentityResolver.resolve(row.name) ?: continue
                 if (ChannelIdentityResolver.relationOf(rowIdentity, sourceIdentity) == null) continue
                 val evidence = BroadcastEvidence(
                     kind = kind,
                     sourceId = listing.sourceId,
-                    eventId = listing.eventId,
+                    // All listings here already passed fixture relevance, so the fixture is the
+                    // shared event identity. A source-scoped row id would make two sites confirming
+                    // the same match look like two different events.
+                    eventId = fixture.id,
                     channelIdentity = rowIdentity.key,
                     channelName = row.name,
                     territory = rowIdentity.territory ?: listing.territory,
@@ -577,12 +582,16 @@ class SportsMatcher(
                     endMs = listing.coverageEndTimeMs,
                     retrievedAtMs = listing.retrievedAtMs,
                     direct = listing.direct,
-                    reference = listing.sourceRef,
+                    reference = listOfNotNull(listing.sourceFamily, listing.sourceRef)
+                        .joinToString(" · ").takeIf { it.isNotBlank() },
+                    // Family, not site id: two feeds of the same schedule are one confirmation.
+                    // Coverage type is part of the key, so a service row and an exact feed stay
+                    // distinct, and repeated rows of one source never add score.
                     underlyingKey = listOf(
-                        listing.sourceId,
-                        listing.eventId.orEmpty(),
+                        listing.sourceFamily,
+                        fixture.id,
                         sourceIdentity.key,
-                        listing.coverageStartTimeMs.toString(),
+                        listing.coverageType.name,
                     ).joinToString("|"),
                 )
                 evidenceByChannel.getOrPut(row.id) { ArrayList() } += evidence
@@ -611,6 +620,20 @@ class SportsMatcher(
                 sourceId = channel.sourceId,
             )
         }
+    }
+
+    /**
+     * The evidence class of one listing. Scope and channel specificity are both part of it: a
+     * session row is stronger than a tournament row, a service row is never direct, and an exact
+     * numbered feed on the fixture is the only thing that can reach the top tier.
+     */
+    private fun evidenceKind(listing: BroadcastListing): EvidenceKind = when {
+        listing.sourceId == OfficialSourceId -> EvidenceKind.OFFICIAL_SCHEDULE
+        listing.coverageType == CoverageType.SESSION -> EvidenceKind.SESSION_SCHEDULE
+        listing.coverageType == CoverageType.TOURNAMENT ||
+            listing.coverageType == CoverageType.EVENT_CARD -> EvidenceKind.TOURNAMENT_SCHEDULE
+        listing.direct && listing.coverageType == CoverageType.FIXTURE -> EvidenceKind.EXTERNAL_FIXTURE
+        else -> EvidenceKind.BROADCASTER_RIGHTS
     }
 
     /**
@@ -729,7 +752,10 @@ class SportsMatcher(
         val found = runCatching {
             channelDao.searchListDetailedFts(query, sourceIds, FtsCandidateLimit)
         }.getOrNull()
-        if (found.isNullOrEmpty()) return scanRows(sourceIds)
+        // A successful empty FTS answer means no channel name contains these tokens; a full scan
+        // would repeat the same negative result on 60k rows. Only an unavailable FTS table (null)
+        // falls back to the scan, so deterministic name matching cannot silently disappear.
+        if (found == null) return scanRows(sourceIds)
         return found.map { toScanRow(it.channel) }.distinctBy { it.channel.id }
     }
 
@@ -1486,7 +1512,7 @@ class SportsMatcher(
 
         /** External listing resolution: bounded work per fixture, never the whole playlist. */
         private const val IndexableScanRows = 8_000
-        private const val GuideListingCap = 12
+        private const val GuideListingCap = 32
         private const val GuideChannelCap = 120
         // A broad single-word probe on a 60k playlist can have many hits before the right row.
         // 1000 rows is still bounded (identity checks are cheap) and leaves headroom.

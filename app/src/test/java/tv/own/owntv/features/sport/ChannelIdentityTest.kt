@@ -141,6 +141,51 @@ class ChannelIdentityTest {
     }
 
     @Test
+    fun numberedLigueOnePlusFeedsAreDistinctChannels() {
+        val one = ChannelIdentityResolver.resolve("Ligue 1+ 1 HD")
+        val two = ChannelIdentityResolver.resolve("Ligue 1+ 2 HD")
+        val three = ChannelIdentityResolver.resolve("Ligue 1+ 3 FHD")
+        val network = ChannelIdentityResolver.resolve("Ligue 1+")
+        assertEquals("ligue 1 plus", one?.broadcaster)
+        assertEquals("1", one?.channel)
+        assertEquals("2", two?.channel)
+        assertEquals("3", three?.channel)
+        assertEquals(ChannelIdentityResolver.NetworkChannel, network?.channel)
+        assertNotEquals(one?.key, two?.key)
+        assertNotEquals(two?.key, three?.key)
+        assertNotEquals(network?.key, one?.key)
+        // The same feed without quality suffixes is the same channel; a different number is not.
+        assertNotNull(ChannelIdentityResolver.relation("Ligue 1+ 2", "Ligue 1+ 2 HD"))
+        assertNull(ChannelIdentityResolver.relation("Ligue 1+ 2", "Ligue 1+ 1 HD"))
+        assertNull(ChannelIdentityResolver.relation("Ligue 1+ 2", "Ligue 1+ 3 FHD"))
+        // A network listing must never confirm a numbered feed.
+        assertNull(ChannelIdentityResolver.relation("Ligue 1+", "Ligue 1+ 2 HD"))
+        // The glued provider spelling is the same service.
+        assertEquals(two?.key, ChannelIdentityResolver.resolve("Ligue1+ 2")?.key)
+        assertTrue(ChannelIdentityResolver.searchTerms("Ligue1+ 2").contains("ligue 1 2"))
+    }
+
+    @Test
+    fun serviceAndChannelStaySeparateForTheDesignExamples() {
+        assertEquals("sky", ChannelIdentityResolver.resolve("Sky Sports Main Event HD")?.broadcaster)
+        assertEquals("main event", ChannelIdentityResolver.resolve("Sky Sports Main Event HD")?.channel)
+        assertEquals("plus", ChannelIdentityResolver.resolve("Sky Sports+")?.channel)
+        assertEquals("1", ChannelIdentityResolver.resolve("TNT Sports 1 HD")?.channel)
+        assertEquals("2", ChannelIdentityResolver.resolve("TNT Sports 2 HD")?.channel)
+        assertEquals("max 4", ChannelIdentityResolver.resolve("beIN SPORTS MAX 4")?.channel)
+        assertEquals("1", ChannelIdentityResolver.resolve("Eurosport 1 HD")?.channel)
+        assertEquals("2", ChannelIdentityResolver.resolve("Eurosport 2 HD")?.channel)
+        assertNotEquals(
+            ChannelIdentityResolver.resolve("beIN SPORTS MAX 4")?.key,
+            ChannelIdentityResolver.resolve("beIN SPORTS MAX 5")?.key,
+        )
+        assertNotEquals(
+            ChannelIdentityResolver.resolve("Eurosport 1 HD")?.key,
+            ChannelIdentityResolver.resolve("Eurosport 2 HD")?.key,
+        )
+    }
+
+    @Test
     fun searchTermsStayCompactAndDistinctive() {
         val terms = ChannelIdentityResolver.searchTerms("SKY SPORTS MAIN EVENT 4K")
         assertTrue(terms.contains("main event"))

@@ -1,7 +1,10 @@
 package tv.own.owntv.features.sport
 
-/** How specific a broadcast listing is about the fixture. */
-enum class CoverageType { FIXTURE, SESSION, TOURNAMENT, EVENT_CARD, UNKNOWN }
+/**
+ * How specific a broadcast listing is. The first three describe the event scope; [SERVICE] and
+ * [CHANNEL] describe a row that names only a carrier (no event), so they are never direct evidence.
+ */
+enum class CoverageType { FIXTURE, SESSION, TOURNAMENT, EVENT_CARD, SERVICE, CHANNEL, UNKNOWN }
 
 /**
  * One normalised external broadcast listing. Sources fill what they have; a missing field is
@@ -26,6 +29,8 @@ data class BroadcastListing(
     val confidence: Int,
     val direct: Boolean,
     val sourceRef: String? = null,
+    /** Provenance family; two sites syndicating one upstream schedule share it and count once. */
+    val sourceFamily: String = sourceId,
 )
 
 /** The relative strength classes of the evidence model. */
@@ -34,6 +39,7 @@ enum class EvidenceKind(val baseStrength: Int, val direct: Boolean) {
     EXTERNAL_FIXTURE(90, true),
     OFFICIAL_SCHEDULE(90, true),
     USER_CONFIRMED(80, true),
+    SESSION_SCHEDULE(60, false),
     TOURNAMENT_SCHEDULE(45, false),
     SPECIALIST_IDENTITY(18, false),
     BROADCASTER_RIGHTS(10, false),
@@ -58,6 +64,7 @@ data class BroadcastEvidence(
     val direct: Boolean,
     val reference: String?,
     val underlyingKey: String,
+    val sourceFamily: String = sourceId,
 )
 
 /**
@@ -98,7 +105,7 @@ object EvidenceFusion {
         val byUnderlying = LinkedHashMap<String, BroadcastEvidence>()
         for (item in evidence) {
             val key = item.underlyingKey.ifBlank {
-                item.sourceId + DuplicateSeparator + item.kind.name + DuplicateSeparator + item.channelIdentity
+                item.sourceFamily + DuplicateSeparator + item.kind.name + DuplicateSeparator + item.channelIdentity
             }
             val previous = byUnderlying[key]
             byUnderlying[key] = if (previous == null || strengthOf(item, nowMs) > strengthOf(previous, nowMs)) {
@@ -129,6 +136,9 @@ object EvidenceFusion {
         }
         if (freshDirect) return ChannelEvidenceTier.SUPPORTED
         if (items.any { it.kind in DirectKinds }) return ChannelEvidenceTier.LIKELY
+        // A named session/broadcast window is specific enough for Likely even on a general channel;
+        // a tournament-wide row only reaches Likely on a specialist channel.
+        if (items.any { it.kind == EvidenceKind.SESSION_SCHEDULE }) return ChannelEvidenceTier.LIKELY
         val tournament = items.any { it.kind == EvidenceKind.TOURNAMENT_SCHEDULE }
         if (tournament) {
             return if (specialistChannel) ChannelEvidenceTier.LIKELY else ChannelEvidenceTier.POSSIBLE

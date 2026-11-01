@@ -69,6 +69,9 @@ object GuideWindows {
  */
 class BroadcastGuideApi(private val client: OkHttpClient) {
 
+    /** The other broadcast sources (FootTV, Live Football on TV, Sky/Sport-TV tennis). */
+    private val sourceHub = BroadcastSourceHub(client)
+
     /** The last successful guide snapshot — read synchronously, refreshed in the background. */
     @Volatile
     private var entries: List<GuideEntry> = emptyList()
@@ -100,7 +103,7 @@ class BroadcastGuideApi(private val client: OkHttpClient) {
      * kept distinct so a tournament listing can never confirm one individual match.
      */
     fun listingsFor(fixture: Fixture): List<BroadcastListing> =
-        GuideMatch.listings(entries, fixture, refreshedAtMs)
+        GuideMatch.listings(entries, fixture, refreshedAtMs) + sourceHub.listingsFor(fixture)
 
     /**
      * The rows of one per-sport page (cycling, athletics, boxing). Those sports have no ESPN league,
@@ -158,7 +161,9 @@ class BroadcastGuideApi(private val client: OkHttpClient) {
         val next = extras.filterValues { it.isNotEmpty() }
         val changed = next.any { (sport, rows) -> sportEntries[sport] != rows }
         sportEntries = sportEntries + next
-        if (merged.isNotEmpty() || changed) _version.value++
+        // Other sources refresh independently; one broken page never prevents the rest.
+        val extraChanged = sourceHub.refresh()
+        if (merged.isNotEmpty() || changed || extraChanged) _version.value++
     }
 
     private fun fetchInto(out: MutableList<GuideEntry>, url: String) {
@@ -446,20 +451,30 @@ object GuideMatch {
             sideTokensHit(rowNorm, sideA) && sideTokensHit(rowNorm, sideB)
 
     private fun sideTokensHit(rowNorm: String, side: String): Boolean {
+        // An explicit alias list is the accepted spelling for that club. Checking it first keeps
+        // "Manchester City" from matching a "Manchester United" row (where only the generic
+        // "united" differs) and "Paris FC" from matching PSG.
+        val aliases = ShortClubNames[SportNameMatch.normalize(side).trim()]
+        if (!aliases.isNullOrEmpty()) {
+            return aliases.any { alias -> aliasHits(rowNorm, alias) }
+        }
         val tokens = SportNameMatch.tokensForName(side, TeamSuffixes)
         if (tokens.isEmpty()) return false
         // "Newcastle United" is identified by "newcastle"; "united"/"city" are shared by dozens of
         // clubs and must not decide a side on their own. All remaining tokens must hit, so a row
         // naming "Manchester United" never stands in for "Manchester City".
         val required = tokens.filterNot { it in GenericTeamWords }.ifEmpty { tokens }
-        if (required.all { tokenHits(rowNorm, it) }) return true
-        if (ShortClubNames[SportNameMatch.normalize(side).trim()].orEmpty().none { alias ->
-                SportNameMatch.tokensForName(alias, TeamSuffixes).ifEmpty { setOf(alias) }.all { tokenHits(rowNorm, it) }
-            }
-        ) {
-            return false
+        return required.all { tokenHits(rowNorm, it) }
+    }
+
+    /** A full alias phrase when it contains a short token ("fc", "utd"), else all its tokens. */
+    private fun aliasHits(rowNorm: String, alias: String): Boolean {
+        val normalized = SportNameMatch.normalize(alias).trim()
+        if (normalized.isBlank()) return false
+        if (normalized.split(' ').any { it.length < MinAliasTokenLength }) {
+            return SportNameMatch.containsPhrase(normalized, rowNorm)
         }
-        return true
+        return normalized.split(' ').filter { it.isNotBlank() }.all { tokenHits(rowNorm, it) }
     }
 
     private fun tokenHits(rowNorm: String, token: String): Boolean =
@@ -501,9 +516,44 @@ object GuideMatch {
 
     /** Fixed short spellings of full club names used by TV guides; never a fuzzy prefix rule. */
     private val ShortClubNames = mapOf(
+        // UK
         "tottenham hotspur" to listOf("tottenham"),
         "brighton hove albion" to listOf("brighton"),
         "borussia monchengladbach" to listOf("gladbach", "monchengladbach"),
+        "manchester city" to listOf("manchester city", "man city"),
+        "manchester united" to listOf("manchester united", "man united", "man utd"),
+        "wolverhampton wanderers" to listOf("wolverhampton", "wolves"),
+        "west bromwich albion" to listOf("west bromwich albion", "west brom"),
+        "queens park rangers" to listOf("qpr"),
+        "nottingham forest" to listOf("nottingham forest", "nott m forest"),
+        "sheffield wednesday" to listOf("sheffield wednesday", "sheffield wed", "sheffield weds"),
+        "sheffield united" to listOf("sheffield united", "sheffield utd"),
+        "bristol city" to listOf("bristol city"),
+        "bristol rovers" to listOf("bristol rovers"),
+        "derby county" to listOf("derby"),
+        "preston north end" to listOf("preston"),
+        "plymouth argyle" to listOf("plymouth"),
+        "milton keynes dons" to listOf("mk dons"),
+        // France
+        "paris saint germain" to listOf("psg", "paris saint germain", "paris sg"),
+        "paris fc" to listOf("paris fc"),
+        "olympique lyonnais" to listOf("lyon"),
+        "olympique de marseille" to listOf("marseille"),
+        "olympique marseille" to listOf("marseille"),
+        "lille osc" to listOf("lille", "losc"),
+        "losc lille" to listOf("lille", "losc"),
+        "stade rennais" to listOf("rennes", "stade rennais"),
+        "stade rennais fc" to listOf("rennes", "stade rennais"),
+        "stade brestois 29" to listOf("brest", "stade brestois"),
+        "stade brestois" to listOf("brest", "stade brestois"),
+        "rc strasbourg alsace" to listOf("strasbourg"),
+        "stade de reims" to listOf("reims"),
+        "fc sochaux montbeliard" to listOf("sochaux"),
+        "as nancy lorraine" to listOf("nancy"),
+        "le havre ac" to listOf("havre"),
+        "angers sco" to listOf("angers"),
+        "sco angers" to listOf("angers"),
+        "montpellier hsc" to listOf("montpellier"),
     )
 
     /** Generic club affixes (after [SportNameMatch.tokensForName]'s length rule). */
@@ -530,6 +580,9 @@ object GuideMatch {
 
     /** Shortest event title token considered (matches [SportNameMatch]'s minimum). */
     private const val MinEventTokenLength = 3
+
+    /** A token this short cannot identify a side on its own; its alias must match as a phrase. */
+    private const val MinAliasTokenLength = 3
 }
 
 /** HTML parsers for the WTM day-window pages — pure string work, unit-testable without Android. */

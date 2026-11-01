@@ -14,6 +14,19 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v1.3.2 — 2026-11-01
+
+### ✨ New features
+- **FootTV adds French football with numbered Ligue 1+ feeds**
+- **Foot Mercato adds European football with numbered Ligue 1+ feeds**
+- **Live Football on TV adds UK football**
+- **Sky Sports and Sport-TV add UK and French tennis coverage**
+
+### 🐛 Fixes
+- **A Ligue 1+ network listing no longer confirms a numbered feed**
+- **Syndicated broadcast sources no longer count as independent confirmations**
+- **Freshness stays strict at the 30-minute evidence boundary**
+
 ## v1.3.1 — 2026-11-01
 
 ### 🐛 Fixes

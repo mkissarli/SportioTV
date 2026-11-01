@@ -1,4 +1,4 @@
-# docs/SPORT-HUB.md — Einstieg (Stand: 2026-10-28)
+# docs/SPORT-HUB.md — Einstieg (Stand: 2026-11-01)
 
 > Zweck: Einstiegsseite für den Sports-Hub; Detailspecs bleiben in den
 > referenzierten Dateien, damit nichts doppelt gepflegt wird.
@@ -25,20 +25,21 @@
   Ort: im Matcher VOR dem Cap (`match(fixture, languages, limit)`). Exakte
   Event-Kanäle (Name nennt beide Teams/Spieler, `ChannelMatch.isExact`) passieren
   immer — sie sind das Event selbst, kein Fremd-Feed davon.
-- Web-Guide (Where's The Match, `BroadcastGuideApi`) ist die Web-Evidenz für den
-  **DeepSeek-Board-Abgleich**, nicht mehr für Classic: ein Day-Window-Request
+- Web-Guide (Where's The Match, `BroadcastGuideApi`) ist Web-Evidenz für **Classic
+  und** den **DeepSeek-Board-Abgleich**: ein Day-Window-Request
   (`live-sport-on-tv/?showdatestart=…&showdateend=…`, 30-min-Cache, ein Retry;
   drei 3-Tage-Fenster ab **heute** — ein Start in der Vergangenheit lässt die Seite
   nur die Reste von heute liefern, gemessen 2026-10-25). Treffer: Teams/Duelle per
   beiden Namen im Row-Text (generische Club-Wörter wie „united"/„city" zählen nicht;
   feste Kurzformen wie „Tottenham" für „Tottenham Hotspur"), F1/Events per
   Titel-Tokens plus **gleiche Session** (Practice erbt nie das Rennen). Eine
-  ATP/WTA-Tour-Zeile pro Tag ist **kein** Beweis für ein einzelnes Match — sie geht
-  nur als Kontext an die KI. Gated rows (`unlock-premier-listing`) sind fehlende
-  Sender-Evidenz, kein „läuft nicht". Die gefundenen Sender werden gegen die Playlist
-  aufgelöst (Präfix/Suffix/Plural-tolerant) und per Regel-4-Identität dedupliziert
-  (`ChannelDedup`: Länder-/Quellen-Tag bleibt Identität, Auflösungs-/Codec-Wörter
-  fliegen, beste Auflösung gewinnt, „Main Event" wird nie gestrippt).
+  ATP/WTA-Tour-Zeile pro Tag ist **kein** Beweis für ein einzelnes Match — sie bleibt
+  `TOURNAMENT` und wird höchstens `Likely` auf einem Specialist-Kanal. Gated rows
+  (`unlock-premier-listing`) sind fehlende Sender-Evidenz, kein „läuft nicht“. Die
+  gefundenen Sender werden gegen die Playlist aufgelöst (Präfix/Suffix/Plural-tolerant)
+  und per Regel-4-Identität dedupliziert (`ChannelDedup`: Länder-/Quellen-Tag bleibt
+  Identität, Auflösungs-/Codec-Wörter fliegen, beste Auflösung gewinnt, „Main Event"
+  wird nie gestrippt).
 - **EPG und KI werden unabhängig ausgewertet und vereinigt** (`SportsMatcher.
   mergeEvidence`): eine bestätigte Voll-Playlist-KI-Antwort ergänzt die EPG-Suche,
   ersetzt sie nicht. Evidenzklassen sortieren EPG/Name > KI-only; Priors, bevorzugte
@@ -50,6 +51,12 @@
   `BroadcastEvidence` mit `Supported`/`Likely`/`Possible` geführt. Ohne EPG und ohne
   Guide bleibt für Teamsport ein Specialist-Kanal als `Possible`. Details und
   Messwerte: `SPORT-DETERMINISTIC-MATCHING.md`.
+- **Additional broadcast sources (2026-11-01):** FootTV (French football, numbered
+  Ligue 1+ feeds), Foot Mercato (European football in French, numbered feeds), Live Football
+  on TV (UK football), Sky Sports Tennis (UK tennis, tournament rows) and Sport-TV.fr
+  (French tennis, session rows) run as separate adapters in the existing background refresh.
+  `BroadcastListingMatch` filters rows to the fixture; `sourceFamily` prevents double-counting
+  syndicated data. Inventory/robots/rejections: `BROADCAST-SOURCES.md`.
 - **Standard-Landeseite (2026-10-25):** nach Login startet der Shell im **Sport-Hub**
   (`ShellViewModel` initial `MainSection.SPORT`). Details zur Umleitung der übrigen
   Sektionen: Einzel-Rail-Eintrag unten.
@@ -110,8 +117,9 @@
   (hat „Coventry v Newcastle" auf 6 statt 12 Sender reduziert).
 - Discovery = rohe akzentbehaftete Tokens für SQL `LIKE`; Scoring = normalisierte
   Tokens in-memory. Nicht vermischen (verliert „München").
-- Der Kanalname-/EPG-Pfad läuft **immer**; der Web-Guide wird in Classic nicht
-  befragt. Reine Events (F1/Golf) nehmen ihren Titel als Wettbewerbs-Text
+- Der Kanalname-/EPG-Pfad läuft **immer**; der Web-Guide wird in Classic als
+  zusätzliche, EPG-unabhängige Evidenz befragt (nie als Ersatz). Reine Events
+  (F1/Golf) nehmen ihren Titel als Wettbewerbs-Text
   (`united states grand prix` — kein fest kodierter Kanal-Hint mehr). PGA/IRL haben
   keinen Hint.
 - Duelle (`VERSUS` mit 2 Entries, Tennis/MMA) laufen seit 2026-10-13 denselben

@@ -1512,7 +1512,7 @@ class SportsMatcher(
 
         /** External listing resolution: bounded work per fixture, never the whole playlist. */
         private const val IndexableScanRows = 8_000
-        private const val GuideListingCap = 32
+        private const val GuideListingCap = 16
         private const val GuideChannelCap = 120
         // A broad single-word probe on a 60k playlist can have many hits before the right row.
         // 1000 rows is still bounded (identity checks are cheap) and leaves headroom.

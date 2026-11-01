@@ -7,9 +7,9 @@
 
 | Source | `sourceId` / family | Content | Specificity | TTL | Parser |
 |---|---|---|---|---|---|
-| FootTV.fr (`https://www.foottv.fr/`) | `foottv` / `foottv` | French football, fixture rows, numbered Ligue 1+ feeds | `FIXTURE` + exact channel; network names (`Ligue 1+`, `DAZN`) → `SERVICE` | 30 min | `BroadcastSourceParsers.footTv` |
-| Foot Mercato (`https://www.footmercato.net/programme-tv/`) | `footmercato` / `footmercato` | European football in French, fixture rows, numbered Ligue 1+ feeds | `FIXTURE` + exact channel; network names (`Ligue 1+`, `DAZN`, `Canal+`) → `SERVICE` | 30 min | `footMercato` |
-| Live Football on TV (`https://www.live-footballontv.com/`) | `livefootballontv` / `livefootballontv` | UK football, fixture rows, linear channels | `FIXTURE` + exact channel; `DAZN`/`Amazon Prime`/`Ligue1+` → `SERVICE` | 30 min | `liveFootballOnTv` |
+| FootTV.fr (`https://www.foottv.fr/`) | `foottv` / `foottv` | French football, fixture rows, numbered Ligue 1+ feeds | `FIXTURE` + exact channel; network names (`Ligue 1+`, `DAZN`) → `SERVICE` | 60 min | `BroadcastSourceParsers.footTv` |
+| Foot Mercato (`https://www.footmercato.net/programme-tv/`) | `footmercato` / `footmercato` | European football in French, fixture rows, numbered Ligue 1+ feeds | `FIXTURE` + exact channel; network names (`Ligue 1+`, `DAZN`, `Canal+`) → `SERVICE` | 60 min | `footMercato` |
+| Live Football on TV (`https://www.live-footballontv.com/`) | `livefootballontv` / `livefootballontv` | UK football, fixture rows, linear channels | `FIXTURE` + exact channel; `DAZN`/`Amazon Prime`/`Ligue1+` → `SERVICE` | 60 min | `liveFootballOnTv` |
 | Sky Sports Tennis (`https://www.skysports.com/watch/tennis-on-sky`) | `skysports-tennis` / `sky` | UK tennis, tournament/day rows with channel and start time | `TOURNAMENT` | 60 min | `skySportsTennis` |
 | Sport-TV.fr Tennis (`https://sport-tv.fr/tennis/`) | `sport-tv-tennis` / `sport-tv` | French tennis, session rows ("session soir", final) | `SESSION` | 60 min | `sportTvTennis` |
 | Where's The Match (`https://www.wheresthematch.com/`) | `wheresthematch` / `wheresthematch` | Existing: all sports, fixture rows and tennis tour rows | `FIXTURE` / `TOURNAMENT` | 30 min | `GuideParsers.wtm` |
@@ -21,6 +21,8 @@ reads the last snapshot — no network on the fixture/UI path.
 ### Fetch rules
 
 - One page request per source per refresh, no season download, no detail pages.
+- Sources refresh one at a time, not in parallel: a TV has little heap headroom, and
+  five ~1 MB pages plus their regex trees at once is avoidable peak memory.
 - Hard byte limits: FootTV 3 MB, Foot Mercato 3 MB, Live Football 3 MB, Sky 2 MB,
   Sport-TV 1 MB.
 - 15 s timeout per source, one retry, `withTimeout` in the hub.

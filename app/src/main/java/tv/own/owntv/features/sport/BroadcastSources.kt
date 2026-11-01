@@ -13,9 +13,6 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -125,7 +122,7 @@ object FootTvSource : HtmlBroadcastSource(
     sourceId = "foottv",
     sourceFamily = "foottv",
     url = "https://www.foottv.fr/",
-    ttlMs = 30L * 60L * 1000L,
+    ttlMs = 60L * 60L * 1000L,
     maxBytes = 3L * 1024L * 1024L,
 ) {
     override fun parse(html: String, window: BroadcastWindow, retrievedAtMs: Long): List<BroadcastListing> =
@@ -137,7 +134,7 @@ object FootMercatoSource : HtmlBroadcastSource(
     sourceId = "footmercato",
     sourceFamily = "footmercato",
     url = "https://www.footmercato.net/programme-tv/",
-    ttlMs = 30L * 60L * 1000L,
+    ttlMs = 60L * 60L * 1000L,
     maxBytes = 3L * 1024L * 1024L,
 ) {
     override fun parse(html: String, window: BroadcastWindow, retrievedAtMs: Long): List<BroadcastListing> =
@@ -149,7 +146,7 @@ object LiveFootballOnTvSource : HtmlBroadcastSource(
     sourceId = "livefootballontv",
     sourceFamily = "livefootballontv",
     url = "https://www.live-footballontv.com/",
-    ttlMs = 30L * 60L * 1000L,
+    ttlMs = 60L * 60L * 1000L,
     maxBytes = 3L * 1024L * 1024L,
 ) {
     override fun parse(html: String, window: BroadcastWindow, retrievedAtMs: Long): List<BroadcastListing> =
@@ -216,24 +213,25 @@ class BroadcastSourceHub(
             previous == null || previous.failed || now - previous.retrievedAtMs >= source.ttlMs
         }
         if (due.isEmpty()) return false
-        val results = coroutineScope {
-            due.map { source ->
-                async {
-                    runCatching {
-                        withTimeout(source.timeoutMs + GraceMs) {
-                            source.fetch(window, client, now)
-                        }
-                    }.getOrElse { error ->
-                        SourceResult(
-                            sourceId = source.sourceId,
-                            sourceFamily = source.sourceFamily,
-                            retrievedAtMs = 0L,
-                            listings = emptyList(),
-                            failure = error.message ?: error.javaClass.simpleName,
-                        )
-                    }
+        // Sequential on purpose: a Fire TV Stick has little headroom, and five ~1 MB pages plus
+        // their regex match trees at once is avoidable peak memory. The refresh is background, so
+        // wall-clock time is less important than not being killed.
+        val results = ArrayList<SourceResult>(due.size)
+        for (source in due) {
+            val result = try {
+                withTimeout(source.timeoutMs + GraceMs) {
+                    source.fetch(window, client, now)
                 }
-            }.awaitAll()
+            } catch (error: Exception) {
+                SourceResult(
+                    sourceId = source.sourceId,
+                    sourceFamily = source.sourceFamily,
+                    retrievedAtMs = 0L,
+                    listings = emptyList(),
+                    failure = error.message ?: error.javaClass.simpleName,
+                )
+            }
+            results += result
         }
         var changed = false
         val next = HashMap(snapshots)
@@ -735,7 +733,7 @@ object BroadcastSourceParsers {
         }.replace('\u00a0', ' ').trim()
     }
 
-    private const val MaxListings = 2_000
+    private const val MaxListings = 600
     private const val FixtureConfidence = 90
     private const val ServiceConfidence = 40
     private const val SessionConfidence = 60

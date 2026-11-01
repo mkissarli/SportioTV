@@ -14,6 +14,13 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v1.3.3 — 2026-11-01
+
+### 🐛 Fixes
+- **Broadcast sources refresh one at a time instead of five in parallel**
+- **New broadcast sources refresh every 60 minutes**
+- **External guide matching is capped at 16 listings per fixture**
+
 ## v1.3.2 — 2026-11-01
 
 ### ✨ New features

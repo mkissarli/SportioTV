@@ -468,12 +468,13 @@ object SportLanguages {
      * returned, so the pane is never empty.
      *
      * Exact per-event channels ([ChannelMatch.isExact] — the name itself carries both sides, e.g. a
-     * tennis PPV named for the duel) always survive: they are the event itself, not a
+     * tennis PPV named for the duel) and rows with direct external/EPG evidence
+     * ([ChannelMatch.directEvidence]) always survive: they are the event itself, not a
      * foreign-language feed of it.
      */
     fun filter(matches: List<ChannelMatch>, languages: Set<SportLanguage>): List<ChannelMatch> {
         if (languages.isEmpty()) return matches
-        val kept = matches.filter { it.isExact || keeps(it.channelName, languages) }
+        val kept = matches.filter { it.isExact || it.directEvidence || keeps(it.channelName, languages) }
         return kept.ifEmpty { matches }
     }
 
@@ -481,9 +482,10 @@ object SportLanguages {
      * Strict variant of [filter] without the never-empty fallback: excluded languages are dropped
      * first (an exact per-event channel does NOT survive its language being excluded — excluding is
      * an explicit "never show", filtering is a preference), then only channels in [languages] are
-     * kept, with exact per-event channels ([ChannelMatch.isExact]) always surviving the preference
-     * step. An empty [languages] means "all" (minus [excluded]). A short list stays short — no
-     * foreign feed is padded back in (see `docs/sport-roadmap.md` Punkt 4, Mindestquote).
+     * kept, with exact per-event channels ([ChannelMatch.isExact]) and direct-evidence rows
+     * ([ChannelMatch.directEvidence]) always surviving the preference step. An empty [languages]
+     * means "all" (minus [excluded]). A short list stays short — no foreign feed is padded back in
+     * (see `docs/sport-roadmap.md` Punkt 4, Mindestquote).
      */
     fun filterStrict(
         matches: List<ChannelMatch>,
@@ -492,7 +494,7 @@ object SportLanguages {
     ): List<ChannelMatch> {
         val kept = matches.filterNot { languageOfName(it.channelName) in excluded }
         if (languages.isEmpty()) return kept
-        return kept.filter { it.isExact || keeps(it.channelName, languages) }
+        return kept.filter { it.isExact || it.directEvidence || keeps(it.channelName, languages) }
     }
 
     private fun keeps(channelName: String, languages: Set<SportLanguage>): Boolean {

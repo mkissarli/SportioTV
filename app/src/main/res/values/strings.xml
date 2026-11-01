@@ -41,6 +41,8 @@
     <string name="sport_evidence_search">Search</string>
     <string name="sport_evidence_epg">EPG</string>
     <string name="sport_evidence_rights">Rights knowledge</string>
+    <string name="sport_evidence_guide">TV guide</string>
+    <string name="sport_evidence_channel">Channel identity</string>
     <string name="sport_deepseek_checking">Checking live TV listings…</string>
     <string name="sport_play">Play</string>
     <string name="sport_no_channel">No matching channel in your playlists</string>

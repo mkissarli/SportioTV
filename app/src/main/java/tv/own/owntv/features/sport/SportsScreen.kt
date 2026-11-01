@@ -1658,6 +1658,8 @@ private fun evidenceLine(match: ChannelMatch): String? {
         ChannelEvidenceSource.SEARCH -> stringResource(R.string.sport_evidence_search)
         ChannelEvidenceSource.EPG -> stringResource(R.string.sport_evidence_epg)
         ChannelEvidenceSource.RIGHTS -> stringResource(R.string.sport_evidence_rights)
+        ChannelEvidenceSource.GUIDE -> stringResource(R.string.sport_evidence_guide)
+        ChannelEvidenceSource.CHANNEL -> stringResource(R.string.sport_evidence_channel)
         null -> null
     }
     val head = listOfNotNull(tierLabel, source).joinToString(Separator)
@@ -1672,7 +1674,9 @@ private const val Separator = " · "
 private fun channelChipText(match: ChannelMatch): String {
     val source = when {
         match.aiConfirmed || match.aiReason != null -> stringResource(R.string.sport_chip_source_ai)
-        match.epgConfirmed || match.epgTitle != null || match.evidenceSource == ChannelEvidenceSource.EPG ->
+        match.epgConfirmed || match.epgTitle != null ||
+            match.evidenceSource == ChannelEvidenceSource.EPG ||
+            match.evidenceSource == ChannelEvidenceSource.GUIDE ->
             stringResource(R.string.sport_chip_source_guide)
         else -> stringResource(R.string.sport_chip_source_name)
     }

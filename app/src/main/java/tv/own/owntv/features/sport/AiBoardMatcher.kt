@@ -524,7 +524,7 @@ class AiBoardMatcher(
                     detail = epg.title
                 }
             }
-            ChannelEvidenceSource.RIGHTS -> {
+            ChannelEvidenceSource.RIGHTS, ChannelEvidenceSource.GUIDE, ChannelEvidenceSource.CHANNEL -> {
                 if (tier == ChannelEvidenceTier.SUPPORTED) tier = ChannelEvidenceTier.LIKELY
             }
         }

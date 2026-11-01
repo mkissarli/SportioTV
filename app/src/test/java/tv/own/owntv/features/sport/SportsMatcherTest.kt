@@ -1039,6 +1039,140 @@ class SportsMatcherTest {
         )
     }
 
+    // --- deterministic external evidence (no EPG) ----------------------------------------------
+
+    @Test
+    fun aFixtureSpecificGuideListingMatchesWithoutAnyEpg() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(
+                channel(800, "UK| SKY SPORTS MAIN EVENT"),
+                channel(801, "UK| SKY SPORTS CRICKET"),
+            ),
+            programmes = emptyList(),
+        )
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("Sky Sports Main Event"))),
+        )
+
+        assertEquals(listOf("UK| SKY SPORTS MAIN EVENT"), matches.map { it.channelName })
+        assertEquals(ChannelEvidenceTier.SUPPORTED, matches.single().evidenceTier)
+        assertEquals(ChannelEvidenceSource.GUIDE, matches.single().evidenceSource)
+    }
+
+    @Test
+    fun aTennisTourListingIsLikelyButNeverSupported() = runBlocking {
+        val store = FakeStore(channels = listOf(channel(810, "UK| SKY SPORTS TENNIS")), programmes = emptyList())
+
+        val matches = matcher(store).match(
+            duelFixture(),
+            SportMatchOptions(
+                languages = emptySet(),
+                guideListings = listOf(
+                    listing("Sky Sports Tennis", direct = false, coverage = CoverageType.TOURNAMENT, sport = SportClass.TENNIS),
+                ),
+            ),
+        )
+
+        assertEquals(listOf("UK| SKY SPORTS TENNIS"), matches.map { it.channelName })
+        assertEquals(ChannelEvidenceTier.LIKELY, matches.single().evidenceTier)
+        assertEquals(ChannelEvidenceSource.GUIDE, matches.single().evidenceSource)
+    }
+
+    @Test
+    fun aTournamentListingOnAGeneralChannelIsOnlyPossible() = runBlocking {
+        val store = FakeStore(channels = listOf(channel(811, "UK| SKY SPORTS MAIN EVENT")), programmes = emptyList())
+
+        val matches = matcher(store).match(
+            duelFixture(),
+            SportMatchOptions(
+                languages = emptySet(),
+                guideListings = listOf(
+                    listing("Sky Sports Main Event", direct = false, coverage = CoverageType.TOURNAMENT, sport = SportClass.TENNIS),
+                ),
+            ),
+        )
+
+        assertEquals(ChannelEvidenceTier.POSSIBLE, matches.single().evidenceTier)
+    }
+
+    @Test
+    fun epgAndGuideEvidenceMergeOnTheSamePlaylistRow() = runBlocking {
+        val store = FakeStore(
+            channels = listOf(channel(820, "UK| SKY SPORTS MAIN EVENT", epgKey = "uk")),
+            programmes = listOf(programme("uk", title = "Coventry City v Newcastle United")),
+        )
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("Sky Sports Main Event"))),
+        )
+
+        assertEquals(1, matches.size)
+        assertEquals("Coventry City v Newcastle United", matches.single().epgTitle)
+        assertTrue(matches.single().epgConfirmed)
+        assertEquals(ChannelEvidenceTier.SUPPORTED, matches.single().evidenceTier)
+        assertEquals(90, matches.single().score)
+    }
+
+    @Test
+    fun anUnrelatedGuideChannelIsNotBorrowed() = runBlocking {
+        val store = FakeStore(channels = listOf(channel(830, "IT: SKY SPORT ARENA")), programmes = emptyList())
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("Sky Sports Cricket"))),
+        )
+
+        assertTrue(matches.isEmpty())
+    }
+
+    @Test
+    fun aPreferredCountryDoesNotHideStrongGuideEvidence() = runBlocking {
+        val store = FakeStore(channels = listOf(channel(840, "DE: SKY SPORT BUNDESLIGA")), programmes = emptyList())
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(
+                languages = emptySet(),
+                preferCountry = "UK",
+                guideListings = listOf(listing("Sky Sport Bundesliga")),
+            ),
+        )
+
+        assertEquals(listOf("DE: SKY SPORT BUNDESLIGA"), matches.map { it.channelName })
+        assertEquals(ChannelEvidenceTier.SUPPORTED, matches.single().evidenceTier)
+    }
+
+    @Test
+    fun directGuideEvidenceSurvivesThePreferredLanguageFilter() = runBlocking {
+        val store = FakeStore(channels = listOf(channel(860, "DE: SKY SPORT BUNDESLIGA")), programmes = emptyList())
+
+        val matches = matcher(store).match(
+            fixture(),
+            SportMatchOptions(
+                languages = setOf(SportLanguage.ENGLISH),
+                guideListings = listOf(listing("Sky Sport Bundesliga")),
+            ),
+        )
+
+        // The German tag would normally drop this row; direct evidence outranks the preference.
+        assertEquals(listOf("DE: SKY SPORT BUNDESLIGA"), matches.map { it.channelName })
+        assertTrue(matches.single().directEvidence)
+    }
+
+    @Test
+    fun withNoEpgAndNoGuideASpecialistChannelIsOnlyPossible() = runBlocking {
+        val store = FakeStore(channels = listOf(channel(850, "UK| SKY SPORTS FOOTBALL")), programmes = emptyList())
+
+        val matches = matcher(store).match(fixture(), SportMatchOptions(languages = emptySet()))
+
+        assertEquals(listOf("UK| SKY SPORTS FOOTBALL"), matches.map { it.channelName })
+        assertEquals(ChannelEvidenceTier.POSSIBLE, matches.single().evidenceTier)
+        assertEquals(ChannelEvidenceSource.CHANNEL, matches.single().evidenceSource)
+    }
+
     // --- fixtures / vocabulary ------------------------------------------------------------------
 
     private val vocab = SportsVocab.of(
@@ -1117,6 +1251,30 @@ class SportsMatcherTest {
         name = name,
         streamUrl = "http://provider.invalid/$id.ts",
         epgChannelId = epgKey,
+    )
+
+    private fun listing(
+        channelName: String,
+        direct: Boolean = true,
+        coverage: CoverageType = if (direct) CoverageType.FIXTURE else CoverageType.TOURNAMENT,
+        sport: SportClass = SportClass.FOOTBALL,
+    ) = BroadcastListing(
+        eventId = "1",
+        sport = sport,
+        competition = null,
+        participants = listOf("Coventry City", "Newcastle United"),
+        eventStartTimeMs = Noon,
+        coverageStartTimeMs = Noon,
+        coverageEndTimeMs = Noon + 2 * HourMs,
+        broadcaster = channelName,
+        channel = channelName,
+        territory = "UK",
+        language = "en",
+        coverageType = coverage,
+        sourceId = "wheresthematch",
+        retrievedAtMs = System.currentTimeMillis(),
+        confidence = if (direct) 90 else 45,
+        direct = direct,
     )
 
     private fun programme(

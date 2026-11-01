@@ -64,6 +64,13 @@ data class SportMatchOptions(
      * existing evidence-first order.
      */
     val classicPrefixOrder: Boolean = false,
+    /**
+     * The last structured external broadcast snapshot for this fixture (Where's The Match),
+     * already filtered to plausible rows by `BroadcastGuideApi.listingsFor`. Read synchronously
+     * from the in-memory snapshot: matching never waits for the network. Empty means "no external
+     * evidence", never "not televised".
+     */
+    val guideListings: List<BroadcastListing> = emptyList(),
 )
 
 /**
@@ -185,7 +192,15 @@ class SportsMatcher(
             // rows. If the FTS table is empty/unavailable, scanRows is the safe fallback.
             val rows = candidateRows(sourceIds, fixture)
             val deterministic = resolveSorted(fixture, rows)
-            applyFilter(mergeEvidence(deterministic, aiRows), options, demotePpv = fixture.isTeamSport())
+            // EPG-independent path: external listings resolve to playlist rows through the
+            // canonical identity, regardless of whether the provider supplies any EPG.
+            val external = guideMatches(fixture, options.guideListings, sourceIds, rows)
+            var merged = mergeEvidence(deterministic, external, aiRows)
+            // Scenario D: no EPG, no guide, no name evidence. A specialist channel is a useful
+            // *possible* answer, clearly weaker than confirmation — and only when the list would
+            // otherwise be empty, so it never pads a real result.
+            if (merged.isEmpty()) merged = specialistFallback(fixture, sourceIds)
+            applyFilter(merged, options, demotePpv = fixture.isTeamSport())
         }
 
     /** At most a handful of accepted AI rows; `getById` is far cheaper than scanning the catalogue. */
@@ -214,16 +229,19 @@ class SportsMatcher(
                 out[match.channelId] = if (previous == null) {
                     match
                 } else {
+                    val winner = strongerTier(previous.evidenceTier, match.evidenceTier)
+                    val winnerRow = if (match.evidenceTier != null && match.evidenceTier == winner) match else previous
                     previous.copy(
                         epgTitle = previous.epgTitle ?: match.epgTitle,
                         score = maxOf(previous.score, match.score),
                         isExact = previous.isExact || match.isExact,
                         epgConfirmed = previous.epgConfirmed || match.epgConfirmed,
+                        directEvidence = previous.directEvidence || match.directEvidence,
                         aiConfirmed = previous.aiConfirmed || match.aiConfirmed,
                         aiReason = previous.aiReason ?: match.aiReason,
-                        evidenceTier = previous.evidenceTier ?: match.evidenceTier,
-                        evidenceSource = previous.evidenceSource ?: match.evidenceSource,
-                        evidenceDetail = previous.evidenceDetail ?: match.evidenceDetail,
+                        evidenceTier = winner,
+                        evidenceSource = winnerRow.evidenceSource ?: previous.evidenceSource ?: match.evidenceSource,
+                        evidenceDetail = winnerRow.evidenceDetail ?: previous.evidenceDetail ?: match.evidenceDetail,
                         evidenceUrl = previous.evidenceUrl ?: match.evidenceUrl,
                         sourceId = previous.sourceId ?: match.sourceId,
                     )
@@ -231,6 +249,24 @@ class SportsMatcher(
             }
         }
         return out.values.toList()
+    }
+
+    /** A merged row keeps the strongest evidence class; a null class never wins over a class. */
+    private fun strongerTier(
+        first: ChannelEvidenceTier?,
+        second: ChannelEvidenceTier?,
+    ): ChannelEvidenceTier? = when {
+        first == null -> second
+        second == null -> first
+        tierRank(second) > tierRank(first) -> second
+        else -> first
+    }
+
+    private fun tierRank(tier: ChannelEvidenceTier): Int = when (tier) {
+        ChannelEvidenceTier.SUPPORTED -> 4
+        ChannelEvidenceTier.LIKELY -> 3
+        ChannelEvidenceTier.POSSIBLE -> 2
+        ChannelEvidenceTier.CONFLICTING -> 1
     }
 
     /** Team sports have home/away sides; duels (tennis/MMA) and events (F1/golf) do not. */
@@ -331,11 +367,18 @@ class SportsMatcher(
                     m.aiConfirmed -> AiEvidenceTier
                     else -> DeterministicEvidenceTier
                 }
-                val deepSeekBonus = when (m.evidenceTier) {
-                    ChannelEvidenceTier.SUPPORTED -> EvidenceSupportedBonus
-                    ChannelEvidenceTier.LIKELY -> EvidenceLikelyBonus
-                    ChannelEvidenceTier.CONFLICTING -> EvidenceConflictingPenalty
-                    else -> 0
+                // External guide and accepted-AI rows carry their own class band. A deterministic
+                // EPG/name row keeps its historical score order: an exact channel name (4) must
+                // stay above a weaker description-only EPG hit (3).
+                val deepSeekBonus = if (m.aiConfirmed || m.evidenceSource == ChannelEvidenceSource.GUIDE) {
+                    when (m.evidenceTier) {
+                        ChannelEvidenceTier.SUPPORTED -> EvidenceSupportedBonus
+                        ChannelEvidenceTier.LIKELY -> EvidenceLikelyBonus
+                        ChannelEvidenceTier.CONFLICTING -> EvidenceConflictingPenalty
+                        else -> 0
+                    }
+                } else {
+                    0
                 }
                 val sortScore = (if (options.classicPrefixOrder) classicPrefixTier(m.channelName) else 0) +
                     playlistBonus + evidenceTier + deepSeekBonus + m.score + countryBonus + priorBonus -
@@ -477,6 +520,164 @@ class SportsMatcher(
             }
         }
         return out
+    }
+
+    // ---- External broadcast evidence (EPG-independent) ------------------------------------------
+
+    /**
+     * Resolve the external listings to playlist rows and turn each hit into [BroadcastEvidence].
+     * This never fetches: [listings] is the last in-memory guide snapshot. Discovery here is
+     * deliberately broader than the fixture-token scan — a listing names the channel, not the
+     * teams — so it is the path that still works when the provider supplies no EPG at all.
+     */
+    private suspend fun guideMatches(
+        fixture: Fixture,
+        listings: List<BroadcastListing>,
+        sourceIds: List<Long>,
+        rows: List<ScanRow>,
+    ): List<ChannelMatch> {
+        if (listings.isEmpty()) return emptyList()
+        val now = System.currentTimeMillis()
+        val byKey = HashMap<String, MutableList<ChannelEntity>>()
+        val byChannel = HashMap<String, MutableList<ChannelEntity>>()
+        // Bound the in-memory index: a full 60k scan is not worth it, and the per-listing FTS
+        // probes below still find the rows. A normal FTS candidate set is only a few thousand.
+        if (rows.size <= IndexableScanRows) {
+            for (row in rows) {
+                val id = ChannelIdentityResolver.resolve(row.channel.name) ?: continue
+                byKey.getOrPut(id.key) { ArrayList() } += row.channel
+                byChannel.getOrPut(id.channel) { ArrayList() } += row.channel
+            }
+        }
+        val evidenceByChannel = LinkedHashMap<Long, MutableList<BroadcastEvidence>>()
+        val channels = LinkedHashMap<Long, ChannelEntity>()
+        for (listing in listings.take(GuideListingCap)) {
+            val sourceIdentity = ChannelIdentityResolver.resolve(listing.channel) ?: continue
+            val candidates = resolveListingCandidates(listing, sourceIdentity, sourceIds, byKey, byChannel)
+            val kind = when (listing.sourceId) {
+                OfficialSourceId -> EvidenceKind.OFFICIAL_SCHEDULE
+                else -> if (listing.direct) EvidenceKind.EXTERNAL_FIXTURE else EvidenceKind.TOURNAMENT_SCHEDULE
+            }
+            for (row in candidates) {
+                val rowIdentity = ChannelIdentityResolver.resolve(row.name) ?: continue
+                if (ChannelIdentityResolver.relationOf(rowIdentity, sourceIdentity) == null) continue
+                val evidence = BroadcastEvidence(
+                    kind = kind,
+                    sourceId = listing.sourceId,
+                    eventId = listing.eventId,
+                    channelIdentity = rowIdentity.key,
+                    channelName = row.name,
+                    territory = rowIdentity.territory ?: listing.territory,
+                    language = listing.language,
+                    startMs = listing.coverageStartTimeMs,
+                    endMs = listing.coverageEndTimeMs,
+                    retrievedAtMs = listing.retrievedAtMs,
+                    direct = listing.direct,
+                    reference = listing.sourceRef,
+                    underlyingKey = listOf(
+                        listing.sourceId,
+                        listing.eventId.orEmpty(),
+                        sourceIdentity.key,
+                        listing.coverageStartTimeMs.toString(),
+                    ).joinToString("|"),
+                )
+                evidenceByChannel.getOrPut(row.id) { ArrayList() } += evidence
+                channels[row.id] = row
+                if (channels.size >= GuideChannelCap) break
+            }
+            if (channels.size >= GuideChannelCap) break
+        }
+        return evidenceByChannel.mapNotNull { (channelId, evidence) ->
+            val channel = channels[channelId] ?: return@mapNotNull null
+            val identity = ChannelIdentityResolver.resolve(channel.name)
+            val specialist = identity?.specialist == true
+            val tier = EvidenceFusion.tier(evidence, now, specialist)
+            ChannelMatch(
+                channelId = channelId,
+                channelName = channel.name,
+                logoUrl = channel.logoUrl,
+                epgTitle = null,
+                score = EvidenceFusion.score(evidence, now),
+                isExact = false,
+                epgConfirmed = false,
+                directEvidence = tier == ChannelEvidenceTier.SUPPORTED && evidence.any { it.direct },
+                evidenceTier = tier,
+                evidenceSource = ChannelEvidenceSource.GUIDE,
+                evidenceDetail = evidence.firstNotNullOfOrNull { it.reference },
+                sourceId = channel.sourceId,
+            )
+        }
+    }
+
+    /**
+     * Playlist rows for one listing channel: exact canonical keys from the small in-memory index,
+     * plus one bounded FTS probe for names the fixture-token scan did not return. Every row still
+     * has to pass the identity relation, so a probe cannot invent a match.
+     */
+    private suspend fun resolveListingCandidates(
+        listing: BroadcastListing,
+        sourceIdentity: ChannelIdentity,
+        sourceIds: List<Long>,
+        byKey: Map<String, List<ChannelEntity>>,
+        byChannel: Map<String, List<ChannelEntity>>,
+    ): List<ChannelEntity> {
+        val out = LinkedHashMap<Long, ChannelEntity>()
+        byKey[sourceIdentity.key].orEmpty().forEach { out.putIfAbsent(it.id, it) }
+        if (sourceIdentity.channel != ChannelIdentityResolver.NetworkChannel) {
+            byChannel[sourceIdentity.channel].orEmpty().forEach { out.putIfAbsent(it.id, it) }
+        }
+        val terms = ChannelIdentityResolver.searchTerms(listing.channel)
+        if (terms.isEmpty()) return out.values.toList()
+        val query = terms.take(GuideFtsTermCap)
+            .joinToString(" OR ") { "\"" + it.replace("\"", "\"\"") + "\"" }
+        val found = runCatching {
+            channelDao.searchListDetailedFts(query, sourceIds, GuideResolveLimit)
+        }.getOrNull().orEmpty()
+        for (result in found) {
+            val row = result.channel
+            if (out.containsKey(row.id)) continue
+            val rowIdentity = ChannelIdentityResolver.resolve(row.name) ?: continue
+            if (ChannelIdentityResolver.relationOf(rowIdentity, sourceIdentity) != null) {
+                out[row.id] = row
+            }
+        }
+        return out.values.toList()
+    }
+
+    /**
+     * Scenario D: the provider has neither EPG nor a guide snapshot, and the fixture name found
+     * nothing. A channel whose identity is a specialist for this sport is a useful POSSIBLE row —
+     * never supported, never used to pad a non-empty list, and never a substitute for evidence.
+     */
+    private suspend fun specialistFallback(fixture: Fixture, sourceIds: List<Long>): List<ChannelMatch> {
+        // Duels/events already have their deliberate hint rule ("US TENNIS PPV" must not qualify
+        // just because it is a tennis channel). Scenario D applies to team sports here.
+        if (fixture.home == null || fixture.away == null) return emptyList()
+        val sport = SportClass.fromLeagueId(fixture.leagueId)
+        val terms = sport.specialistTerms()
+        if (terms.isEmpty()) return emptyList()
+        val query = terms.take(SpecialistTermCap)
+            .joinToString(" OR ") { "\"" + it.replace("\"", "\"\"") + "\"" }
+        val found = runCatching {
+            channelDao.searchListDetailedFts(query, sourceIds, SpecialistFallbackLimit)
+        }.getOrNull().orEmpty()
+        return found.mapNotNull { result ->
+            val identity = ChannelIdentityResolver.resolve(result.channel.name) ?: return@mapNotNull null
+            if (!identity.specialist || identity.sport != sport) return@mapNotNull null
+            ChannelMatch(
+                channelId = result.channel.id,
+                channelName = result.channel.name,
+                logoUrl = result.channel.logoUrl,
+                epgTitle = null,
+                score = EvidenceKind.SPECIALIST_IDENTITY.baseStrength,
+                isExact = false,
+                epgConfirmed = false,
+                evidenceTier = ChannelEvidenceTier.POSSIBLE,
+                evidenceSource = ChannelEvidenceSource.CHANNEL,
+                evidenceDetail = null,
+                sourceId = result.channel.sourceId,
+            )
+        }.take(SpecialistResultCap)
     }
 
     // ---- Channel-name scan (one pass over the playlist, cached) --------------------------------
@@ -844,6 +1045,7 @@ class SportsMatcher(
     ): ChannelMatch? {
         var score = 0
         var epgTitle: String? = null
+        var epgDirect = false
         var exact = false
         val name = channel.name.lowercase(Locale.ROOT)
         val nameNorm = SportNameMatch.normalize(channel.name)
@@ -946,6 +1148,9 @@ class SportsMatcher(
             if (best > 0) {
                 score += best
                 epgTitle = bestTitle
+                // +10 (both in title) or +3 (both across title/description) is the fixture named
+                // directly; +2/+1 below are context/tournament recall, not confirmation.
+                epgDirect = best >= EpgDescriptionBothScore
             }
         }
 
@@ -1017,6 +1222,7 @@ class SportsMatcher(
                 score += best
                 // A duel/tournament title only becomes the shown line when no stronger team line won.
                 if (epgTitle == null) epgTitle = bestTitle
+                if (best >= EpgDescriptionBothScore) epgDirect = true
             }
         }
 
@@ -1041,6 +1247,15 @@ class SportsMatcher(
         if (broadcastBonus > 0 && (!hasParticipants || score > 0)) score += broadcastBonus
 
         return if (score > 0) {
+            // Explicit tiers for the deterministic path: a directly named fixture is Supported,
+            // an exact per-event channel name or a tournament/context programme is Likely, and an
+            // event-only hint (F1/golf channel) is Possible. A tier never turns a hint into evidence.
+            val tier = when {
+                epgDirect -> ChannelEvidenceTier.SUPPORTED
+                exact || epgTitle != null -> ChannelEvidenceTier.LIKELY
+                !hasParticipants -> ChannelEvidenceTier.POSSIBLE
+                else -> null
+            }
             ChannelMatch(
                 channelId = channel.id,
                 channelName = channel.name,
@@ -1048,7 +1263,10 @@ class SportsMatcher(
                 epgTitle = epgTitle,
                 score = score,
                 isExact = exact,
-                epgConfirmed = epgTitle != null,
+                epgConfirmed = epgDirect,
+                evidenceTier = tier,
+                evidenceSource = if (epgTitle != null) ChannelEvidenceSource.EPG else ChannelEvidenceSource.CHANNEL,
+                evidenceDetail = epgTitle,
                 sourceId = channel.sourceId,
             )
         } else {
@@ -1245,6 +1463,20 @@ class SportsMatcher(
         private const val ScanCacheTtlMs = 30_000L
         /** Playlists above this many channels are not cached in memory at all (stick RAM). */
         private const val ScanCacheMaxRows = 20_000
+
+        /** External listing resolution: bounded work per fixture, never the whole playlist. */
+        private const val IndexableScanRows = 8_000
+        private const val GuideListingCap = 12
+        private const val GuideChannelCap = 120
+        private const val GuideResolveLimit = 200
+        private const val GuideFtsTermCap = 4
+        /** Source id treated as an official schedule (stronger than an aggregator). */
+        private const val OfficialSourceId = "official"
+
+        /** Scenario D (no EPG, no guide): a specialist channel is POSSIBLE, never more. */
+        private const val SpecialistTermCap = 6
+        private const val SpecialistFallbackLimit = 80
+        private const val SpecialistResultCap = 8
 
         /** How far before kickoff a programme may be the pre-match build-up. */
         private const val EpgBeforeMs = 2L * 60L * 60L * 1000L

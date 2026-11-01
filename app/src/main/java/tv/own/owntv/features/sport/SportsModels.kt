@@ -135,6 +135,12 @@ enum class ChannelEvidenceSource {
     SEARCH,
     EPG,
     RIGHTS,
+
+    /** A structured external TV-guide listing (Where's The Match snapshot). */
+    GUIDE,
+
+    /** The channel's own canonical identity/specialist classification — never a confirmation. */
+    CHANNEL,
 }
 
 /** A user channel that (probably) carries [fixture], highest score first. */
@@ -153,6 +159,12 @@ data class ChannelMatch(
     val isExact: Boolean = false,
     /** One of the channel's EPG programmes around kickoff names this exact fixture. */
     val epgConfirmed: Boolean = false,
+    /**
+     * Independent direct evidence (a fixture-specific external listing, or an EPG programme that
+     * names both sides). Such a row survives the preferred-language filter: a user preference must
+     * not hide a channel that is actually showing the event.
+     */
+    val directEvidence: Boolean = false,
     /** The accepted full-playlist model answer selected this row (id-validated, then re-verified). */
     val aiConfirmed: Boolean = false,
     /** The model's one-line rationale; diagnostics only, never the reason a row is playable. */

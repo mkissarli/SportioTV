@@ -5,6 +5,7 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -92,6 +93,14 @@ class BroadcastGuideApi(private val client: OkHttpClient) {
      */
     fun confirmedBroadcasters(fixture: Fixture): List<String> =
         GuideMatch.confirmedBroadcasters(entries, fixture)
+
+    /**
+     * The last snapshot as normalised listings for the deterministic matcher. Never fetches and
+     * never throws; an empty list is the honest answer. Direct rows and tennis tour-level rows are
+     * kept distinct so a tournament listing can never confirm one individual match.
+     */
+    fun listingsFor(fixture: Fixture): List<BroadcastListing> =
+        GuideMatch.listings(entries, fixture, refreshedAtMs)
 
     /**
      * The rows of one per-sport page (cycling, athletics, boxing). Those sports have no ESPN league,
@@ -243,13 +252,83 @@ object GuideMatch {
      * match: it is prompt evidence only, so a specific fixture never inherits the whole tour's
      * carrier list. An empty list is the honest answer.
      */
-    fun confirmedBroadcasters(snapEntries: List<GuideEntry>, fixture: Fixture): List<String> {
+    fun confirmedBroadcasters(snapEntries: List<GuideEntry>, fixture: Fixture): List<String> =
+        confirmedRows(snapEntries, fixture).flatMap { it.channels }.distinct()
+
+    /**
+     * The same evidence as [confirmedBroadcasters], but as the normalised listing model. A direct
+     * row (both sides, or the same F1 session) is [CoverageType.FIXTURE]/[CoverageType.SESSION];
+     * the ATP/WTA tour's one-row-per-day listing is [CoverageType.TOURNAMENT] and `direct = false`,
+     * so it can at most make a specialist tour channel *likely*, never *supported*.
+     */
+    fun listings(
+        snapEntries: List<GuideEntry>,
+        fixture: Fixture,
+        retrievedAtMs: Long,
+    ): List<BroadcastListing> {
+        if (snapEntries.isEmpty()) return emptyList()
+        val sport = SportClass.fromLeagueId(fixture.leagueId)
+        val participants = listOfNotNull(fixture.home?.name, fixture.away?.name)
+            .ifEmpty { fixture.entries.map { it.name } }
+        val out = ArrayList<BroadcastListing>()
+        for (row in confirmedRows(snapEntries, fixture)) {
+            val coverage = coverageOf(fixture, sport)
+            val end = row.dateMs + coverageWindowMs(coverage)
+            for (channel in row.channels) {
+                out += BroadcastListing(
+                    eventId = fixture.id,
+                    sport = sport,
+                    competition = row.league.takeIf { it.isNotBlank() },
+                    participants = participants,
+                    eventStartTimeMs = fixture.dateMs,
+                    coverageStartTimeMs = row.dateMs,
+                    coverageEndTimeMs = end,
+                    broadcaster = channel,
+                    channel = channel,
+                    territory = null,
+                    language = null,
+                    coverageType = coverage,
+                    sourceId = SourceId,
+                    retrievedAtMs = retrievedAtMs,
+                    confidence = DirectConfidence,
+                    direct = true,
+                    sourceRef = sourceRef(row),
+                )
+            }
+        }
+        for (row in tourRows(snapEntries, fixture)) {
+            if (row.gated) continue
+            for (channel in row.channels) {
+                out += BroadcastListing(
+                    eventId = fixture.id,
+                    sport = sport,
+                    competition = row.league.takeIf { it.isNotBlank() },
+                    participants = participants,
+                    eventStartTimeMs = fixture.dateMs,
+                    coverageStartTimeMs = row.dateMs,
+                    coverageEndTimeMs = row.dateMs + TournamentWindowMs,
+                    broadcaster = channel,
+                    channel = channel,
+                    territory = null,
+                    language = null,
+                    coverageType = CoverageType.TOURNAMENT,
+                    sourceId = SourceId,
+                    retrievedAtMs = retrievedAtMs,
+                    confidence = TournamentConfidence,
+                    direct = false,
+                    sourceRef = sourceRef(row),
+                )
+            }
+        }
+        return out.distinctBy { it.channel.lowercase(Locale.ROOT) + "|" + it.coverageType }
+    }
+
+    private fun confirmedRows(snapEntries: List<GuideEntry>, fixture: Fixture): List<GuideEntry> {
         if (snapEntries.isEmpty()) return emptyList()
         val sides = participantsOf(fixture)
         if (sides != null) {
             val nearby = snapEntries.filter { timeMatches(it.dateMs, fixture.dateMs, ParticipantWindowMs) }
-            val teamRows = nearby.filter { !it.gated && bothSidesInRow(rowText(it), sides.first, sides.second) }
-            return teamRows.flatMap { it.channels }.distinct()
+            return nearby.filter { !it.gated && bothSidesInRow(rowText(it), sides.first, sides.second) }
         }
         val eventTitle = fixture.title?.trim().takeUnless { it.isNullOrEmpty() }
             ?: fixture.tournament?.trim().orEmpty()
@@ -267,9 +346,26 @@ object GuideMatch {
                 rowSession.isEmpty() || rowSession.any { it in session }
             }
         }
-        return usable.minByOrNull { kotlin.math.abs(it.dateMs - fixture.dateMs) }
-            ?.channels?.distinct().orEmpty()
+        return listOfNotNull(usable.minByOrNull { kotlin.math.abs(it.dateMs - fixture.dateMs) })
     }
+
+    private fun coverageOf(fixture: Fixture, sport: SportClass): CoverageType = when {
+        fixture.home == null && fixture.away == null && sessionWordsIn(
+            (fixture.title.orEmpty() + " " + fixture.tournament.orEmpty()),
+        ).isNotEmpty() -> CoverageType.SESSION
+        sport == SportClass.COMBAT && fixture.format == FixtureFormat.VERSUS -> CoverageType.EVENT_CARD
+        else -> CoverageType.FIXTURE
+    }
+
+    private fun coverageWindowMs(type: CoverageType): Long = when (type) {
+        CoverageType.SESSION -> EventWindowMs
+        CoverageType.EVENT_CARD -> EventWindowMs
+        else -> ParticipantWindowMs
+    }
+
+    /** Audit text only: the guide row that produced the evidence (no URL, no source brand). */
+    private fun sourceRef(row: GuideEntry): String =
+        (row.league + " · " + row.teams).trim(' ', '·')
 
     /**
      * Rows worth showing to the full-playlist model as context: nearby team rows (including gated
@@ -387,6 +483,12 @@ object GuideMatch {
     /** The session labels ("race", "qualifying", …) a title or row text names, if any. */
     private fun sessionWordsIn(text: String): Set<String> =
         SportNameMatch.normalize(text).trim().split(' ').filter { it in SessionWords }.toSet()
+
+    /** Source id and audit label of the scraped WTM snapshot. */
+    private const val SourceId = "wheresthematch"
+    private const val DirectConfidence = 90
+    private const val TournamentConfidence = 45
+    private const val TournamentWindowMs = 6L * 60L * 60L * 1000L
 
     /** A row listing one kickoff: a row hours away is another event, not this fixture. */
     private const val ParticipantWindowMs = 90L * 60L * 1000L

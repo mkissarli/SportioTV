@@ -41,6 +41,8 @@
     <string name="sport_evidence_search">Suche</string>
     <string name="sport_evidence_epg">EPG</string>
     <string name="sport_evidence_rights">Rechtewissen</string>
+    <string name="sport_evidence_guide">TV-Guide</string>
+    <string name="sport_evidence_channel">Senderidentität</string>
     <string name="sport_deepseek_checking">Live-TV-Listings werden geprüft…</string>
     <string name="sport_play">Abspielen</string>
     <string name="sport_no_channel">Kein passender Kanal in deinen Playlists</string>

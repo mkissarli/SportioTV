@@ -410,8 +410,9 @@ class SportsViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     init {
-        // The TV guide is fetched once in the background: the DeepSeek board uses it as evidence,
-        // and fixture selection must never wait on it.
+        // The TV guide is fetched once in the background: the deterministic matcher and the
+        // DeepSeek board both read the snapshot as evidence, and fixture selection must never
+        // wait on it. No API key or AI switch is needed for the deterministic path.
         viewModelScope.launch(Dispatchers.IO) { guideApi.refresh() }
         // Cycling/athletics/boxing have no fixtures API — their board is the guide's own rows. Reload
         // them when a snapshot lands, so the first open is not an empty board until the 15-min TTL.
@@ -449,6 +450,11 @@ class SportsViewModel(
                 reResolveSelected()
                 clearAiCache()
             }
+        }
+        // A new external guide snapshot is new evidence: re-resolve the open fixture without
+        // blocking it. The snapshot is read synchronously, so this never waits on the network.
+        viewModelScope.launch {
+            guideApi.version.drop(1).collect { reResolveSelected() }
         }
         // Row chips: the best channel per live fixture, matched in the background. Bounded to the
         // first live games, sequential (the matcher is IO-bound and cached per fixture) and
@@ -932,6 +938,9 @@ class SportsViewModel(
             aiOnly = includeAi,
             // Classic keeps its UK/US/FR/4K bands; DeepSeek sorts by evidence tier first.
             classicPrefixOrder = !includeAi,
+            // Synchronous read of the last guide snapshot — never a network call. The classic
+            // matcher therefore has EPG-independent evidence the moment a fixture opens.
+            guideListings = fixture?.let { guideApi.listingsFor(it) }.orEmpty(),
         )
     }
 

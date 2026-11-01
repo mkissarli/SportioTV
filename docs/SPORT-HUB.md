@@ -43,6 +43,13 @@
   mergeEvidence`): eine bestätigte Voll-Playlist-KI-Antwort ergänzt die EPG-Suche,
   ersetzt sie nicht. Evidenzklassen sortieren EPG/Name > KI-only; Priors, bevorzugte
   Playlist und Länderwunsch sind Tie-Breaker. Details: `AI-PLAYLIST.md`.
+- **EPG-unabhängig (2026-11-01):** Classic wertet jetzt auch den vorhandenen
+  Where's-The-Match-Snapshot aus. `ChannelIdentityResolver` löst Provider-Namen auf
+  eine kanonische Identität (`SKY SPORTS MAIN EVENT HD` = `Sky Main Event`), die
+  Listings werden per FTS + Identitätsprüfung auf Playlist-Zeilen abgebildet und als
+  `BroadcastEvidence` mit `Supported`/`Likely`/`Possible` geführt. Ohne EPG und ohne
+  Guide bleibt für Teamsport ein Specialist-Kanal als `Possible`. Details und
+  Messwerte: `SPORT-DETERMINISTIC-MATCHING.md`.
 - **Standard-Landeseite (2026-10-25):** nach Login startet der Shell im **Sport-Hub**
   (`ShellViewModel` initial `MainSection.SPORT`). Details zur Umleitung der übrigen
   Sektionen: Einzel-Rail-Eintrag unten.

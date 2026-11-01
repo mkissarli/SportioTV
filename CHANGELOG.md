@@ -14,6 +14,13 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v1.3.0 — 2026-11-01
+
+### ✨ New features
+- **EPG-independent sports channel matching**
+- **Canonical channel identity across IPTV provider names**
+- **TV-guide evidence tiers with Supported, Likely and Possible**
+
 ## v1.2.1 — 2026-10-29
 
 ### ✨ New features

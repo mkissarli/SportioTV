@@ -11,6 +11,7 @@
 | `ARCHITECTURE.md` | Module, Core-Bezug, TV-only, Sport-Hub-Überblick | aktiv |
 | `BRANDING.md` | Was heisst Sportio, was bleibt technisch OwnTV (Naming-Freeze) | aktiv |
 | `SPORT-HUB.md` | Sport-Hub + Channel-Matching (konsolidiert) | aktiv, ersetzt `sport-hub-plan.md` + `sport-channel-matching.md` als Einstieg |
+| `SPORT-DETERMINISTIC-MATCHING.md` | Deterministisches, EPG-unabhängiges Matching: Kanalidentität, externe Listings, Evidenz-Tiers, Messwerte | aktiv, Stand 2026-11-01 |
 | `SPORT-AI.md` | DeepSeek-KI-Empfehlung im Sport-Hub (Ablauf, Datenschutz, lokaler Katalog-Abgleich) | aktiv, Stand 2026-10-20, + Ausnahme Playlist-Import, Key und KI-Schalter in den App-Einstellungen |
 | `AI-SPORTS-MATCHING.md` | Automatischer zweiphasiger KI-Senderabgleich pro Board (Discovery, lokale Kandidaten, Adjudication, Cache) | aktiv, Stand 2026-10-25 |
 | `AI-PLAYLIST.md` | Opt-in-Voll-Playlist-Prüfung per DeepSeek (Katalog, Batching, Consent, Cache, ID-Validierung, Priors) | aktiv, Stand 2026-10-25 |

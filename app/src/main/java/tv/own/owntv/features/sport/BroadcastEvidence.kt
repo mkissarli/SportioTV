@@ -122,8 +122,10 @@ object EvidenceFusion {
         if (evidence.isEmpty()) return ChannelEvidenceTier.POSSIBLE
         val items = dedupe(evidence, nowMs)
         if (hasConflict(items)) return ChannelEvidenceTier.CONFLICTING
+        // Only the fresh band is Supported. The aged band (30 min … 2 h) is Likely even when the
+        // listing is direct; otherwise a 31-minute-old row would silently regain the top tier.
         val freshDirect = items.any {
-            it.direct && it.kind in DirectKinds && freshness(nowMs, it.retrievedAtMs) >= AgedFreshness
+            it.direct && it.kind in DirectKinds && freshness(nowMs, it.retrievedAtMs) >= FreshFreshness
         }
         if (freshDirect) return ChannelEvidenceTier.SUPPORTED
         if (items.any { it.kind in DirectKinds }) return ChannelEvidenceTier.LIKELY

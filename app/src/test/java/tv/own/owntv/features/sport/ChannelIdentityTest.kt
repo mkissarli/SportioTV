@@ -67,6 +67,34 @@ class ChannelIdentityTest {
     }
 
     @Test
+    fun ambiguousBrandlessNamesNeverMergeByInference() {
+        assertNull(ChannelIdentityResolver.relation("Arena", "Sky Sports Arena"))
+        assertNull(ChannelIdentityResolver.relation("Mix", "Sky Sports Mix"))
+        assertNull(ChannelIdentityResolver.relation("Premier", "Sky Sports Premier League"))
+        assertNull(ChannelIdentityResolver.relation("Plus", "Sky Sports+"))
+        assertNull(ChannelIdentityResolver.relation("1", "Sky Sports 1"))
+    }
+
+    @Test
+    fun brandlessNamesFromDifferentTerritoriesDoNotMerge() {
+        assertNull(ChannelIdentityResolver.relation("UK: MAIN EVENT", "US: MAIN EVENT"))
+        // A branded row is territory-independent for this purpose.
+        assertNotNull(
+            ChannelIdentityResolver.relation(
+                "UK: SKY SPORTS MAIN EVENT",
+                "US: SKY SPORTS MAIN EVENT",
+            ),
+        )
+    }
+
+    @Test
+    fun numberedAndPlusVariantsNeverInferIntoEachOther() {
+        assertNull(ChannelIdentityResolver.relation("Sky Sports 1", "Sky Sports 2"))
+        assertNull(ChannelIdentityResolver.relation("Sky Sports 1", "Sky Sports+"))
+        assertNull(ChannelIdentityResolver.relation("Sky Sports+", "Sky Sports Main Event"))
+    }
+
+    @Test
     fun identicalNamesAreExactAndDifferentSpellingsAreAlias() {
         assertEquals(
             IdentityBasis.EXACT,

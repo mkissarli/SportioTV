@@ -14,6 +14,14 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v1.3.1 — 2026-11-01
+
+### 🐛 Fixes
+- **TV-guide evidence is no longer promoted to Supported after 30 minutes**
+- **Large playlists keep the right guide channel behind broad search matches**
+- **Ambiguous brandless channel names no longer merge across broadcasters or territories**
+- **A detected evidence conflict survives merging with a stronger row**
+
 ## v1.3.0 — 2026-11-01
 
 ### ✨ New features

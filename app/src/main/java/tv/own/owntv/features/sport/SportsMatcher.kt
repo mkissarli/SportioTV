@@ -256,6 +256,10 @@ class SportsMatcher(
         first: ChannelEvidenceTier?,
         second: ChannelEvidenceTier?,
     ): ChannelEvidenceTier? = when {
+        // A conflict is a fact about the evidence, not a weaker opinion: merging a stronger row
+        // must not make it disappear.
+        first == ChannelEvidenceTier.CONFLICTING || second == ChannelEvidenceTier.CONFLICTING ->
+            ChannelEvidenceTier.CONFLICTING
         first == null -> second
         second == null -> first
         tierRank(second) > tierRank(first) -> second
@@ -623,23 +627,36 @@ class SportsMatcher(
     ): List<ChannelEntity> {
         val out = LinkedHashMap<Long, ChannelEntity>()
         byKey[sourceIdentity.key].orEmpty().forEach { out.putIfAbsent(it.id, it) }
+        // An exact canonical key in the small index is already the answer; no FTS needed.
+        if (out.isNotEmpty()) return out.values.toList()
         if (sourceIdentity.channel != ChannelIdentityResolver.NetworkChannel) {
             byChannel[sourceIdentity.channel].orEmpty().forEach { out.putIfAbsent(it.id, it) }
         }
         val terms = ChannelIdentityResolver.searchTerms(listing.channel)
         if (terms.isEmpty()) return out.values.toList()
-        val query = terms.take(GuideFtsTermCap)
-            .joinToString(" OR ") { "\"" + it.replace("\"", "\"\"") + "\"" }
-        val found = runCatching {
-            channelDao.searchListDetailedFts(query, sourceIds, GuideResolveLimit)
-        }.getOrNull().orEmpty()
-        for (result in found) {
-            val row = result.channel
-            if (out.containsKey(row.id)) continue
-            val rowIdentity = ChannelIdentityResolver.resolve(row.name) ?: continue
-            if (ChannelIdentityResolver.relationOf(rowIdentity, sourceIdentity) != null) {
-                out[row.id] = row
+
+        // Prefer the channel phrase ("main event") over an OR of every word. On a 60k playlist
+        // the broad OR can put hundreds of unrelated rows in front of the right channel; the
+        // phrase probe is selective, and the broad probe is only a fallback when nothing matched.
+        var accepted = 0
+        suspend fun probe(query: String) {
+            val found = runCatching {
+                channelDao.searchListDetailedFts(query, sourceIds, GuideResolveLimit)
+            }.getOrNull().orEmpty()
+            for (result in found) {
+                val row = result.channel
+                if (out.containsKey(row.id)) continue
+                val rowIdentity = ChannelIdentityResolver.resolve(row.name) ?: continue
+                if (ChannelIdentityResolver.relationOf(rowIdentity, sourceIdentity) != null) {
+                    out[row.id] = row
+                    accepted++
+                }
             }
+        }
+        val phrase = terms.firstOrNull { it.contains(' ') }
+        if (phrase != null) probe(quoteFts(phrase))
+        if (accepted == 0) {
+            probe(terms.take(GuideFtsTermCap).joinToString(" OR ") { quoteFts(it) })
         }
         return out.values.toList()
     }
@@ -679,6 +696,9 @@ class SportsMatcher(
             )
         }.take(SpecialistResultCap)
     }
+
+    /** A quoted FTS phrase; internal quotes are doubled, never used as syntax. */
+    private fun quoteFts(text: String): String = "\"" + text.replace("\"", "\"\"") + "\""
 
     // ---- Channel-name scan (one pass over the playlist, cached) --------------------------------
 
@@ -1468,7 +1488,9 @@ class SportsMatcher(
         private const val IndexableScanRows = 8_000
         private const val GuideListingCap = 12
         private const val GuideChannelCap = 120
-        private const val GuideResolveLimit = 200
+        // A broad single-word probe on a 60k playlist can have many hits before the right row.
+        // 1000 rows is still bounded (identity checks are cheap) and leaves headroom.
+        private const val GuideResolveLimit = 1_000
         private const val GuideFtsTermCap = 4
         /** Source id treated as an official schedule (stronger than an aggregator). */
         private const val OfficialSourceId = "official"

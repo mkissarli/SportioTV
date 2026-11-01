@@ -27,6 +27,19 @@ class BroadcastEvidenceTest {
     }
 
     @Test
+    fun theFreshnessBoundaryIsStrict() {
+        val now = 10_000_000L
+        fun tierAt(ageMs: Long): ChannelEvidenceTier {
+            val item = evidence(EvidenceKind.EXTERNAL_FIXTURE, now - ageMs, direct = true, event = "fixture-1")
+            return EvidenceFusion.tier(listOf(item), now, specialistChannel = false)
+        }
+        assertEquals(ChannelEvidenceTier.SUPPORTED, tierAt(EvidenceFusion.FreshnessWindowMs))
+        assertEquals(ChannelEvidenceTier.LIKELY, tierAt(EvidenceFusion.FreshnessWindowMs + 1))
+        assertEquals(ChannelEvidenceTier.LIKELY, tierAt(EvidenceFusion.StaleAfterMs))
+        assertEquals(ChannelEvidenceTier.LIKELY, tierAt(EvidenceFusion.StaleAfterMs + 1))
+    }
+
+    @Test
     fun tournamentLevelIsLikelyForASpecialistAndPossibleOtherwise() {
         val now = 1_000_000L
         val evidence = evidence(EvidenceKind.TOURNAMENT_SCHEDULE, now, direct = false, event = "fixture-1")
@@ -54,6 +67,18 @@ class BroadcastEvidenceTest {
         val a = evidence(EvidenceKind.EXTERNAL_FIXTURE, now, direct = true, event = "fixture-1", underlying = "a")
         val b = evidence(EvidenceKind.OFFICIAL_SCHEDULE, now, direct = true, event = "fixture-2", underlying = "b")
         assertEquals(ChannelEvidenceTier.CONFLICTING, EvidenceFusion.tier(listOf(a, b), now, specialistChannel = false))
+    }
+
+    @Test
+    fun aConflictSurvivesAStrongerDirectItemInTheSameFusion() {
+        val now = 1_000_000L
+        val a = evidence(EvidenceKind.EXTERNAL_FIXTURE, now, direct = true, event = "fixture-1", underlying = "a")
+        val b = evidence(EvidenceKind.OFFICIAL_SCHEDULE, now, direct = true, event = "fixture-2", underlying = "b")
+        val stronger = evidence(EvidenceKind.USER_CONFIRMED, now, direct = true, event = "fixture-1", underlying = "c")
+        assertEquals(
+            ChannelEvidenceTier.CONFLICTING,
+            EvidenceFusion.tier(listOf(a, b, stronger), now, specialistChannel = false),
+        )
     }
 
     @Test

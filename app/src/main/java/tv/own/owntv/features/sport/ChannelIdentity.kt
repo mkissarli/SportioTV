@@ -205,17 +205,25 @@ object ChannelIdentityResolver {
 
     /** [relation] on already-resolved identities — the matcher's hot path. */
     fun relationOf(a: ChannelIdentity, b: ChannelIdentity): IdentityMatch? {
+        // Two brandless "Main Event" feeds from different territories are not the same channel.
+        // A branded channel may legitimately carry the same territory-independent key.
+        if (a.key == b.key && a.broadcaster == null && b.broadcaster == null &&
+            a.territory != null && b.territory != null && a.territory != b.territory
+        ) {
+            return null
+        }
         if (a.key == b.key) {
             val exact = a.normalized == b.normalized ||
                 (a.basis == IdentityBasis.EXACT && b.basis == IdentityBasis.EXACT)
             return IdentityMatch(if (exact) IdentityBasis.EXACT else IdentityBasis.ALIAS, SameKeyReason)
         }
         // A provider that drops the brand ("MAIN EVENT" next to "SKY SPORTS MAIN EVENT") still
-        // names the same channel; a network-level name never does, and a bare number ("1") is far
-        // too generic to infer from.
+        // names the same channel. Only an explicit list of unambiguous sports names may be
+        // inferred, so "Arena"/"Mix"/"Premier" cannot merge unrelated broadcasters.
         if (a.channel != NetworkChannel && a.channel == b.channel &&
+            a.channel in InferableBrandlessChannels &&
             (a.broadcaster == null || b.broadcaster == null) &&
-            (a.channel.length >= MinInferredChannelLength || a.channel.contains(' '))
+            (a.territory == null || b.territory == null || a.territory == b.territory)
         ) {
             return IdentityMatch(IdentityBasis.INFERRED, MissingBrandReason)
         }
@@ -314,7 +322,15 @@ object ChannelIdentityResolver {
     private const val NormalisedReason = "normalized spelling"
     private const val MinTermLength = 3
     private const val MaxSearchTerms = 6
-    private const val MinInferredChannelLength = 4
+
+    /**
+     * Channel names where dropping the broadcaster is a known shorthand, not an ambiguity.
+     * `Arena`, `Mix` and `Premier` are deliberately absent: they are reused by many brands.
+     */
+    private val InferableBrandlessChannels = setOf(
+        "main event", "f1", "football", "soccer", "tennis", "golf", "cricket", "rugby",
+        "premier league", "bundesliga", "laliga", "serie a", "ligue 1",
+    )
 
     /** The brand words that imply a sports network; removed after the broadcaster was found. */
     private val SportWords = setOf("sport", "sports")

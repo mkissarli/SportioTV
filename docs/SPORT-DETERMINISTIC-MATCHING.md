@@ -82,8 +82,11 @@ Regeln:
   bei eindeutigen Sportnamen (`Main Event`, `F1`, `Football`) ist es Kürzel.
 - Keine Substring-/Präfix-Fuzzy-Regel: `Sky Sports 1` matcht nie `Sky Sports 2`.
 - Ein Netzwerkname (`Sky Sports` → `sky|network`) matcht nie einen Einzelkanal.
-- Fehlt einer Seite der Broadcaster (`Main Event`), ist die Beziehung `INFERRED`,
-  nicht `EXACT`.
+- Fehlt einer Seite der Broadcaster, ist die Beziehung `INFERRED` — aber nur für
+  eine explizite Liste eindeutiger Sportnamen (`Main Event`, `F1`, `Football`, …).
+  `Arena`, `Mix`, `Premier`, `Plus` und Nummern werden **nicht** inferiert, und
+  brandlose Namen aus verschiedenen Territorien (`UK: MAIN EVENT` vs.
+  `US: MAIN EVENT`) werden nie zusammengeführt.
 
 Listenings werden über dieselbe Identität aufgelöst. Zuerst exakte Keys aus einem
 kleinen In-Memory-Index (nur ≤ 8.000 Kandidatenzeilen), dann eine begrenzte
@@ -108,7 +111,7 @@ Broadcast-Information aus zwei Feeds oder abgeleiteten Pfaden nur einmal gezähl
 
 | Evidenz | Tier |
 |---|---|
-| frisches, direktes Fixture-/Session-Listing | `Supported` |
+| frisches, direktes Fixture-/Session-Listing (≤ 30 min) | `Supported` |
 | direktes Listing, aber älter als 30 min | `Likely` |
 | Turnier-Ebene + Specialist-Kanal | `Likely` |
 | Turnier-Ebene + allgemeiner Kanal | `Possible` |
@@ -116,9 +119,17 @@ Broadcast-Information aus zwei Feeds oder abgeleiteten Pfaden nur einmal gezähl
 | zwei direkte Quellen, gleicher Kanal, verschiedene Events, überlappende Zeit | `Conflicting` |
 
 Ein Broadcaster-Recht oder eine Specialist-Klassifikation erreicht **nie**
-`Supported`. Directe externe Evidenz kann ohne EPG `Supported` werden. Stale Evidenz
-überschreibt keine frische direkte Evidenz; beide bleiben im Datensatz und der
-Konflikt wird erklärt (`EvidenceFusion.explain`).
+`Supported`. Directe externe Evidenz kann ohne EPG `Supported` werden. Die Grenze
+ist strikt: 30 min = fresh, 30 min + 1 ms = aged → `Likely`; 2 h + 1 ms = stale.
+Stale Evidenz überschreibt keine frische direkte Evidenz; beide bleiben im Datensatz
+und der Konflikt wird erklärt (`EvidenceFusion.explain`).
+
+`Conflicting` ist bewusst **klein** gehalten: Der aktuelle Integrationspfad hat nur
+eine externe Quelle (WTM) und übergibt dieselbe Fixture-ID, daher kann er noch
+keinen echten Konflikt zweier Veranstaltungen erzeugen. Die Fusion selbst ist
+getestet; sobald ein zweiter unabhängiger Quellen-Adapter Listings mit eigenen
+Event-IDs liefert, greift die Regel. Ein einmal erkannter Konflikt bleibt beim
+Merge mit stärkerer Evidenz bestehen (`strongerTier`).
 
 Score = Summe der Evidenzstärken × Freshness, dedupliziert, auf 300 begrenzt.
 Nutzerpräferenzen (Land, Sprache, Playlist) kommen erst danach als Sortier-/Filter-
@@ -169,6 +180,9 @@ Sender-Evidenz, kein „läuft nicht“.
 
 - Kein neuer Voll-Scan pro Fixture: Kandidaten kommen aus FTS/EPG; externe Listings
   werden per FTS + Identitätsprüfung aufgelöst (Cap: 12 Listings, 120 Kanäle).
+- Die FTS-Suche probiert zuerst die selektive Kanal-Phrase (`"main event"`) und
+  erst bei leerem Treffer die breite OR-Abfrage; das Ergebnis-Cap liegt bei 1.000
+  Zeilen, damit die richtige Zeile nicht hinter hunderten breiten Treffern liegt.
 - Der In-Memory-Identitätsindex wird nur für ≤ 8.000 Kandidatenzeilen gebaut.
 - Der bestehende 30-s-Scan-Cache (≤ 20.000 Zeilen) bleibt unverändert; größere
   Playlists werden bewusst nicht im RAM gehalten.
@@ -181,11 +195,12 @@ Fire-TV-Gerät):
 
 | Fall | Messwert |
 |---|---|
-| 10.000 Namen identifizieren | 156 ms |
-| 30.000 Namen identifizieren | 196 ms |
-| 60.000 Namen identifizieren | 234 ms |
-| 1.000 Identitäts-Lookups (60k-Set) | 4 ms |
-| Fixture-Match, 30.000 Kanäle, Guide-Treffer | 200 ms |
+| 10.000 Namen identifizieren | 83–156 ms |
+| 30.000 Namen identifizieren | 157–196 ms |
+| 60.000 Namen identifizieren | 232–273 ms |
+| 1.000 Identitäts-Lookups (60k-Set) | 4–6 ms |
+| Fixture-Match, 30.000 Kanäle, Guide-Treffer | 53–200 ms |
+| 60k-Playlist, richtige Zeile hinter 300 breiten Treffern | 244–275 ms, gefunden |
 
 Das sind JVM-/CI-Zahlen, **keine** Gerätezahlen. Die geforderten P95-Budgets
 (< 250 ms cached match, < 10 ms Identitäts-Lookup, < 500 ms erste Darstellung)
@@ -202,12 +217,13 @@ sind auf dem Desktop eingehalten; ein Lauf auf Fire TV Stick / 4K Max steht aus
   `Likely`; allgemeiner Kanal → `Possible`; EPG+Guide-Merge; kein Borrowing;
   Länderpräferenz versteckt starke Evidenz nicht; Fallback nur `Possible`.
 - `DeterministicMatchingBenchmarkTest` — 10k/30k/60k-Identitäten und 30k-Match.
-- `SportMatchingQualityTest` — 8 gelabelte Szenarien (EPG, Guide ohne EPG,
+- `SportMatchingQualityTest` — 16 gelabelte Szenarien (EPG, Guide ohne EPG,
   Specialist-Fallback, Tennis-Turnierzeile, Sprachfilter, F1-Rennen/Practice,
-  Ein-Team-EPG): **Precision@1 6/6**, **No-Result 2/2**. Der Vergleich zum alten
-  Pfad ist dort direkt sichtbar: ohne Guide/EPG liefert das Szenario „direct guide
-  without EPG“ früher nichts, jetzt den richtigen Sender; das Practice-Szenario
-  bleibt bewusst leer (kein Borrowing).
+  Ein-Team-EPG, Provider-Tags, TNT/Canal/ESPN-Nummern, Combat-PPV, mehrdeutige
+  brandlose Namen, Territorium-Kollision): **Precision@1 12/12**,
+  **No-Result 4/4**. Der Vergleich zum alten Pfad ist dort direkt sichtbar: ohne
+  Guide/EPG liefert „direct guide without EPG“ früher nichts, jetzt den richtigen
+  Sender; Practice und die beiden Kollisionsfälle bleiben bewusst leer.
 
 Ausführen:
 
@@ -227,8 +243,10 @@ Ausführen:
   dafür gehört in die bestehende `SportsPrefs`-DataStore-Datei (Backup-kompatibel).
 - **Fire-TV-Hardwaremessung** und ein echter Precision-/Recall-Lauf gegen mehrere
   reale Provider stehen aus. Der Benchmark ist deterministisch, aber synthetisch.
-- **Konflikt-Erkennung** deckt aktuell widersprüchliche direkte Listings ab. Ein
-  EPG-Programm, das eine andere Veranstaltung nennt, wird noch nicht als Konflikt
-  modelliert (nur als fehlende EPG-Evidenz).
+- **Konflikt-Erkennung** ist implementiert und getestet, aber im aktuellen
+  Ein-Quellen-Pfad (WTM) noch nicht produktiv auslösbar: alle Listings tragen die
+  Fixture-ID. Ein EPG-Programm, das eine andere Veranstaltung nennt, wird noch nicht
+  als Konflikt modelliert (nur als fehlende EPG-Evidenz). `Conflicting` ist daher
+  heute eine reservierte, korrekt getestete Stufe für einen zweiten Adapter.
 - **Kein UI-Umbau.** Die bestehende Evidenzzeile zeigt jetzt zusätzlich
   `TV guide`/`Channel identity`; D-Pad-Navigation und Layout sind unverändert.

@@ -142,6 +142,65 @@ class SportMatchingQualityTest {
                 SportMatchOptions(languages = emptySet()),
                 null,
             ),
+            QualityCase(
+                "provider tag and quality suffix still match the guide",
+                store(channels = listOf(channel(9, "NOW: SKY SPORTS MAIN EVENT 4K")), programmes = emptyList()),
+                fixture(),
+                SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("Sky Sports Main Event", true))),
+                "NOW: SKY SPORTS MAIN EVENT 4K",
+            ),
+            QualityCase(
+                "TNT numbered channel",
+                store(channels = listOf(channel(10, "UK| TNT SPORTS 1 HD")), programmes = emptyList()),
+                fixture(),
+                SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("TNT Sports 1", true))),
+                "UK| TNT SPORTS 1 HD",
+            ),
+            QualityCase(
+                "French canal channel",
+                store(channels = listOf(channel(11, "FR: CANAL+ FOOT")), programmes = emptyList()),
+                fixture(),
+                SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("Canal+ Foot", true))),
+                "FR: CANAL+ FOOT",
+            ),
+            QualityCase(
+                "generic foreign Sky arena channel",
+                store(channels = listOf(channel(12, "IT: SKY SPORT ARENA")), programmes = emptyList()),
+                fixture(),
+                SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("Sky Sport Arena", true))),
+                "IT: SKY SPORT ARENA",
+            ),
+            QualityCase(
+                "numbered ESPN channel",
+                store(channels = listOf(channel(13, "US: ESPN2")), programmes = emptyList()),
+                fixture(),
+                SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("ESPN2", true))),
+                "US: ESPN2",
+            ),
+            QualityCase(
+                "combat PPV is not demoted",
+                store(channels = listOf(channel(14, "US: UFC PPV 1")), programmes = emptyList()),
+                combatFixture(),
+                SportMatchOptions(
+                    languages = emptySet(),
+                    guideListings = listOf(listing("UFC PPV 1", true, sport = SportClass.COMBAT)),
+                ),
+                "US: UFC PPV 1",
+            ),
+            QualityCase(
+                "ambiguous brandless Arena does not merge",
+                store(channels = listOf(channel(15, "UK| SKY SPORTS ARENA")), programmes = emptyList()),
+                fixture(),
+                SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("Arena", true))),
+                null,
+            ),
+            QualityCase(
+                "brandless cross-territory Main Event does not merge",
+                store(channels = listOf(channel(16, "US: MAIN EVENT")), programmes = emptyList()),
+                fixture(),
+                SportMatchOptions(languages = emptySet(), guideListings = listOf(listing("UK: MAIN EVENT", true))),
+                null,
+            ),
         )
     }
 
@@ -161,6 +220,21 @@ class SportMatchingQualityTest {
         statusLine = "LIVE",
         home = SportTeam("1", "Coventry City", "COV", null, null, "0", false, "home"),
         away = SportTeam("2", "Newcastle United", "NEW", null, null, "0", false, "away"),
+        broadcasts = emptyList(),
+        venue = null,
+    )
+
+    private fun combatFixture() = Fixture(
+        id = "ufc-1",
+        leagueId = "mma.ufc",
+        dateMs = Noon,
+        state = FixtureState.LIVE,
+        statusLine = "LIVE",
+        format = FixtureFormat.VERSUS,
+        entries = listOf(
+            FixtureEntry("1", "Fighter One", 1, null, null),
+            FixtureEntry("2", "Fighter Two", 2, null, null),
+        ),
         broadcasts = emptyList(),
         venue = null,
     )

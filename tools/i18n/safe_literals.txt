@@ -1302,7 +1302,7 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	br
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	broadcaster
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	bt
-3	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	bundesliga
+4	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	bundesliga
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ca
 3	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	calcio
 5	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	canal
@@ -1314,7 +1314,7 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	cn
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	co
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	college
-5	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	cricket
+6	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	cricket
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	cricket.
 3	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	cycling
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	cycling.
@@ -1338,13 +1338,13 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	exact
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	extra
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	f 1
-7	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	f1
+8	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	f1
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	feed
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	fhd
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	fi
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	fight
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	foot
-5	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	football
+6	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	football
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	football.
 3	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	formula
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	formula 1
@@ -1355,7 +1355,7 @@
 3	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	fussball
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	futbol
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	gb
-4	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	golf
+5	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	golf
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	golf.
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	gr
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	hbo
@@ -1377,14 +1377,14 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	klub
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	kr
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	kw
-3	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	laliga
+4	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	laliga
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ligue
-1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ligue 1
+2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ligue 1
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	live
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	lk
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	local
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	main
-3	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	main event
+4	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	main event
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	main event hd
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	marathon
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	match
@@ -1426,7 +1426,7 @@
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	polsat
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ppv
 3	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	premier
-5	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	premier league
+6	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	premier league
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	premier sports
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	prime
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	prime video
@@ -1443,7 +1443,7 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	rs
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	rtl
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ru
-5	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	rugby
+6	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	rugby
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	ryder
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	sa
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	same canonical key
@@ -1451,7 +1451,7 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	sd
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	se
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	serie
-1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	serie a
+2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	serie a
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	server
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	servus
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	sg
@@ -1460,7 +1460,7 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	sk
 7	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	sky
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	sling
-4	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	soccer
+5	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	soccer
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	soccer.
 4	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	sport
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	sport klub
@@ -1471,7 +1471,7 @@
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	stream
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	supersport
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	svt
-4	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	tennis
+5	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	tennis
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	tennis.
 2	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	tf1
 1	technical	app/src/main/java/tv/own/owntv/features/sport/ChannelIdentity.kt	th

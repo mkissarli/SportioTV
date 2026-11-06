@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -154,6 +155,10 @@ class SportsViewModel(
     /** How many channels one fixture lists (5–50, default 20); changes apply without restart. */
     val channelLimit: StateFlow<Int> = prefs.channelLimit
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SportsMatcher.DefaultChannelLimit)
+
+    /** External broadcast adapters the user switched on; empty by default. */
+    val broadcastSources: StateFlow<Set<String>> = prefs.broadcastSources
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     /** Languages never shown in a fixture's channel list — a hard "never", even for exact hits. */
     val excludedLanguages: StateFlow<Set<SportLanguage>> = prefs.excludedLanguages
@@ -413,7 +418,18 @@ class SportsViewModel(
         // The TV guide is fetched once in the background: the deterministic matcher and the
         // DeepSeek board both read the snapshot as evidence, and fixture selection must never
         // wait on it. No API key or AI switch is needed for the deterministic path.
-        viewModelScope.launch(Dispatchers.IO) { guideApi.refresh() }
+        viewModelScope.launch(Dispatchers.IO) {
+            guideApi.setEnabledSources(prefs.broadcastSources.first())
+            guideApi.refresh()
+        }
+        // A source is only fetched after the user switches it on in Sport settings; switching one
+        // on fetches it immediately, switching it off drops its cached rows.
+        viewModelScope.launch {
+            prefs.broadcastSources.drop(1).distinctUntilChanged().collect { ids ->
+                guideApi.setEnabledSources(ids)
+                if (ids.isNotEmpty()) guideApi.refreshEnabledSources()
+            }
+        }
         // Cycling/athletics/boxing have no fixtures API — their board is the guide's own rows. Reload
         // them when a snapshot lands, so the first open is not an empty board until the 15-min TTL.
         viewModelScope.launch {
@@ -698,6 +714,11 @@ class SportsViewModel(
             prefs.setChannelLimit(limit)
             reResolveSelected(matchOptions().copy(limit = limit))
         }
+    }
+
+    /** Switch one external broadcast adapter on or off; the guide flow applies it. */
+    fun setBroadcastSourceEnabled(sourceId: String, enabled: Boolean) {
+        viewModelScope.launch { prefs.setBroadcastSourceEnabled(sourceId, enabled) }
     }
 
     /** Store the DeepSeek key from Sport settings. */

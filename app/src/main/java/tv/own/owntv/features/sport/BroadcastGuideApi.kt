@@ -117,6 +117,16 @@ class BroadcastGuideApi(private val client: OkHttpClient) {
      */
     fun evidenceFor(fixture: Fixture): List<GuideEntry> = GuideMatch.evidenceFor(entries, fixture)
 
+    /** Apply the user's per-adapter switches; disabling a source drops its cached rows. */
+    fun setEnabledSources(ids: Set<String>) {
+        sourceHub.setEnabledSources(ids)
+    }
+
+    /** Fetch only the enabled adapters, e.g. immediately after one is switched on. */
+    suspend fun refreshEnabledSources() {
+        if (sourceHub.refresh()) _version.value++
+    }
+
     /** Background refresh; every page independently guarded — a bad site never breaks the rest. */
     suspend fun refresh() {
         // One refresh at a time: callers (every board load) would otherwise stack whole copies of

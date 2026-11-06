@@ -155,6 +155,8 @@
     <string name="sport_language_filter">Language: %1$s</string>
     <string name="sport_channel_limit_title">Channels per game</string>
     <string name="sport_channel_limit_hint">Change with left and right</string>
+    <string name="sport_broadcast_sources_title">Broadcast sources</string>
+    <string name="sport_broadcast_sources_hint">Off by default. Turn on one adapter at a time if the TV can handle it.</string>
     <plurals name="sport_language_quota">
         <item quantity="one">At least %1$d channel in your languages, otherwise a shorter list</item>
         <item quantity="other">At least %1$d channels in your languages, otherwise a shorter list</item>

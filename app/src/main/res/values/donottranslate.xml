@@ -92,5 +92,10 @@
     <string name="sport_league_cricket_8039" translatable="false">Cricket World Cup</string>
     <string name="sport_channel_sky_main_event" translatable="false">Sky Sports Main Event</string>
     <string name="sport_channel_tennis" translatable="false">Tennis</string>
+    <string name="sport_source_foottv" translatable="false">FootTV</string>
+    <string name="sport_source_footmercato" translatable="false">Foot Mercato</string>
+    <string name="sport_source_livefootballontv" translatable="false">Live Football on TV</string>
+    <string name="sport_source_skysportstennis" translatable="false">Sky Sports Tennis</string>
+    <string name="sport_source_sporttvtennis" translatable="false">Sport-TV Tennis</string>
     <string name="sport_ai_provider_deepseek" translatable="false">DeepSeek</string>
 </resources>

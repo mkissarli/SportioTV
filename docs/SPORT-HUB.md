@@ -55,8 +55,10 @@
   Ligue 1+ feeds), Foot Mercato (European football in French, numbered feeds), Live Football
   on TV (UK football), Sky Sports Tennis (UK tennis, tournament rows) and Sport-TV.fr
   (French tennis, session rows) run as separate adapters in the existing background refresh.
-  `BroadcastListingMatch` filters rows to the fixture; `sourceFamily` prevents double-counting
-  syndicated data. Inventory/robots/rejections: `BROADCAST-SOURCES.md`.
+  Each new adapter is **off by default** and is switched on individually in Sport settings →
+  Channels → Broadcast sources; turning it off drops its cached rows. `BroadcastListingMatch`
+  filters rows to the fixture; `sourceFamily` prevents double-counting syndicated data.
+  Inventory/robots/rejections: `BROADCAST-SOURCES.md`.
 - **Standard-Landeseite (2026-10-25):** nach Login startet der Shell im **Sport-Hub**
   (`ShellViewModel` initial `MainSection.SPORT`). Details zur Umleitung der übrigen
   Sektionen: Einzel-Rail-Eintrag unten.

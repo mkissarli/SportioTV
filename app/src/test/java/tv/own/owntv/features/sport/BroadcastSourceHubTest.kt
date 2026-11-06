@@ -30,6 +30,7 @@ class BroadcastSourceHubTest {
             SourceResult(SourceId, Family, 0, emptyList(), failure = "HTTP 503"),
         )
         val hub = BroadcastSourceHub(OkHttpClient(), { now }, listOf(source))
+        hub.setEnabledSources(setOf(SourceId))
         assertTrue(hub.refresh())
         assertEquals(now, hub.listingsFor(fixture).single().retrievedAtMs)
 
@@ -45,9 +46,23 @@ class BroadcastSourceHubTest {
             SourceResult(SourceId, Family, now + 60_000L, emptyList()),
         )
         val hub = BroadcastSourceHub(OkHttpClient(), { now }, listOf(source))
+        hub.setEnabledSources(setOf(SourceId))
         hub.refresh()
         assertFalse(hub.refresh())
         assertEquals(now, hub.listingsFor(fixture).single().retrievedAtMs)
+    }
+
+    @Test
+    fun nothingIsFetchedUntilAnAdapterIsEnabled() = runBlocking {
+        val source = FakeSource(SourceResult(SourceId, Family, now, listOf(listing())))
+        val hub = BroadcastSourceHub(OkHttpClient(), { now }, listOf(source))
+        assertFalse(hub.refresh())
+        assertTrue(hub.listingsFor(fixture).isEmpty())
+        hub.setEnabledSources(setOf(SourceId))
+        assertTrue(hub.refresh())
+        assertEquals(1, hub.listingsFor(fixture).size)
+        hub.setEnabledSources(emptySet())
+        assertTrue(hub.listingsFor(fixture).isEmpty())
     }
 
     private fun listing() = BroadcastListing(

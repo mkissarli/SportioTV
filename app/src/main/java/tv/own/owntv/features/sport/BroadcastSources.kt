@@ -199,18 +199,38 @@ class BroadcastSourceHub(
     @Volatile
     private var snapshots: Map<String, Snapshot> = emptyMap()
 
+    /** Adapters the user switched on. Empty means only the existing WTM guide refreshes. */
+    @Volatile
+    private var enabledSources: Set<String> = emptySet()
+
     private val _version = MutableStateFlow(0)
 
     /** Bumped when any source snapshot changes, so the open fixture re-matches. */
     val version: StateFlow<Int> = _version.asStateFlow()
 
-    /** Fetch every due source concurrently. Returns true when a snapshot changed. */
+    /**
+     * Apply the user's per-adapter switches. Disabling a source drops its snapshot immediately;
+     * enabling one only allows the next [refresh] to fetch it.
+     */
+    fun setEnabledSources(ids: Set<String>): Boolean {
+        if (enabledSources == ids) return false
+        enabledSources = ids
+        val next = snapshots.filterKeys { it in ids }
+        val changed = next.size != snapshots.size
+        snapshots = next
+        if (changed) _version.value++
+        return changed
+    }
+
+    /** Fetch every due, enabled source one at a time. Returns true when a snapshot changed. */
     suspend fun refresh(): Boolean {
         val now = clock()
         val window = BroadcastWindow(now - DayMs, now + WindowDays * DayMs)
         val due = sources.filter { source ->
-            val previous = snapshots[source.sourceId]
-            previous == null || previous.failed || now - previous.retrievedAtMs >= source.ttlMs
+            source.sourceId in enabledSources && run {
+                val previous = snapshots[source.sourceId]
+                previous == null || previous.failed || now - previous.retrievedAtMs >= source.ttlMs
+            }
         }
         if (due.isEmpty()) return false
         // Sequential on purpose: a Fire TV Stick has little headroom, and five ~1 MB pages plus

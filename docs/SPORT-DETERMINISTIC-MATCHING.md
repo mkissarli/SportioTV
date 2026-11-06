@@ -185,10 +185,11 @@ Full list, accessibility/robots check, specificity and rejection reasons:
 Integrated: FootTV (French football including numbered Ligue 1+ feeds), Foot Mercato
 (French-language European football, fixture rows and numbered feeds), Live Football on TV
 (UK football), Sky Sports Tennis (UK tennis, tournament rows) and Sport-TV.fr (French tennis,
-session rows) — in addition to the existing Where's The Match. Each source has its own parser,
-family and TTL; the hub refreshes them in the existing background refresh. A source failure does
-not empty its snapshot, it marks it stale. Gated/empty pages are missing channel evidence, not
-"not televised".
+session rows) — in addition to the existing Where's The Match. **Every new adapter is off by
+default** and is enabled per source in Sport settings → Channels → Broadcast sources; turning
+one off drops its cached rows. Each source has its own parser, family and TTL; the hub refreshes
+them in the existing background refresh. A source failure does not empty its snapshot, it marks
+it stale. Gated/empty pages are missing channel evidence, not "not televised".
 
 ## 7. Performance and Fire TV
 

@@ -148,6 +148,7 @@ fun SportsScreen(
     val preferredPlaylistId by vm.preferredPlaylistId.collectAsStateWithLifecycle()
     val playlists by vm.playlists.collectAsStateWithLifecycle()
     val channelLimit by vm.channelLimit.collectAsStateWithLifecycle()
+    val broadcastSources by vm.broadcastSources.collectAsStateWithLifecycle()
     val excludedLanguages by vm.excludedLanguages.collectAsStateWithLifecycle()
     val deepSeekApiKey by vm.deepSeekApiKey.collectAsStateWithLifecycle()
     val aiSuggestionLimit by vm.aiSuggestionLimit.collectAsStateWithLifecycle()
@@ -542,6 +543,7 @@ fun SportsScreen(
                 deepSeekApiKey = deepSeekApiKey,
                 aiSuggestionLimit = aiSuggestionLimit,
                 aiEnabled = aiEnabled,
+                broadcastSources = broadcastSources,
                 initialTab = settingsTab,
                 remoteState = remoteState,
                 remoteApiKeys = vm.remoteApiKeys,
@@ -559,6 +561,7 @@ fun SportsScreen(
                 preferredPlaylistId = preferredPlaylistId,
                 onPreferPlaylist = { vm.setPreferredPlaylist(it) },
                 onToggleLeague = { vm.toggleLeagueFollowed(it) },
+                onToggleBroadcastSource = { id, enabled -> vm.setBroadcastSourceEnabled(id, enabled) },
                 previewOn = livePreviewSetting,
                 onTogglePreview = { liveVm.setLivePreviewEnabled(!livePreviewSetting) },
                 onOpenLanguage = {
@@ -1730,6 +1733,17 @@ private val CountryPreferenceOptions: List<CountryPreference> = listOf(
     CountryPreference("DE", R.string.sport_prefer_de),
 )
 
+/** One opt-in external broadcast adapter; [id] matches its `BroadcastSource.sourceId`. */
+private data class BroadcastSourceOption(val id: String, @StringRes val labelRes: Int)
+
+private val BroadcastSourceOptions: List<BroadcastSourceOption> = listOf(
+    BroadcastSourceOption(FootTvSource.sourceId, R.string.sport_source_foottv),
+    BroadcastSourceOption(FootMercatoSource.sourceId, R.string.sport_source_footmercato),
+    BroadcastSourceOption(LiveFootballOnTvSource.sourceId, R.string.sport_source_livefootballontv),
+    BroadcastSourceOption(SkySportsTennisSource.sourceId, R.string.sport_source_skysportstennis),
+    BroadcastSourceOption(SportTvTennisSource.sourceId, R.string.sport_source_sporttvtennis),
+)
+
 /**
  * Sport settings: four tabs (leagues, channels, languages, AI) instead of one endless list. The
  * preferred languages stay in [SportLanguageDialog] (opened from the languages tab); the phone
@@ -1746,6 +1760,8 @@ private fun SportsSettingsDialog(
     aiSuggestionLimit: Int,
     /** Whether the AI functions may run; off means the key below is stored but unused. */
     aiEnabled: Boolean,
+    /** External broadcast adapters switched on; empty by default. */
+    broadcastSources: Set<String>,
     initialTab: Int,
     remoteState: CompanionServerState,
     remoteApiKeys: Flow<String>,
@@ -1765,6 +1781,8 @@ private fun SportsSettingsDialog(
     preferredPlaylistId: Long,
     onPreferPlaylist: (Long) -> Unit,
     onToggleLeague: (String) -> Unit,
+    /** Switch one external broadcast adapter on or off. */
+    onToggleBroadcastSource: (String, Boolean) -> Unit,
     /** In-pane preview switch (shared with Settings → video player). */
     previewOn: Boolean,
     onTogglePreview: () -> Unit,
@@ -2008,6 +2026,23 @@ private fun SportsSettingsDialog(
                                 maxLines = 2, overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.padding(start = 18.mpx, end = 18.mpx, top = 4.mpx),
                             )
+                            val sourceLocale = androidx.compose.ui.text.intl.Locale.current.platformLocale
+                            StageGroupLabel(stringResource(R.string.sport_broadcast_sources_title).uppercase(sourceLocale))
+                            Text(
+                                stringResource(R.string.sport_broadcast_sources_hint),
+                                style = stageText(15, 500),
+                                color = StageColors.Dim,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(start = 18.mpx, end = 18.mpx, top = 4.mpx, bottom = 4.mpx),
+                            )
+                            BroadcastSourceOptions.forEach { source ->
+                                StageMenuItem(
+                                    text = stringResource(source.labelRes),
+                                    icon = OwnTVIcon.NETWORK,
+                                    checked = source.id in broadcastSources,
+                                    onClick = { onToggleBroadcastSource(source.id, source.id !in broadcastSources) },
+                                )
+                            }
                         }
                         2 -> {
                             val locale = androidx.compose.ui.text.intl.Locale.current.platformLocale

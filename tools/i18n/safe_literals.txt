@@ -2391,6 +2391,7 @@
 1	preference-key	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	ai_enabled
 1	preference-key	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	ai_sports_matching
 1	preference-key	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	ai_suggestion_limit
+1	preference-key	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	broadcast_sources
 1	preference-key	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	channel_limit
 1	preference-key	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	deepseek_api_key
 1	preference-key	app/src/main/java/tv/own/owntv/features/sport/SportsPrefs.kt	excluded_languages

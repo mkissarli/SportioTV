@@ -18,6 +18,14 @@ All four new adapters live in `BroadcastSources.kt`; the hub (`BroadcastSourceHu
 by the existing `BroadcastGuideApi.refresh()` in the background. `listingsFor(fixture)` only
 reads the last snapshot — no network on the fixture/UI path.
 
+### Opt-in per adapter
+
+Every new adapter is **off by default**. Sport settings → **Channels** → **Broadcast sources**
+shows one switch per adapter. Switching one on fetches it immediately; switching it off drops
+its cached rows and stops all future requests. The existing Where's The Match guide is not part
+of this switch list and keeps working as before. A fresh install therefore makes no request to
+FootTV, Foot Mercato, Live Football, Sky or Sport-TV until the user opts in.
+
 ### Fetch rules
 
 - One page request per source per refresh, no season download, no detail pages.

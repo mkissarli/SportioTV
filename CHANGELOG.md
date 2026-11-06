@@ -14,6 +14,15 @@
      upstream PRs are opened). The release workflows extract notes per tag (`^## <tag>`), so
      these lines never reach a release body or the in-app update dialog. -->
 
+## v1.3.4 — 2026-11-01
+
+### ✨ New features
+- **Broadcast sources are opt-in per adapter in Sport settings**
+
+### 🐛 Fixes
+- **No new broadcast source is fetched until its switch is turned on**
+- **Turning a broadcast source off drops its cached rows immediately**
+
 ## v1.3.3 — 2026-11-01
 
 ### 🐛 Fixes

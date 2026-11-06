@@ -102,6 +102,14 @@ class SportsPrefs(private val context: Context) {
         context.sportsDataStore.data.map { it[DeepSeekKey].orEmpty().trim() }
 
     /**
+     * External broadcast adapters the user has switched on. Empty by default: a fresh install
+     * fetches nothing beyond the existing Where's The Match guide. Each adapter is opted in
+     * separately in Sport settings.
+     */
+    val broadcastSources: Flow<Set<String>> =
+        context.sportsDataStore.data.map { it[BroadcastSourcesKey].orEmpty() }
+
+    /**
      * How many AI suggestions one request lists, clamped to [SportsMatcher.MinChannelLimit] ..
      * [SportsMatcher.MaxChannelLimit] on every read. Independent of [channelLimit]: the normal
      * matcher list and the AI list are two different sources.
@@ -253,6 +261,14 @@ class SportsPrefs(private val context: Context) {
         context.sportsDataStore.edit { prefs -> prefs[AiSportsMatchingKey] = enabled }
     }
 
+    /** Switch one external broadcast adapter on or off. */
+    suspend fun setBroadcastSourceEnabled(sourceId: String, enabled: Boolean) {
+        context.sportsDataStore.edit { prefs ->
+            val current = prefs[BroadcastSourcesKey].orEmpty()
+            prefs[BroadcastSourcesKey] = if (enabled) current + sourceId else current - sourceId
+        }
+    }
+
     companion object {
         fun teamKey(leagueId: String, teamAbbrev: String): String = leagueId + TeamSeparator + teamAbbrev
 
@@ -277,6 +293,7 @@ class SportsPrefs(private val context: Context) {
         private val AiCountriesKey = stringSetPreferencesKey("ai_countries")
         private val AiEnabledKey = booleanPreferencesKey("ai_enabled")
         private val AiSportsMatchingKey = booleanPreferencesKey("ai_sports_matching")
+        private val BroadcastSourcesKey = stringSetPreferencesKey("broadcast_sources")
         private val DefaultLanguageNames = emptySet<String>()
         /** First-run preferred country: Sky Sports (UK) ranks above the US feeds. */
         const val DefaultPreferredCountry = "UK"

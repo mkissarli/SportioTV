@@ -155,6 +155,8 @@
     <string name="sport_language_filter">Sprache: %1$s</string>
     <string name="sport_channel_limit_title">Kanäle pro Spiel</string>
     <string name="sport_channel_limit_hint">Mit links und rechts ändern</string>
+    <string name="sport_broadcast_sources_title">Broadcast-Quellen</string>
+    <string name="sport_broadcast_sources_hint">Standardmäßig aus. Schalte jeweils nur einen Adapter ein, wenn der TV das schafft.</string>
     <plurals name="sport_language_quota">
         <item quantity="one">Mindestens %1$d Kanal in deinen Sprachen, sonst eine kürzere Liste</item>
         <item quantity="other">Mindestens %1$d Kanäle in deinen Sprachen, sonst eine kürzere Liste</item>
